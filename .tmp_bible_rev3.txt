@@ -1,0 +1,1951 @@
+CONVENE BIBLE - READ ME
+
+Always refer to this BIBLE when building new features or making codebase decisions
+Ask questions if anything below is unclear or unspecified
+Always ask questions if you need clarity, have questions, suggestions, or concerns
+Ask questions if any prompts are contradictory to, or redundant with, other prompts or functions
+Tell me if a request in a chat contradicts this bible or requires specification within this bible
+
+
+USE THESE TOOLS
+
+### 1. **Frontend and Backend Development**
+
+#### Next.js
+- use for Frontend and Backend Development
+- Use Next.js App Router for frontend routing.
+- Use Next.js Route Handlers for backend endpoints (no separate Express backend in v2).
+
+#### React
+- React 18+ with hooks (useState, useEffect, useContext, custom hooks) - or latest version of React
+- Component composition and prop drilling patterns
+- React Context API for state management
+- Error boundaries and error handling
+- Performance optimization (memoization, lazy loading)
+
+#### TypeScript 
+- TypeScript fundamentals (types, interfaces, generics)
+- React with TypeScript patterns
+- Type definitions and type safety
+- Understanding of `tsconfig.json` configuration
+
+#### Modern JavaScript/ES6+
+- ES6+ features (async/await, destructuring, spread operator)
+- Promises and async patterns
+- Array methods (map, filter, reduce)
+- Module system (ES modules)
+
+---
+
+### 2. **Database & Backend Services**
+
+#### Supabase 
+- Supabase client setup and configuration
+- Do not use RLS
+- Enforce authorization in backend/server code (JWT/session validation + role/ownership checks).
+- Do not depend on Supabase RLS policies in v2.
+- Use Socket.io
+- Use supabase authentication
+- Real-time subscriptions
+- Authentication flows
+- use Supabase SDK to connect database
+
+---
+
+### 3. **Styling & Design Systems**
+
+#### Tailwind CSS 
+- Utility-first CSS approach
+- Responsive design patterns
+- Custom configuration
+- Dark mode support
+
+#### Component Libraries
+- **Radix UI**: Headless component primitives
+- **shadcn/ui**: Component patterns and customization
+- Understanding of accessibility (a11y) patterns
+
+
+---
+
+### 4. **Payment Processing**
+
+#### Stripe 
+- Stripe Connect for marketplace payments
+- Payment Intents API
+- Subscriptions and recurring payments
+- Webhooks and event handling
+- Stripe dashboard navigation
+- Test vs production modes
+
+**Key Concepts:**
+- Connected accounts
+- Application fees
+- Payment method handling
+- Subscription lifecycle
+
+---
+
+### 5. **Real-time Video**
+
+#### Daily.co 
+- Video room creation and management
+- Participant management
+- Screen sharing
+- Chat integration
+- API integration
+
+---
+
+### 6. **State Management**
+
+#### React Query / TanStack Query 
+- Data fetching patterns
+- Caching strategies
+- Query invalidation
+- Optimistic updates
+
+#### React Context
+- Context creation and consumption
+- Provider patterns
+- Avoiding unnecessary re-renders
+
+---
+
+### 7. **Form Handling**
+
+#### React Hook Form 
+- Form validation
+- Form state management
+- Error handling
+- Integration with validation libraries
+
+#### Zod 
+- Schema validation
+- Type inference
+- Custom validators
+- Error messages
+- Validate requests and responses with Zod
+
+---
+
+## 🛠️ Development Tools
+
+### 8. **Build Tools & Bundlers**
+
+#### Next.js
+
+#### npm 
+- Package management
+- Scripts execution
+- Dependency management
+
+---
+
+### 9. **Version Control**
+
+#### Git (Intermediate)
+- Branching and merging
+- Commit best practices
+- Understanding git history
+- Resolving conflicts
+
+---
+
+## 🔐 Security & Authentication
+
+### 10. **Authentication & Authorization**
+
+#### Supabase Auth 
+- Email/password authentication
+- OAuth providers 
+- Session management
+- Password reset flows
+
+#### Security Best Practices
+- Environment variable security
+- API key management
+- CORS configuration
+- Input validation and sanitization
+- SQL injection prevention
+
+---
+
+## 📡 API Integration
+
+### 11. **RPC APIs**
+
+#### API Design 
+- RPC principles
+- Status codes
+- Request/response formats
+- Error handling patterns
+
+#### Fetch API
+- Making HTTP requests
+- Handling responses
+- Error handling
+
+---
+
+## 🧪 Quality
+
+### 12. **Code Quality**
+
+#### ESLint 
+- Understanding linting rules
+- Fixing linting errors
+- Code style consistency
+
+#### TypeScript Type Checking
+- Type errors and fixes
+- Type inference understanding
+
+---
+
+## 📚 Additional Libraries & Tools
+
+### 13. **Utility Libraries**
+
+- **date-fns**: Date manipulation and formatting
+- **react-router-dom**: Client-side routing
+- **lucide-react**: Icon library
+- **recharts**: Data visualization
+- **canvas-confetti**: Animations
+- **react-day-picker**: Date picker
+- **react-easy-crop**: Image cropping
+- **sonner**: Toast notifications
+
+---
+
+## 🌐 Third-Party Services
+
+### 14. **External APIs**
+
+#### Google Maps API 
+- Places Autocomplete
+- Geocoding
+- API key management
+
+#### OpenAI API (Basic)
+- API integration
+- Prompt engineering (for bio generation)
+
+#### Email Services
+- **Nodemailer**: Email sending
+- **SendGrid/Twilio**: Email/SMS services
+
+---
+
+## 🗄️ Database Concepts
+
+### 15. **Data Modeling**
+
+- Entity relationships
+- Normalization
+- Foreign keys and constraints
+- Indexes for performance
+-  Migration strategies
+
+---
+
+## 📦 Deployment & DevOps
+
+### 16. **Deployment Knowledge**
+
+#### Hosting Platforms 
+- **Vercel
+- Environment variable configuration
+- Build processes
+
+#### Development Environment
+- Local development setup
+- Environment variables (.env files)
+- Port management
+
+---
+
+## 🔍 Code Review Specific Skills
+
+### 17. **Code Review Best Practices**
+
+- Understanding code structure and organization
+- Identifying code smells and anti-patterns
+- Performance bottlenecks
+- Security vulnerabilities
+- Accessibility issues
+- Error handling completeness
+- Documentation quality
+
+
+
+
+USE ONLY THESE COLORS
+
+#F77F00 - Hero Orange (use to emphasize key text and icons)
+#003049 - Primary Blue (use for primary backdrops, text)
+#4C8077 - Secondary Teal (use for secondary backgrounds, banners and accents)
+#BBA89B - Taupe Muted Color (use for alternate backgrounds, banners)
+#DFE0DF - Grey Muted Color (use for muted backgrounds)
+#FCBF49 - Yellow (use only for star ratings)
+#FFFFFF - Text color (on dark background)
+
+
+
+SITE MAP
+
+
+## Header (on every page)
+
+ALWAYS VISIBLE: 
+
+**Logo “convene”**: 
+- links to homepage.
+
+**Search bar**: 
+- Includes magnifying glass icon and “Find an Expert or Ask a Question” text
+-- Note that “Ask a question” in this context is not referring to the “request” category, it is meant to imply an intuitive search meant to suggest experts based on a user’s specific issue
+- enter runs search
+
+ ## Search engine contract (keyword + OpenAI query-expansion semantic + hybrid)
+
+### Hard rules (apply to every search)
+- Advanced Search filters are applied as HARD filters first, then ranking is computed.
+- Include ONLY experts whose profile visibility state is 'visible'. Hidden/pending experts must never appear in search results (regardless of filters).
+- Dependability rating is a BOOST/TIE-BREAKER only (NOT a hard filter).
+- When FAQ intent strongly matches a category (via query expansion), category-matched experts receive a mild ranking boost.
+
+### Inputs
+- User query text `q` (keywords and/or a natural-language request).
+- `mode` ∈ { 'keyword', 'semantic', 'hybrid' }.
+- Optional filters from Advanced Search:
+  - category_id
+  - profession (text)
+  - skills (up to 10 tags)
+  - min rating
+  - max rate
+  - quick filters: Verified Experts, Online Now, Available Now
+- Pagination/limit:
+  - deterministic limit (e.g. top 50) and cursor/offset pagination.
+
+### Search modes
+1) `keyword`
+- Use keyword/FTS retrieval across the expert “search document” (defined below) using the original user query `q`.
+
+2) `semantic` (implemented as query expansion)
+- Use the OpenAI API to expand the user query into a small structured payload, then run keyword/FTS retrieval using the expanded keywords/hints.
+
+3) `hybrid`
+- Run BOTH keyword retrieval (original `q`) and semantic retrieval (query-expansion using OpenAI), then merge the ranked lists using RRF.
+
+### Search document (what keyword/FTS MUST search)
+Keyword retrieval MUST search across an expert “search document” built from:
+- expert_profiles.profession
+- categories.name (joined via expert_profiles.category_id)
+- expert_profiles.qualifications
+- expert_profiles.expert_bio
+- expert_profiles.about_services
+- expert_profiles.skills_specializations (each tag is independently matchable)
+- FAQ entries: include faq_entries.question + faq_entries.answer (for intent discovery and category boosting)
+
+### Semantic query expansion (OpenAI API + caching + timeout)
+For every search where mode is 'semantic' or 'hybrid':
+1) Call the OpenAI API to produce a SMALL structured JSON expansion payload.
+2) OpenAI call constraints:
+   - Timeout: hard limit of 10 seconds.
+   - Output: MUST be only a small JSON payload (no prose).
+   - Output schema:
+     {
+       "category_hints": string[],        // 0..N category names/keys (optional)
+       "keyword_expansions": string[],   // 0..10 keywords/synonyms (optional)
+       "skill_hints": string[],          // 0..10 skill/tag hints (optional)
+       "confidence": number              // 0..1
+     }
+3) Caching:
+   - Cache expansion results keyed by (normalized_user_query, locale, mode_version).
+   - Reuse cached expansions to avoid repeated OpenAI API calls for equivalent queries.
+   - Refresh/invalidate cached expansions when FAQ/admin-edited categories or searchable profile fields change.
+4) Fallback:
+   - If the OpenAI API times out or fails, semantic mode MUST fall back to keyword mode using the original `q`.
+5) Use of expansions:
+   - Treat keyword_expansions + skill_hints (+ category_hints when applicable) as the inputs for keyword/FTS retrieval and as SOFT boosts (not hard filters) in ranking.
+
+### Candidate retrieval
+- Keyword retrieval: retrieve candidates using keyword/FTS over the search document with query `q`.
+- Semantic retrieval: retrieve candidates using keyword/FTS over the search document with:
+  - the expanded keywords (keyword_expansions)
+  - optional additional boosts from category_hints and skill_hints.
+
+### Ranking and merge (deterministic)
+- Apply ranking boosts for relevance ordering (e.g., verified experts, online/available/auto-book when used in filters).
+- Final ordering must be deterministic:
+  - `keyword` mode: order by keyword/FTS relevance + boosts; dependability is a boost/tie-breaker only.
+  - `semantic` mode: order by relevance from expanded-keyword retrieval + boosts; dependability is a boost/tie-breaker only.
+  - `hybrid` mode: merge keyword-mode and semantic-mode ranked lists using RRF.
+- RRF:
+  - Use standard RRF parameters (no custom tuning required unless later decided).
+  - Dependability remains a boost/tie-breaker only, never a hard filter.
+- Results must be ordered deterministically with stable tie-breakers and support pagination (limit + cursor/offset).
+
+- Includes hamburger menu with drop-down for:
+
+1. “Advanced Search” (opens pop up with each of the following):
+- Category (with dropdown options for all categories)
+- Profession (includes text “e.g. Plumber, Web Developer, or Math Tutor”)
+- Specific Skills (with temporary text “e.g. Brass Fittings, Typescript, or Graduate Calculus” and option to “add” multiple skills)
+- Keywords 
+- Minimum Rating (with options: “3 Stars and up”, “4 Stars and up”, and “5 Stars”, each should have a checkbox and an icon with the corresponding number of stars)
+- Maximum Rate: $xx/15 min (with a slider ranging from $5 to $250)
+- Quick Filters (with options for “Verified Experts”, “Online Now”, and “Available Now”)
+
+Online Now = show/logically filter users with users.online = true (signed-in; cleared on sign-out/log-out). Online Now badge applies to both learners and experts anywhere their profile photo is shown. Online badge should show a small green circle to the upper right of a profile photo. 
+Available Now = expert-only badge shown when expert_availability.available_now is true (bookable within 1 hour). Available now badge should be shown as a horizontal bar below a profile photo. 
+
+- Buttons for “Reset Filters” (clear all input), “Cancel” (close pop up), and “Search” (use input to search experts, navigate to search results page)
+
+2. Browse categories (opens a “Categories” pop up)
+- on pop up, create a row with each category. 
+- within each row, use the category’s icon and title, then a subheading with a list of professional_titles available in each category.
+
+3. “Post a Request” (opens pop up with each of the following):
+*if user is not signed in, open the “sign in” pop up with a subheading that says “You must be signed in to Post a Request. Sign in now or create a free account to get started.”
+- Heading: Post a Request
+- Subheading: Describe the help you need, we’ll send your request to a range of experts and let them come to you with a proposal. 
+- Text: “One sentence description of your request” with Input Box (limit 150 characters), including temporary text “e.g. I need help with a leaky faucet”)
+- Text: “Provide details for your request, the more specific you are the better experts can help with solutions.” And a multi-line input (limit 1000 characters)
+- Category, dropdown of all existing categories 
+- Special Skills (with option to “add” multiple skills)
+- Public (with toggle for on/off, with “on” as the default) include an “i” icon with a tooltip that reads: “Public requests are added to the community message board. This helps other users with similar questions find answers and relevant experts.” 
+- Buttons to “Clear Form” (clear all input), “Cancel” (close pop up), and “Post Request”
+
+After a user Post’s a Request, do each of the following: 
+- Create a new row in “requests” table in the database
+- Add the post to the “Your Requests” section of the user’s dashboard
+- Search for relevant experts. 
+- Add to the “For You” section of the “Community Requests” tab on each relevant expert’s Dashboard. 
+- If the toggle for “Public” is on, add the request and all responses to the Community Message Board. 
+
+**User menu** (avatar + chevron):
+
+When not logged in: 
+- Sign In (open Sign In pop up) 
+- Sign Up (open Sign In pop up) 
+- Community Message Board
+- Become an Expert
+- Learn More (Navigate to About page)
+
+When logged in as user: 
+- Dashboard (navigate to Dashboard)
+- Inbox (navigate to Dashboard, open Inbox tab)
+- Settings (navigate to Dashboard, open “Profile Settings tab)
+- [only if an Expert Profile exists for user] Switch to Coaching (log user in as Expert)
+- Community Message Board
+- Sign out (sign the user out)
+
+When logged in as expert: 
+- Dashboard (navigate to Dashboard)
+- Inbox (navigate to Dashboard, open Inbox tab)
+- Settings (navigate to Dashboard, open Profile Settings tab)
+- Community Message Board
+- Switch to Learning (log user in as a User)
+- Sign out (sign the user out)
+
+**Mobile**: hamburger menu with same actions.
+
+
+NOT ALWAYS VISIBLE:
+
+**Become an Expert**: only visible if user is not signed in, or if user is signed in and no expert profile exists
+- if not signed in, clicking opens Sign In pop up with subheading “You must sign in or register to become an expert”
+- if signed in as a user, navigate to Expert Set Up Wizard
+
+*create a feature flag when a signed in user clicks on “Become an Expert.” When the feature is “on” navigate to Expert Set Up Wizard. When the feature is “off”, navigate to a pop up with the following:
+- Heading: Become an Expert
+- Subheading: Thank you for your interest in becoming an expert on convene, we’re thrilled that you’d like to share your expertise with our community. While we develop our platform, all new experts are reviewed by our staff. Please provide the following details and we will follow up with instructions as soon as possible. 
+- Name (input)
+- Email (input)
+- Hometown (input)
+- Profession (input)
+- Category (dropdown with list of existing categories)
+-- *Other (with input field for a new category)
+- Qualifications (education, certification, job experience, etc)
+- Years of experience in the field (numeric input)
+- Teaching, mentoring, or coaching experience (input)
+- Relevant social media channels, if you use them to provide guidance in your field (input for links)
+- How many hours a week could you be available to coach on convene? (Numerical input)
+- Anything else you’d like us to know about your interest in convene? (Multi-line input)
+- Button: Submit request
+
+After a “new_expert_request” is submit, do each of the following: 
+- Create a new “new expert_request” in the database
+- Add the “new expert_request” to the admin page
+- Show the user a success pop up that says: “Success! Thank you for submitting your Expert profile request. We are thrilled that you’re part of our community and are interested in sharing your expertise. We will follow up by email with additional instructions.”
+
+**Next session countdown** (only visible if logged in and you have a confirmed booking): display time until next session in hours and minutes (if over an hour) or minutes if under 1 hour; click goes to dashboard → Booked Sessions.
+
+**New Bookings** (only visible if logged in as an expert and you have a new booking or booking pending approval) calendar icon: badge count of actions required / new bookings; goes to dashboard → Booked Sessions.
+
+**Inbox** (only visible if user has a new message in the inbox) envelope icon: badge count of unread messages; goes to dashboard → Inbox.
+
+**Error** - - triangle with exclamation point error icon; only visible to the profile owner when their profile is not publicly visible.
+
+Profile visibility state machine (v2):
+- visible
+- expert_pending_admin_review (optional)
+- expert_hidden_incomplete_fields (optional)
+- expert_hidden_payment_setup_incomplete (optional)
+- learner_hidden_incomplete_fields (optional)
+- learner_hidden_email_unverified (optional)
+- hidden_unknown_or_error (optional fallback)
+
+Transitions:
+- Expert:
+  - After expert registration is submitted for admin approval, state becomes `expert_pending_admin_review`.
+  - Admin approval => state becomes `visible` (expert becomes publicly searchable/visible).
+  - Admin rejection => state remains not-visible; reasons are shown based on what is missing/invalid (see reasons list below).
+- Learner:
+  - Learner is `visible` only when all required learner fields are complete AND the learner email address is verified.
+  - If required learner fields become incomplete or email becomes unverified, state becomes the appropriate learner-hidden state.
+
+Reasons list (what to show in the header for the owner):
+- If `expert_pending_admin_review` => “Awaiting admin approval.”
+- If `expert_hidden_incomplete_fields` => “Missing required expert registration fields:”
+  - Professional Title
+  - Category
+  - Skills & Specializations (Area of expertise)
+  - Professional Bio
+  - (If applicable) Required booking inputs needed for approval (e.g., Booking Preferences Rate)
+- If `expert_hidden_payment_setup_incomplete` => “Payment/payout setup is incomplete:”
+  - Hourly rate / booking rate is missing
+  - Stripe payout setup is incomplete (Stripe account/payout connection missing)
+- If `learner_hidden_incomplete_fields` => “Missing required learner profile fields:”
+  - First name
+  - Last name
+- If `learner_hidden_email_unverified` => “Verify your email address to continue.”
+- If `hidden_unknown_or_error` => “Profile temporarily unavailable. Try again later.”
+
+Owner UX rule:
+- Owner sees “Profile temporarily unavailable” plus the reasons list above.
+- Non-owners do not see the reasons list; they only see the public gating behavior described in the /expert/:id and /learner/:id sections.
+
+## Footer (on every page)
+Column 1
+- Heading: Support 
+- About us (navigate to about page)
+- FAQs (navigate to about page, just to FAQ section)
+- Become an Expert (follow same path as “become an expert in header)
+- Contact Us (open a pop up with a template to email “support@convene.io”)
+
+Column 2
+- Heading: Resources
+- For users: How to get the most out of your session
+- For experts: How to maximize your impact on convene
+*add a feature flag to show or hide column 2. Add a section to the admin page to show or hide “resources” links
+
+Column 3
+- Heading: Connect with us
+- Logos: Instagram, Facebook, Twitter
+
+--- 
+
+## Public pages (no login required)
+
+### Homepage (/)
+- Category strip: Health + Wellness, Home Improvement, Culinary, Technical Support, Tutoring, Beauty, Arts/Music/Design, App + Web Development, Business + Marketing, Everyday.
+*add feature flag. Create a section in the admin page with the ability to turn each of the categories “on” or “off” and to add new categories as needed. When a category is “off” on the admin page, hide the category from this strip and every instance of a “category” dropdown across the app. 
+
+- Hero section (“Find an EXPERT. Book a SESSION. Chat LIVE.”)and “Learn More” link. Show graphic “hero-illustration” to the right of the hero section banner. Scale graphic and text as browser size changes, if browser is too small to show text and graphic, crop into graphic to preserve readable text size. Never move graphic below text. 
+
+- Browse featured experts in a grid 
+- Only show featured experts whose profile visibility state is `visible`.
+-- Always show: profile_photo (with Online Now badge when the displayed user has users.online = true), name, professional_title, rating (with star icon and number. If expert does not have ratings show star icon outlined with no fill color)
+-- When relevant, also show: verification badge (Show "Verified Expert" badge if either: 1) user has a qualifying active subscription plan, or 2) admin override flag on expert profile is true.),  “available now” badge (only if expert is able to be booked within 1 hour).
+*add feature flag. Create a section in the admin page to turn entire grid “on” or “off” (when “off” hide the grid from the homepage). Also a section to the admin page with the ability to filter which expert profiles are featured in the grid: include options to filter by LIVE/TEMP, has profile photo, is verified, minimum number of complete sessions, and minimum star rating.
+
+### About (/about)
+- “Find an EXPERT…” hero-style section. 
+*add ability to edit this text from the admin page.
+- How Convene works, subheading: “Getting started with convene is simple. Follow these three quick steps to connect with at expert today: Find an Expert (Primary Blue icon and box), Book a Session (hero orange icon and box), Chat Live (secondary teal icon and box)
+- FAQ accordion.
+*add ability to edit FAQ text on the admin page. Also add the ability to add or delete questions from the FAQ accordion on admin pate. 
+- “Ready to Get Started” row, subheading, then three buttons: find an expert (open the “advanced search” pop up), Browse Categories (open the “categories” pop up), Post a Request (open the “post a request” pop up)
+
+### Search results (/search)
+- Search by keyword or category (from homepage or header).
+- Optional advanced search: category, profession, skills, price/duration filters.
+
+- Filters: show options as a dropdown menu. Include each of the following: 
+-- sort (by Best Match, highest rated, next available)
+-- available now (toggle for on/off)
+-- auto-book (toggle on/off)
+-- language (with dropdown of available languages)
+-- User Status (with dropdown including: verified, top rated (4.5+), most booked
+-- Time Zone (with dropdown) 
+-- Rate per 15 min (with inputs for min and max)
+
+- Text: “Haven’t found the perfect expert? Try and Advanced Search or Post a Request and let experts come to you! If you still can’t find the help you need, please send us a message, we’d love feedback on the kind of expertise that’s most valuable to you.”  Hyperlink “Advanced Search” to open advanced search pop up, “post a request” to open “post a request” dialogue), and “Message Us” to open the email form for “contact us”.
+
+- Only include experts whose profile visibility state is “visible”. Hidden/pending experts must never appear in search results (regardless of filters).
+
+- Search results are powered by the same hybrid (keyword + semantic) ranking contract used by the Search bar.
+- Each result’s position is determined by:
+  - semantic relevance + keyword/FTS relevance (with a deterministic merge rule)
+  - visibility gate (must be visible)
+  - optional boosts from quick filters (Verified Experts, Online Now, Available Now)
+  - dependability rating as a tie-breaker / secondary boost
+- When no results are found:
+  - show guidance to try Advanced Search or Post a Request
+  - show a fallback category browse path
+
+- Search results ordering is produced by the Search engine contract using RRF over keyword and query-expansion semantic retrieval.
+- Dependability rating is a ranking boost/tie-breaker only (not a hard filter).
+- Include FAQ-driven intent matches (FAQ question+answer text can influence ranking via category boosting).
+
+- List of matching experts with, include for each expert:
+-- Column 1: profile photo (with Online Now badge when users.online = true), include 'available now' badge with text below that says 'until [end of expert's next bookable time]' (only if expert is able to be booked within 1 hour)
+
+-- Column2: name, verification badge (Show "Verified Expert" badge if either: 1) user has a qualifying active subscription plan, or 2) admin override flag on expert profile is true), title, one line bio, button to “view full profile” (when clicked, navigate to expert profile page) 
+
+-- Column 3: rate per 15 minute block, Rating (displayed as star icon, average rating, and number of reviews), completed sessions (displayed as clock icon, number, and word “previous sessions”
+-- Column 4: (justified to right) text: “Next Available sessions”, list of expert’s next three bookable blocks of time (option to click to select), button to “Book a Session” (navigate to expert profile page, open Booking pop-up. If user selected a time slot on the search results page, show that time slot as selected on the Booking pop up). 
+
+### Expert profile (/expert/:id)
+- Profile visibility gate for /expert/:id:
+  - If viewer is the profile owner:
+    - Show “Profile temporarily unavailable” in the header area (Error icon) with the reasons list generated from the profile visibility state machine.
+    - Do not show the normal public expert profile content while hidden.
+  - If viewer is NOT the profile owner:
+    - If the expert is not `visible`:
+      - Show: “Profile is currently pending, check back soon.”
+      - Show links to similar experts (prefer same category and/or overlapping skills/specializations), limited to a small list (e.g., 3).
+    - If the expert is `visible`:
+      - Show normal public expert profile content.
+
+Row #1 (in one bounding box) includes:
+- Column 1: 
+-- Expert's profile photo (with Online Now badge when users.online = true)
+-- “available now” banner (if expert is bookable in the next hour)
+-- “Auto-Book” banner (unless expert has auto-book turned off)
+
+- Column 2: 
+-- name, “Verified Expert” badge (Show "Verified Expert" badge if either: 1) user has a qualifying active subscription plan, or
+2) admin override flag on expert profile is true) 
+-- professional title
+-- hometown
+-- star rating (displayed as star icon, number, and number of reviews), sessions completed
+-- performance badges when applicable: “Top rated” (if over 4 stars average), “Most booked” (if expert is in top 50% of experts in their category for number of sessions complete), Experience in Field (if over 3 years), Most Reliable (if Dependability Rating is over 90%)
+-- short bio
+
+- Column 3: (justified right) Rate (as $xx per 15 min), minimum booking (as [xx] minutes minimum booking), Message Expert button (when clicked, open messaging pop-up with conversation between user and expert (sign in required if not logged in). If no conversation exists between user and expert, create a new “message” entry and add it to the database), below “Message Expert” button, include small italicized text that says “Avg. Response Time; [expert average response time ( - If expert_response_time_stats.response_interval_count >= 3 show: "Avg response: X min" (X = round(total_response_time_seconds / response_interval_count to the nearest minute, If < 3 show: "Avg response: New" (or hide the line entirely; but prefer showing "New" to set expectations).]”
+
+Row #2 includes: 
+Column 1 (2/3 page width)
+- “Book a Session” bounding box, includes:
+-- Heading: “Book a Session”, subheading “Select an available time slot to book your session”
+-- A weekly calendar (with ability to navigate horizontally to upcoming weeks), where each day’s column shows the expert’s available time as clickable 15-minute increments. Clicking a time slot opens the “Booking Pop up”
+
+Column 2 (1/3 page width, justified right)
+- “Session Details” box with expert-specific data including: Minimum Booking Duration, Maximum Booking Duration, Dependability Rating, Cancellation Rate, Response Time
+
+Row #3 includes: 
+Column 1 (1/3 page width):
+- Education & Qualifications box, include expert-specific data for years of experience and education or qualification 
+- Skills & Specializations box, include badges for all skills and specializations
+Column 2 (2/3 page width): About [Expert’s first name]. Include full “Professional Bio” and “About my services”
+
+Row #5 includes:
+- Reviews box (full page width)
+-- Large number for average reviews, visual of five stars with corresponding highlights, text “(Based on [x] reviews)” (with number of reviews), visual for how many reviews the expert has received for each star rating. 
+-- Full list of reviews with user’s profile pic, user’s name, user’s number of sessions complete, user’s star rating for expert, date, and user’s full review of expert. 
+
+BOOKING POP UP: 
+- Heading: “Book a Session with [Expert’s full name]”
+- Subheading: “Click consecutive time slots to create your booking. [Expert’s first name] allows bookings between [minimum booking duration] and [maximum booking duration]. 
+- A row of clickable time slots in 15-minute increments corresponding to the expert’s availability, starting with the time slot that the user clicked to open the booking pop up. Clicking consecutive time slots should highlight each selected time and set the duration of the booking. 
+- “Session Duration [x]hrs [xx]min” set and display the total duration the user has selected from the row above
+- Booking Details box. Include Date (as [day of week], [month] [day], [year]), time (as [start time] - [stop time]), Duration (as [x]hr [xx]min
+- a physical horizontal line
+- Show **rate per 15-minute block** [expert rate], **number of 15-minute blocks** for the selected session, and **discounts** (only if applicable: first-session discount, packages, promo codes). **Pre-tax subtotal** for the session = booking fee after discounts (booking fee = rate × blocks, then apply discounts per product rules). **Platform fee** and **taxes and fees** apply per the **Session pricing & ledger** section (same formulas as the payment pop-up). **Total cost** = booking fee (after discounts) + platform fee + taxes and fees. (Optional: on this screen show a short **Subtotal** line for booking fee + platform fee before tax, matching the payment pop-up.)
+
+- “Book Session” button. 
+-- if expert has "auto-book" on, clicking "book session" opens "payment" pop up with Expert profile photo, name, and professional title; session details box with Date, Time start-stop, and pricing as follows:
+  - **Booking fee** = expert's rate per 15 minutes × number of 15-minute blocks in the selected session (integer blocks; same basis as booking duration).
+  - **Platform fee** = 10% of **booking fee**.
+  - **Subtotal (primary line):** show a single line labeled **Subtotal** = booking fee + platform fee (one amount the learner sees first).
+  - **Cost totals** (hyperlink, modal, or expandable section): show **Booking fee** and **Platform fee** as separate lines (so the learner can see how Subtotal is composed). Label this area **Cost totals** or equivalent.
+  - **Taxes and fees** = 6% of (booking fee + platform fee), i.e. 6% of the Subtotal above.
+  - **Total due** = booking fee + platform fee + taxes and fees (this is the amount charged via Stripe).
+  - Stripe payment inputs for credit card and other payment options, and "Complete Payment" button.
+-- if expert has “auto-book” off, clicking “book session” sends booking request to the expert. Expert has the opportunity to approve, deny, or send user a different offer. If Expert approves booking, send user a message with a link to make payment. If expert denies booking, send user a message from a template with links to other relevant experts. If Expert sends an offer, give user ability to approve or deny offer. If user approves offer, show them the payment pop up. If they deny the offer, give them the ability to message expert and links to other relevant experts. 
+
+After a user successfully completes payment for a session, do each of the following:
+- show the user confirmation pop-up with heading: “Booking successful! [confetti icon]”, Subheading: Your session with [Expert Name] has been confirmed. Follow the link in on your dashboard to join your session up to 10 minutes before the scheduled start time.”, Session details box (with expert’s name, session Date, time start-time stop, total duration), and “Go to Dashboard” (click navigates to dashboard)
+- create a new booking (unless a booking already exists)
+- Insert or finalize a row in the **`transactions`** table for this payment (canonical financial record): store `booking_id`, `learner`/`expert` user ids, **booking_amount** (= booking fee charged for the session, after discounts), **platform_fee** (10% of booking_amount), **taxes_fees** (6% of booking_amount + platform_fee), **total_charge** (= sum of those three), **expert_earnings** (= **booking_amount** — amount owed to the expert for payout after the session is complete; extensions handled separately per extensions rules), **status**, **payment_method** / Stripe ids as needed, **transaction_date**. Amounts must match the Stripe charge.
+- **Learner "Transactions" / payment history UI** must list rows from **`transactions`** (joined to `bookings` / experts for display), not by inferring totals from `bookings` alone.
+- add the booking to the user’s dashboard under “booked sessions”, “upcoming sessions”
+- add the booking to the expert’s dashboard under “booked sessions”, “upcoming sessions”
+- send an email/sms confirmation to the user
+- send an email/sms notification to the expert
+
+### Expert profile — global promotions (first-session discount & packages)
+
+**Scope:** These are **market-wide** settings (“any eligible learner”), configured on the **Expert Profile** (or equivalent **Booking / pricing** settings). They are **not** per-learner **special booking** rows (`freelance_work`).
+
+**Registration vs profile:** Onboarding (expert registration / setup wizard) may **collect initial values**, but the **live source of truth** is whatever the Bible names for published expert config (e.g. **`expert_profiles`** + **`expert_availability`** and/or **`expert_packages`**). Edits on the profile **immediately** affect what new learners see (subject to validation and moderation rules).
+
+**First-session discount (FSD):** Expert enables FSD with **rules** (e.g. percent or fixed amount; optional **session-length** constraint if product requires). **Eligibility** is enforced **server-side** (e.g. learner has **not** already had a **qualifying completed/paid session** with this expert — define “qualifying” in the Bible). At **checkout**, when FSD applies, write or reserve **`discount_redemptions`** per “discount_redemptions” section; **void** if payment fails or booking is cancelled before charge.
+
+**Packages:** Experts define **sellable packages** as **`expert_packages`** rows (one or many). **Purchase** uses the **package checkout** path only (not special-booking accept). On successful payment: **`transactions`** + **`learner_package_credits`**; redemption uses **`package_credit_redemptions`** and atomic credit decrement as in “Packages — credits and purchase.”
+
+**Learner-facing:** Public **Expert Profile** shows FSD and purchasable packages when enabled and the expert is visible per visibility rules. **Traditional session booking** checkout applies FSD when eligible; **package** CTA opens package purchase flow.
+
+**Implementation alignment:** See **“Implementation contract — single source of truth”** (B1d) and **Table** fields in B1b.
+
+
+
+
+### Learner profile (/learner/:id)
+- Public learner profile view
+- If a learner profile is not `visible`:
+  - If viewer is the owner: show “Profile temporarily unavailable” with reasons in the header.
+  - If viewer is NOT the owner: show “Profile is currently pending, check back soon.” (no reasons list).
+- This should only be viewable if an expert clicks on the user’s profile picture (in a message, booking request, etc) or by navigating directly to the page url
+
+Row #1: 
+- Column 1: profile photo (with Online Now badge when users.online = true), column 2: full name, professional title, star review (as star icon, average star rating, and number of reviews)
+- Column 2: Message button (when clicked, open messaging pop-up with conversation between current user and owner of learner profile. If no conversation exists between users, create a new “message” entry and add it to the database
+ 
+Row #2:
+- Column 1 (2/3 of page width): About box with heading “About [learner’s first name]”, and “Introduction”. 
+- Column 2 (1/3 of page width): Performance highlights box with user-specific data for Star Rating, number of completed sessions, dependability rating. 
+
+Row #3: 
+- Reviews box (full page width)
+	- Large number for average reviews, visual of five stars with corresponding highlights, text “(Based on [x] reviews)” (with number of reviews), visual for how many reviews the expert has received for each star rating. 
+-- Full list of reviews with user’s profile pic, user’s name, user’s number of sessions complete, user’s star rating for expert, date, and user’s full review of expert. 
+
+
+### Community Message Board
+This page should be an archive of all “public” requests, with responses from experts
+It should be navigable by category and searchable
+Requests and answers should function similar to a reddit post, and allow users to up-vote popular expert responses (for users to upvote, they must be signed in)
+
+### request_response_upvotes
+
+- **Toggle** upvote on/off per user; **unique (response_id, user_id)**.
+- **Cannot upvote own** response (API + UI).
+- **`upvote_count`:** maintain with **DB trigger** on `request_response_upvotes` insert/delete (preferred).
+- **Abuse:** rate-limit API; optional minimum account age; admin monitoring.
+
+
+## Private pages (login required)
+
+## Dashboard (/dashboard or /expert-dashboard)
+
+Same app; sidebar and some sections change by role (learner vs expert).
+
+DASHBOARD - If signed in as an Expert:
+
+### Sidebar
+- Profile block: profile picture (with Online Now badge when users.online = true), name, email.
+- Stats: User rating, Sessions complete, Dependability rating.
+
+Divider line
+
+- Nav: Overview, Booked Sessions (with a badge that counts number of unseen new bookings or booking requests), Inbox (with badge counter of unread messages), Community Requests (with badge for unseen community requests in the “for you” section), Availability Calendar, 
+
+Divider line
+
+- Expert Status, Booking Preferences, Earnings, Expert Profile.
+
+### Overview
+- “Welcome back [user’s first name]”
+- Quick links, in one row with four equally sized boxes: Upcoming Sessions (with number of all upcoming sessions), Unread Messages (with number or inbox messages and approvals pending), Community Requests (with number of unseen requests in the expert’s “for you” section), Total earnings (with dollar amount and subheading “this month”)
+- Action required box (one box, one full row): list of bookings today, bookings needing confirmation, unread messages, etc.
+
+### Booked Sessions
+- Heading: “Booked Sessions”, sub-heading: “Your link to join sessions will be active 10 minutes before the session’s scheduled start time. 
+- Toggle for “Upcoming” and “Past” bookings. Each should show the following:
+
+- Upcoming: list of future sessions; each session should include: 
+-- Column 1: Learner Profile Picture (with Online Now badge when users.online = true)
+-- Column 2: Learner’s name, learner’s professional title, session date, session time (start and stop), session duration, total price paid, and time remaining to start of session. 
+-- Column 3: Join Session button (or “Approve or Decline Booking” button when required), Message button (opens messaging pop-up to conversation with learner), Manage button (opens “Manage Session” pop up with options to Reschedule Session, Cancel Session, or Send an Offer.”)
+--- Note that the “Join Session” button should be greyed out and not clickable until 10 minutes before the specific session’s scheduled start time. Once the button is active, it should navigate to the session’s private session page 
+
+Manage Session Pop-Up
+
+
+- Past: list of completed/cancelled sessions; each should include:
+-- Column 1: Learner Profile Picture (with Online Now badge when users.online = true)
+-- Column 2: Learner’s name, learner’s professional title, session date, session time (start and stop), session duration, total price paid, “Complete” or “Cancelled” badge
+-- Column 3: Leave a Review button (only when expert has not reviewed learner for that session, opens Review Pop Up), Message (opens Message pop up to conversation with Learner). 
+- Empty states when no upcoming or past sessions.
+
+### Inbox
+Column 1 (1/3 page width)
+- Search bar (with “search all conversations”)
+- List all conversations associated with expert. Each conversation includes learners profile pic, learner name, and first few words of the latest message in the conversation.
+Note: Always list conversations with most recent messages first. Bold all conversations with unseen messages in them. Highlight current conversation. 
+
+Column 2 (2/3 page width)
+- Learner Profile Picture (with Online Now badge when users.online = true), full name, and online status
+- Message thread with learner messages to left, expert messages to right
+Dividing line
+- Input box to type a message, send button with paper airplane icon
+- “Suggest” Button (opens the “Send an Offer” pop up).
+
+
+### Community Requests
+- Two options at the top of the screen: “For You” and “All Requests”
+-- When “For You” is selected, only show requests that match the experts’ area of expertise, professional title, bio, or services
+-- When “All Requests” is selected, show a list of categories. Allow expert to click on a category and see all active requests in that category. Limit requests to 25, with option to click to see more. 
+
+For each request show: Learner’s profile picture (with Online Now badge when users.online = true), learner’s name, date posted, request heading, request description (limit to one line, give expert the option to expand to see full description), category of request, special skills required, % match for expert, number of expert responses to request, a “respond to request” button (click opens the “respond to request” pop up, which includes: a short description of the request, a “send an offer (optional)” button (click opens all options from “send an offer” pop-up within this pop-up) an input box for the expert to write the learner a message, and a “send” button), and an “Archive” button (which removes request from the expert’s “For You” menu)
+
+
+### Availability Calendar
+Includes two interactive calendars: a Recurring Weekly Calendar, and a Monthly calendar
+All data should be entered into the database in the same manner as the availability data entered in the Expert registration process. 
+All data should be saved according to the expert’s time zone
+Interactivity should mimic Google Calendar, as outlined below
+
+Weekly Calendar:
+- Should be initially populated with data input in the Expert registration process. Changes made here should override that data. 
+- Heading: “Recurring Weekly Calendar”, sub-heading “Set your recurring weekly schedule. Click a day below to add a time slot.”
+- Weekly Calendar: shows a basic grid with headings for each day of the week (Monday-Sunday) at the top. Below each day, show another grid for time with simple hash marks for each hour of the day, with 9am as the starting value and the ability to scroll up (to 12am) and down (to 11:59pm)
+Interactivity:
+- when a user clicks on a day and time, open a “Weekly Recurring Availability” pop-up that includes: heading “Add Time Slot”, a dropdown for “Start time”, a dropdown for “End Time”, a carrot for “add to multiple days” (when clicked, show check boxes for each day of the week), and a button to “Add Availability”.
+- After an expert clicks “Add Availability”, show the available time on the grid as a colored block on the corresponding day (or days) starting at the start time and ending at the end time. 
+-- Add an “x” to the block to delete it. 
+-- Clicking on an “available block” on the weekly calendar should open the “Add Availability” pop up with the start time, end time and corresponding days already populated and the ability to change them. Changes made should update on the grid and in the database. 
+
+Monthly Calendar
+- Should be populated with data from the recurring weekly calendar. Changes made here should only impact availability data on specified days. 
+- Heading: “Availability Calendar”. Subheading: “Manage availability for specific days, drag to apply changes to multiple days. Note that changes will override recurring availability on specified days.”
+- Calendar grid should show a heading with the current Month and Year, with buttons on either side for “Next” and “previous”
+- Calendar grid below should show the date for each day of the month
+- Days should have a badge for “Available” with a number of available time slots made available on a specific day, and a badge for “Bookings” with a number of bookings for each day. 
+Interactivity:
+- Clicking a day should open a “Modify Availability” pop up with: Selected day of the week, month, day year, a list of time slots currently available on that day (with the ability to delete them), a “start time” drop down, an “end time” drop down, an “Add” button (which adds that time slot to the list of time slots above), an “Update” button (which modifies available time slots for that day and closes the pop up), and a “Mark as Unavailable” button (that removes all available time slots from that day)
+Note: if an expert marks a day with existing bookings as “unavailable”, show them a warning pop up that reads: “You have made yourself unavailable on a day with existing bookings. Note that this will prevent future bookings on this day, but not cancel the existing bookings. To cancel or reschedule existing bookings, please visit your dashboard.”
+- Clicking and dragging across multiple days should highlight each day and open the “Modify Availability” pop up for the specified range of dates. If the days have existing availability, show the user a prompt that says “You have selected multiple days with existing availability. Are you sure you want to delete the existing availability data and replace it for these days?” If a user clicks “yes”, clear availability data for these days, show the user the “Modify Availability” pop up options, and apply new availability data to each day in the selected range. If the user clicks “no” to the prompt, close the pop up. 
+
+Add a button to “Pause Availability”. This should save availability data, but disable it from being seen or booked publicly. If a user clicks “Pause Availability” show a prompt that reads: “Pausing availability will hide all of your availability for future bookings. Note that any existing bookings will not be affected, please cancel or re-schedule as needed under Booked Sessions. You can re-start your calendar at any time.” With a button to “Continue” or “Cancel”. If an availability calendar is paused, change this button to say “Resume Availability” to unhide availability for future bookings.
+
+### Expert Status
+- Subscription status; upgrade or manage plan
+
+### Booking Preferences
+- copy all input fields from the “Booking Preferences”, “Advanced Booking Preferences”, “Offers”, “Packages”, and “Payout Information” categories in the Expert Registration process exactly
+- populate these sections with data from the Expert Registration process
+- changes made here should override data entered in the Expert Registration process, but follow all of the exact pathways to the database
+- if a user makes changes and clicks away before clicking “save changes”, prompt the user with the following message: “Would you like to save changes made to your Booking Preferences?” And a button to “Save Changes” and a button to “Cancel”
+
+### Earnings (experts) / Transactions (learners)
+- Boxes in the top row for “Lifetime Earnings”, “Year to Date”, “Month to Date”, and “Upcoming” (ie upcoming sessions that are pending payment into the account)
+- Box for “Account Balance”, with “Available Balance” (ie total from completed sessions that has not been paid out to user) with a chevron to show a list of all session payments pending in the next payout, and “Next Payout Date” (the 1st or 15th of the following month, whichever is closer to the expert’s registration date) and a “request early payout” button.
+-- include an “i" icon next to “Next Payout Date” that a user can hover over for more information. When hovered, show text: “Payouts are typically made monthly. If you’d like to request an early payout, please click the “Request Early Payout” button.”
+- Box for Payout History. Include a total amount for each payout with a chevron to reveal a list of each transaction 
+
+### Expert Profile
+- Copy all input data fields from the User Registration (profile photo, first name, last name, email, phone number, home town, time zone, language, profession, birthday, gender) and Expert Onboarding process (experience level, category, qualifications, professional bio, about your services, skills and specializations) exactly
+- populate these sections with data from User Registration and Expert Registration process
+- changes made here should override data entered in the User Registration and Expert Registration process, but follow all of the exact pathways to the database
+- if a user makes changes and clicks away before clicking “save changes”, prompt the user with the following message: “Would you like to save changes made to your Expert Profile?” And a button to “Save Changes” and a button to “Cancel”
+- include a hyperlink to “View My Profile Page”, click navigates to users Expert Profile Page
+
+Send an Offer Pop-Up:
+- Heading: Send an Offer
+- Sub-heading: Create a custom offer for [recipient’s full name]. You can suggest a start time, duration, or customized price for a booking. You can also offer a discount for a multi-session package, and offer to do freelance work or offline prep/review for an upcoming session.”
+- Button to “Suggest a Time”. Click reveals dialogue with a mini-calendar, clicking a day prompts user to enter a “Start Time” and “End Time”. 
+- Button to “Offer a Custom Price”. Click reveals dialogue to enter Duration and Total Price. If user leaves blank, use their standard rate to calculate price.
+- Button to “Suggest a Multi-Session Package”. Click reveals dialogue to enter Number of Sessions and Package Price.
+- Button to “Offer Freelance Work or Prep/Review Time”. Click reveals dialogue to enter Duration, Deadline, and Total Price. Also include a multi-line input for “Description of Work” with an “i" icon and tooltip that reads: “Include tangible goals within your description, it will be sent to the user to approve completion before payment is released for freelance work.”
+- A breakdown of “Offer Details” including all input data from above, plus a calculation of “Total Offer Price” (total from any relevant lines in the offer, plus platform fee and taxes).  
+- An input to “Send a message to [recipient user’s first name]” with a multi-line input.
+- A button to “Send Offer”
+
+After an Expert sends an offer, send a message to the learner with details of the offer and the option to “Accept” or “Deny” the offer. If the offer is “Accepted” show the learner user the payment dialogue. After payment is accepted, create a booking with the information defined from the offer. 
+
+Store special offers in an `offers` (or `booking_offers`) table with generic fields:
+- type (e.g., `first_session_discount`, `package_deal`, `custom_offer`)
+- from_user_id (expert) / to_user_id (learner)
+- status (`offered`, `accepted`, `denied`, `cancelled`, `completed`)
+- price/amount summary fields relevant to the offer quote
+- discount parameters (store only the parameters; compute totals at quote time)
+- booking/session linkage:
+  - `creates_booking_id` (nullable until accepted), or store a proposed_session_* block
+- timestamps + audit fields
+
+For freelance-style deliverables (deadlines + completion approval), use the dedicated `freelance_work` table (linked to the originating offer/booking when applicable).
+
+For one-time-use rules, add an `offer_usages` table (or enforce via constraints) to ensure each accepted usage is consumed only once per expert/learner usage rule.
+
+If an offer includes Freelance or Prep/Review Time, create a new row in the “freelance_work” table in the database. Set the “Status” to “offered”
+send the Description of Work, deadline, and Total Cost (including offer rate+platform fee, taxes) to the recipient to “approve” or “deny” and the message: “You’ve received an offer from [expert first name] for freelance work or prep/review time for your booking. If you approve this offer, you will be charged for the total offer price now, and given the opportunity to accept or reject the completion of work on the specified deadline to release payment to the Expert.” 
+If offer is approved, send a notification message to the Expert from a template. 
+Change the status of the freelance_work to “approved” in the database. 
+Create a dialogue for the expert to send “complete” work to the user. Include input for a description of work complete and the ability to attach documents or photos. 
+When a user receives a “complete work” message, give the user the option to “approve” or “deny” work. If work is approved as complete, release payment of the offer rate to the Expert. Change the status to “complete” in the database.
+
+
+DASHBOARD - If signed in as a learner:
+
+### Sidebar
+- Profile block: profile picture (with Online Now badge when users.online = true), name, email.
+- Stats: User rating, Sessions complete, Dependability rating.
+
+Dividing line
+
+- Nav: Overview, Booked Sessions (with badge count for upcoming sessions), Inbox (with badge count for unread messages), Your Requests (with badge count for responses to active requests), Transactions, Profile Settings.
+
+### Overview
+- “Welcome back [user’s first name]”
+- Quick links, in one row with four equally sized boxes: Upcoming Sessions (with number of all upcoming sessions), Unread Messages (with number or inbox messages and approvals pending), Active Requests (with number of unseen responses in the user’s “your requests” section)
+- Action required box (one box, one full row): list of bookings today, pending bookings, bookings needing payment, unread messages, etc.
+
+### Booked Sessions
+- Heading: “Booked Sessions”, sub-heading: “Your link to join sessions will be active 10 minutes before the session’s scheduled start time. 
+- Toggle for “Upcoming” and “Past” bookings. Each should show the following:
+
+- Upcoming: list of future sessions; each session should include: 
+-- Column 1: Expert’s Profile Picture (with Online Now badge when users.online = true)
+-- Column 2: Expert’s name, Expert’s professional title, session date, session time (start and stop), session duration, total price paid, and time remaining to start of session. 
+-- Column 3: Join Session button (or the “Pending Approval” or “Pending Payment” buttons when applicable), Message button (opens messaging pop-up to conversation with expert), Manage button (opens “Manage Session” pop up with options to Reschedule Session or Cancel Session.”)
+--- Note that the “Join Session” button should be greyed out and not clickable until 10 minutes before the specific session’s scheduled start time. Once the button is active, it should navigate to the session’s private session room 
+
+- Past: list of completed/cancelled sessions; each should include:
+-- Column 1: Expert’s Profile Picture
+-- Column 2: Expert’s name, Expert’s professional title, session date, session time (start and stop), session duration, total price paid, “Complete” or “Cancelled” badge
+-- Column 3: Leave a Review button (only when learner has not reviewed expert for that session, opens Review Pop Up), Message (opens Message pop up to conversation with Learner). 
+- Empty states when no upcoming or past sessions.
+
+### Inbox
+Column 1 (1/3 page width)
+- Search bar (with “search all conversations”)
+- List all conversations associated with learner. Each conversation includes expert’s profile picture (with Online Now badge when users.online = true), expert’s name, and first few words of the latest message in the conversation.
+Note: Always list conversations with most recent messages first. Bold all conversations with unseen messages in them. Highlight current conversation. 
+
+Column 2 (2/3 page width)
+- Expert profile picture (with Online Now badge when users.online = true), name
+- Text: “Avg. Response Time: [Expert average response time: If expert_response_time_stats.response_interval_count >= 3 show: "Avg response: X min" (X = round(total_response_time_seconds / response_interval_count to the nearest minute).
+  - If < 3 show: "Avg response: New" (or hide the line entirely; but prefer showing "New" to set expectations).]”
+- Message thread with expert messages to left, learner messages to right
+Dividing line
+- Input box to type a message, send button with paper airplane icon
+
+
+### Your Requests
+- Show a toggle for “Active” and “Complete”
+-- A request should be categorized as “Active” for 8 days after it is posted, or until the user who posted it clicks “complete”
+- Show a button to “Post a New Request” (open “Post a Request” pop up)
+- For each request show: Request heading, date posted, request description (limit to one line, give expert the option to expand to see full description), category of request, special skills required, number of unread expert responses to request, a “Completed” button (to archive request and move from “Active” to “Completed”, a list of all unread expert responses, and a link to “See all Expert Responses” (that expands the list to show all expert responses, with unread expert responses in bold)
+-- Each expert responses should be shown as: Expert profile picture (with Online Now badge when users.online = true), Expert Name, Date and time of response, and first line of response (with a chevron to read the entire message and any associated offer) and a “Message” button to open the Messaging pop up, with the expert’s response as the first message in a conversation). 
+
+
+### Transactions 
+- **Payment history / Transactions:** list rows from **`transactions`** for the learner (with join to `bookings` and expert profile for display). Each row shows: Expert profile picture, name, professional title, session date and duration (from booking), **confirmation / transaction id**, **total amount paid** (= **total_charge**), last 4 digits of card (from **payment_method** / Stripe), and badge **Completed** or **Pending** per **transactions.status** (and booking session timing if needed for "upcoming").
+
+
+### Profile Settings
+- Copy all input data fields from the User Registration process exactly, including profile photo, first name, last name, email, phone number, home town, time zone, language, profession, introduction, birthday, gender.
+- populate these sections with data from User Registration process
+- changes made here should override data entered in the User Registration process, but follow all of the exact pathways to the database
+- if a user makes changes and clicks away before clicking “save changes”, prompt the user with the following message: “Would you like to save changes made to your Expert Profile?” And a button to “Save Changes” and a button to “Cancel”.
+- Include a hyperlink to “View My Profile Page”, click navigates to user’s learner profile page
+
+
+---
+
+## Session room (/session/:sessionId)
+
+- Join video call (Daily.co) for the booked session.
+- Before both users join the session, show session details on screen: Expert Profile Picture, expert name, Learner Profile Picture, Learner name, start time, end time, and duration.
+- In-call chat. Archive and make available to both users after session is complete.
+- In-call transcription. Archive and make available to both users after session is complete.
+- When call has 10 minutes remaining, check to see if the expert is available for the next 15-minute block. If the answer is yes, and the Expert’s “Extend Sessions” is set to “Yes”, show the learner a prompt at the bottom of the screen that reads: “Your session with “Expert’s first name” will expire in [minutes remaining] minutes. Would you like to extend the session by 15 minutes for $[expert’s rate]?” And has a button to “Extend” or “Hide.” If a user opts to extend a session, show a pop up with the total charge for the extended time immediately after the session ends. 
+- After the session: prompt to the learner to leave a review of the expert, also prompt the expert to leave a review of the learner. Mark complete/cancelled.
+
+Expert Review Pop Up (Show to learner immediately after session):
+- Heading: Leave a Review
+- Expert Profile Picture, Expert Name, Expert Professional Title
+- Slide 1: “How was your session with [Expert’s name]?” With the ability to click 1-5 stars
+- Slide 2: “Was [expert name] able to address your questions?” (1-5 stars), “How knowledgeable was [Expert name] on the subject matter of your session?” (1-5 stars), “How personable was [Expert name]?” (1-5 stars)
+- Slide 3: “Please write a public review of [expert name].” (Multi-line input box)
+- Slide 4: “Send [Expert name] a private message. Share any feedback or suggestions.” (Multi-line input box)
+- Include two buttons at the bottom to “Continue” (saves value and goes to next question) or “Skip” (also goes to next question, but does not save an empty value). After Slide 4, change “Continue” button to “Submit”
+- After a review is submit, show another slide that reads: “Thank you for submitting your review!” With a confetti icon. Under that, include a dividing line, then the text: “Would you like to schedule another session with [Expert’s Name]?” and a button to “Book” (click navigates to expert’s profile page, and opens the booking dialogue), or “Browse other experts” (click navigates to homepage)
+
+Learner Review Pop Up (Show to expert immediately after session):
+- Heading: Leave a Review
+- Learner Profile Picture, Learner Name, Learner Professional Title
+- Slide 1: “How was your session with [Learner’s name]?” With the ability to click 1-5 stars
+- Slide 2: “How prepared and engaged was {Learner’s name]?” (1-5 stars), “Was [Learner’s name] respectful of your time and advice?” (1-5 stars), “How personable was [Learner’s name]?” (1-5 stars)
+- Slide 3: “Please write a public review of [Learner’s name].” (Multi-line input box)
+- Slide 4: “Send [Learner’s name] a private message. Share any feedback or suggestions.” (Multi-line input box)
+- Include two buttons at the bottom to “Continue” (saves value and goes to next question) or “Skip” (also goes to next question, but does not save an empty value). After Slide 4, change “Continue” button to “Submit”
+- After a review is submit, show another slide that reads: “Thank you for submitting your review!” With a confetti icon. 
+
+---
+
+
+## Sign-up and account
+
+### Sign up (/signup)
+- Sign up pop up with Heading: “Create Your Account”, input for First Name, Last Name, and Email Address, and “Sign Up” button, and a “Continue” button, “Create a Password” (with “eye” icon to show text), and “Confirm Password” (with “eye” icon to show text), and a “Sign Up” button. 
+
+- After a user clicks “Sign Up”, create a new user in the database and enter data for: First Name, Last Name, Email Address, and Password. Set the user status to “pending”
+- Show a “Success” screen with text that an email has been sent to confirm their email. 
+*create a Dev tool with a link to bypass the email verification process. Include a link in the “success” screen that works exactly like a link in a confirmation email would.
+- Send a confirmation email with a link that goes directly to the “User Registration” page.
+
+
+### Auth callback (/auth/callback)
+- Handles OAuth/email link returns (e.g. confirm email, reset password).
+
+### Reset password (/reset-password)
+- Set new password via email link.
+
+Set up email/SMS notifications with an explicit auth boundary:
+
+- Auth boundary:
+  - Use Supabase Auth for user identity.
+  - Do not rely on “public” client writes for notification logic.
+  - All outbound email/SMS (and template resolution) runs only on the server (Route Handler / server action / trusted backend), using the Supabase **service role** or equivalent server secret — never from the browser.
+
+- Implementation options (v2 — pick one primary pattern; document which in deployment runbooks):
+  - **Option A — DB trigger + HTTP:** On `INSERT` into `messages`, a database trigger invokes `notify_new_message()` (or equivalent) which calls the app via `pg_net` / `http_post` (or Supabase Edge Function that forwards to the app).
+  - **Option B — DB trigger + Edge Function:** Trigger calls a Supabase Edge Function that sends mail/SMS directly from the function (no intermediate Express requirement).
+  - **Option C — Outbox queue:** Trigger inserts into `notification_outbox`; a worker/cron drains the queue. (Use when you need retries and stricter ordering.)
+
+- DB-triggered events (inbox / new message):
+  - When a new row is inserted into `messages`, the system must notify the **non-sender** participant of the parent `conversations` row.
+  - Webhook / worker payload MUST use **Bible v2 column names**:
+    - `message_id` (PK of `messages`)
+    - `conversation_id` (FK to `conversations`)
+    - `sender_id` (FK to `users.user_id`)
+  - The server resolves recipient by loading `conversations.expert_user_id` and `conversations.learner_user_id` and selecting the user where `sender_id` is the other party.
+  - Do **not** document camelCase JSON (`messageId`, etc.) as canonical; if the wire format uses camelCase, specify an explicit mapping table in the implementation appendix only.
+
+- Canonical HTTP endpoints (notification + cron) — paths are stable whether the app is Express or Next.js Route Handlers; only the host/base URL changes per environment:
+  - `POST /api/notifications/webhook/message` — invoked by DB trigger, Edge Function, or outbox worker. **Body (JSON):** `{ "message_id", "conversation_id", "sender_id" }`. **Auth:** require a shared secret (e.g. header `Authorization: Bearer <NOTIFICATION_WEBHOOK_SECRET>` or `X-Webhook-Secret: <…>`). Reject unauthenticated calls.
+  - `GET` or `POST /api/notifications/check-booking-reminders` — invoked by an external **cron** (Render/Railway/Vercel Cron, GitHub Actions, etc.). **Auth:** require a cron secret (query param or header, e.g. `CRON_SECRET`). Reject unauthenticated calls.
+  - **Booking reminder selection rule (v2):** query `bookings` using Bible fields `expert_user_id`, `learner_user_id`, `session_date`, `start_time`, and **only** statuses that mean “session is still expected to occur” (define explicitly: e.g. `upcoming` and, if used, `payment_status` / confirmation flags per Bible). Do **not** reference legacy v1 values such as `confirmed` unless the Bible explicitly lists them as aliases.
+
+- Cron-based reminders:
+  - Schedule the cron job to call `GET` or `POST /api/notifications/check-booking-reminders` at least every **1–2 minutes** (or a longer interval if the time window in code is widened accordingly).
+  - Reminder send time is computed from `session_date` + `start_time` in the user’s display timezone rules per Bible (typically derived from `users.time_zone` / hometown rules).
+  - Optional: keep a SQL helper (e.g. `check_booking_reminders()` returning candidate rows) **only** as an implementation detail; the **contract** in the Bible is the HTTP cron endpoint + v2 column names.
+
+- Authorization:
+  - For any endpoint that sends notifications or marks notification state:
+    - require server-level authorization (service role / cron secret / webhook secret) as above.
+
+- Templates:
+  - Store notification templates and message rules in the database.
+  - Add an admin UI section with input fields to edit/update templates in DB.
+  - Explicitly define template tokens/variables (subject/body/deep links) and include versioning/auditing via `updated_at` (and optionally `version`).
+
+Template publish rule:
+- Template edits require an admin “publish” step.
+- When published, it replaces the stored template in the database and applies to all future auto-sends.
+- Unpublished edits do not affect existing scheduled/future auto-sends until published.
+
+USER REGISTRATION PAGE
+- The page should open with the “User Registration Wizard” pop up already open.
+- Closing the pop up, or clicking “Enter my details manually”, should reveal a “Manual input” page with all of the categories and data inputs exactly as they appear in the “Wizard” with the same pathways to the database. 
+* Any changes to the Wizard (categories, input fields, descriptions, etc) should also be incorporated into the “Manual Input” page AND the “Profile Settings” section of the (Learner) Dashboard page AND the “Expert Profile” section of the (Expert) Dashboard page. 
+- Slide 1: Heading “Welcome to convene”, Subheading: “Let’s get you set up quickly and start connecting with experts. This should just take 2 or 3 minutes.”, a button to “Continue to Setup Wizard” or a hyperlink to “Enter my details manuallY”
+- All subsequent slides should show a progress bar at the top (with “x” of “y” slides and a % complete), and buttons at the bottom to “Continue” or go “Back”. Any data input should be saved to the database when a user clicks “continue”
+- Slide 2: Heading “Profile Photo”, Subheading “Let’s add a photo to forge a more personal connection with experts.”, a circular placeholder avatar with the user’s initials, a button to “Upload a Photo” (opens a dialogue to select a local photo, then the ability to reframe, zoom, or rotate photo), a button to “Take a photo” (uses camera on the user’s device). Profile photo is an optional input.
+- Slide 3: Heading “Contact Information”, subheading “Enter the best way to communicate about upcoming bookings and incoming messages. convene will never share your personal information.” Input fields for “First Name” (populate with data from “Sign Up”), “Last Name” (populate with data from “Sign Up”), “Email” (populate with data from “Sign Up”), and “Phone Number” (include temporary text that says “Phone Number (optional - for SMS reminders). Phone number is an optional input. 
+- Slide 4: Heading “Booking Information”, Subheading “All bookings will be displayed in your local timezone.” With an input for “Hometown” (using GoogleMaps API), “Timezone” (automatically populated based on the “hometown” and GoogleMaps API, with a message below that reads “Time zone auto-detected from your hometown”), Preferred Language (with a dropdown for the most commonly spoken languages)
+- Slide 5: Heading: “Personal Details”, Subheading: “Almost there! Add some information to introduce yourself to Experts.”, Input for “Profession”, Multi-line input for “Introduction” (with temporary subtext “Tell us about yourself, your interests, passions, and what you’re looking to learn.”), input Date input for Birthday (with text “Birthday (optional)), dropdown for Gender (with text “Gender (optional)”. 
+- Slide 6: Heading “Review & Complete”, Subheading: Review your information below, click “back” to make and changes.”, a list of all data input previously in the form. Change “Continue” button to say “Create Account” on this slide. 
+- After a user clicks “Create Account”, change the user status from “Pending” to “Active”
+- Slide 7: show page confetti animation. Heading: “Congratulations!”, Subheading “You’re all set up and ready to start booking experts. You’ll find information on your bookings, messages, and request on your dashboard page.” With a button to “Take a Quick Tour” and a hyperlink to “Skip”. 
+
+- Start a new conversation between the user and “convene”. Send the user a welcome message that says:
+“Welcome to convene! 🎉
+
+We're excited to have you join our community of learners and experts. Here are some tips to get started:
+
+• Browse experts in your area of interest
+• Message experts to find a good fit
+• Post requests to get have experts come to you
+• Join our community message boards to engage with other users
+
+Happy learning!“
+
+Learner Dashboard Tour
+- For each step, put a Hero Orange outline around the highlighted feature. Show a pop up adjacent to the highlighted feature with specified text and a “Next” button. Put a 50% opacity grey filter over the part of the screen that is not within the Hero Orange outline or pop-up box. 
+- 1: Highlight: “Booked Sessions” in sidebar. Pop-Up Heading: “Booked Sessions”, Subheading: “You’ll find all of your upcoming bookings and previous session information here.”
+- 2: Show the “Booked Sessions” dialogue with a temporary, example booking with: Profile photo “Einstein_1933a” Expert Name: “Albert Einstein”, Profession “Theoretical Physicist & Nobel Prize Winner”, Date [Today’s date], Start time [current time +1 hour], end time [current time +2 hours]. After “tour” is complete, delete this temporary booking. Highlight “Join Session” in temporary booking. Pop-up Heading “Join Session”, subheading “You can join your session by clicking this button within 10 minutes of the start time.”
+- 3: Highlight: “Inbox” in sidebar. Pop-Up Heading: “Inbox”, Subheading: “You can message experts at any time, your conversations will always live here.”
+- 4: Highlight: “Your Requests” in sidebar. Pop-Up Heading: “Your Requests”, Subheading: “Here you can Post a Request to our network and let experts come to you. Use this section to track Expert responses to each of your posts.”
+- 5: Highlight: “Search bar” in header. Pop-Up Heading: “Search”, Subheading: “Get started here! Search for an expert or ask a question. Best of luck!”. Change “Next” button to say “Finish” on this step, click closes the “tour”
+
+
+---
+
+### Expert registration (/expert-registration)
+
+EXPERT REGISTRATION PAGE
+- The page should open with the “Expert Registration Wizard” pop up already open.
+- Closing the pop up, or clicking “Enter my details manually”, should reveal a “Manual input” page with all of the categories and data inputs exactly as they appear in the “Wizard” with the same pathways to the database. 
+*Any changes to the Wizard (categories, input fields, descriptions, etc) should also be incorporated into the “Manual Input” page AND the “Expert Profile”. 
+- When a user begins expert registration, create a new line in the 'Expert_Profile' table of the database and set the expert visibility state to `expert_pending_admin_review`.
+
+Expert submission rule:
+- All required expert registration input fields must be completed before the user can submit for Admin approval.
+- This prevents incomplete registrations from becoming publicly visible.
+
+- Slide 1: Heading “Hurrah!”, Subheading: “We’re thrilled you’ve decided to share your expertise with our community. Getting started is easy, use our onboarding Wizard or enter your details manually.” a button to “Continue with Onboarding Wizard” or a hyperlink to “Enter my details manually”
+- All subsequent slides should show a progress bar at the top (with “x” of “y” slides and a % complete), and buttons at the bottom to “Continue” or go “Back”. Formatting should match the User Registration Wizard. 
+- Any data input should be saved to the database when a user clicks “continue”
+
+- Slide 2: Heading: “Basic Information”. A circular placeholder avatar with the user’s initials (if available, populate profile photo with data from the user’s user registration), a button to “Upload a Photo” (opens a dialogue to select a local photo, then the ability to reframe, zoom, or rotate photo), a button to “Take a photo” (uses camera on the user’s device). Inputs for: First Name, Last Name, Phone Number, Hometown, and Time Zone. Whenever possible, populate input fields with data from the user’s user registration. If no data exists for in the user registration or user makes changes to these fields, overwrite these fields in the user settings (do not duplicate data in the Expert_Profiles section of the database)
+
+- Slide 3: Heading “Expert Profile”. Input field for “Profession” (populate with data from the user’s user registration. If no data exists for in the user registration or user makes changes, overwrite these fields in the user settings (do not duplicate data in the Expert_Profiles section of the database), a dropdown for Category (give options for every “Category” made active from the Admin page. Include an “Other” category. (If a user selects other, show a prompt that says: “Not seeing a relevant category for your expertise? Please suggest a new category or specialization to better serve our community.” With an input field and a button that says “Send Feedback”. Save “Feedback” data in a separate table in the database called “User Feedback” in a field called “Expert_Category_Suggestions”), a dropdown for “Experience Level” (with options for: Less than 1 year, 3-5 Years, 6-10 Years, 10-20 Years, and 20+ Years). An input field for Qualifications (with temp text “Qualifications (List education, certification, awards, job experience, etc) with a “+” button to add up to 10 entries. Save “experience level”, “category”, and “Qualifications” to the “Expert_Profiles” section of the database. 
+
+- Slide 4: Heading “Expert Profile (cont)”, Subheading: Tell us about yourself and what you can offer users. Feeling stuck? Use our auto-generator anywhere you see the [magic wand icon] to get you started.”, multiline input (limit 1000 characters) for Professional Bio (include a [magic wand icon] button. When clicked, open a prompt with the Heading “Bio Generator”, subheading “Tell us a little about yourself and we’ll create a personalized bio for you. Here are some prompts to get you started:” then the following questions: What is your main area of expertise or specialization? (Input with temp text “e.g. Full-stack web development, Wood Turning”), Notable achievements or credentials (input with temp text: “e.g. Published Author, Worked with Fortune 500 companies”), What is your favorite thing about your field? (Input with temp text: “e.g. Helping people solve complex problems, bringing creative ideas to life”. Use OpenAI API to generate a bio based on these prompts and additional data entered by the user in “Profession, Qualifications, etc), a multiline input (limit 1000 characters) for Services (use temp text: “About Your Services (describe how you can help learners on convene)”, include another [magic wand icon] button. When clicked, open a prompt with the Heading “Services Generator”, subheading “Answer a few prompts and we’ll help write a short description for you.”, with the following prompts: What specific skill or skills are you best at teaching? (with temp text examples), How have you taught or coached others in the past? (with temp text examples), Who would benefit the most from your consulting? (Input with temp text: “e.g. Beginners looking to start their journey, Career Changers, Professionals looking to sharpen their skills”. Use Open AI API to generate a short description of services), Skills (input field with temporary text: “Skills & Specializations (add any topic you feel comfortable advising on)” with a “+” button to add up to 30 entries.) Include a [magic wand icon] button, when clicked open a prompt with Heading: “Suggested Skills & Specializations”, subheading “Based on your profile, here are some relevant skills you might want to add. Select any that apply to you.” And a list of clickable skills with a button below to “Add Selected Skills” and a button to “Regenerate” suggestions. Use Open AI API to generate a list of popular and relevant skills based on the user’s profile data. Save all data from this slide to the “expert_profile” table in the database.
+
+- Slide 5: Heading “Booking Preferences”, subheading: “Set preferences for how users will be able to book your time. See tips for maximizing your success and feel free to use that [magic wand icon] button to get started.” 
+Line 1: Input field Rate (use temp text “Booking Rate (per 15 min)”, include an “i" icon for a tooltip with text “convene bookings operate on 15-minute intervals. We suggest dividing your hourly rate by 4 and rounding up!”)
+Line 2: Dropdown input for Minimum Booking Duration, with options: 15 min, 30 min, 45 min, 1 hr, 1.5 hrs, 2 hrs (include an “i" icon for a tooltip with text “This is the shortest possible time for each booking. Note that users will be able to extend time in 15-minute increments based on your availability.”), Dropdown for Maximum Booking Duration, with options: 30 min, 1 hr, 2 hrs, 3 hrs, 4 hrs, 6 hrs, 8 hrs. (include an “i" icon for a tooltip with text “The longest possible time for each booking. When users reach the maximum time period, the session will be concluded.”)
+Line 3: Dropdown for Minimum Booking Notice, with options: None, 5 min, 10 min, 15 min, 20 min, 30 min, 1 hr, 2 hrs, 4 hrs, 8 hrs, 24 hrs, 48 hrs. Include an “i" icon for a tooltip with text “The amount of lead time you need from the time a booking is made to the start time of the session. Note that many users look for the “Next Available” Expert, so the sooner you make yourself available the more likely you are to get bookings.” A dropdown menu for Maximum Booking Notice, with options: 1 day, 3 days, 1 week, 2 weeks, 1 month, 3 months, 6 months, 1 year. Include an “i" icon for a tooltip with text “A personal preference for how long in advance you want to populate your calendar. Note that making changes or cancellations to bookings will impact your dependability rating, so we suggest setting a realistic period of time for future bookings.”
+Line 4: Dropdown menu for “Buffer Time” with temp text examples “Buffer Time (between bookings)”, with options “No buffer, 5 min, 10 min, 15 min, 30 min, 1 hour.” Include an “i" icon for a tooltip with text “Decide whether you need time to reset between bookings. Some experts like to leave time for a session to extend, others prefer to see learners back-to-back to maximize bookings.
+Include a button with [magic wand icon] and the word “Suggest”, when clicked use Open AI API to populate all fields above with average settings based on a user’s professional data, including profession, experience level, and qualifications.
+Line 5: Add a chevron with the words “Advanced Options”. When clicked, expand the window to show the following options: 
+Line 6: a toggle for “Auto-Accept Bookings”, by default set this to on. Include an “i" icon for a tooltip with text “Allows users to book available time slots without your review. Note that users can only book according to your availability and settings. Experts who disable Auto-Accept typically receive far fewer bookings.”. If the toggle is switch to “off” reveal text that reads: By turning Auto-Accept Bookings off, you will be required to approve each individual booking on your dashboard.” 
+Line 7: a toggle switch for “Allow Session Extensions”, by default set this to on. Include an “i" icon for a tooltip with text “If your availability allows, users will have the ability to extend a session in 15-minute increments during a session. Extensions will be billed according to your rate.” 
+Line 8: a toggle switch for “Allow Messaging Before Booking” by default set this to on. Include an “i" icon for a tooltip with text “This will allow users to send you in-app messages without making a booking. Users are far more likely to make a booking after an initial message.”
+Line 9: a toggle switch for “Discount First Session”, by default set this to “off”. When switched “on” reveal additional options including: a dropdown for “Duration” with options: 15 min, 30 min, 45 min, 1 hr”, a toggle for “Fixed Price” or “% Discount” and an input field for fixed price or % discount, and a calculation of total price based on the user’s rate and % discount. 
+Line 10: a toggle switch for “Offer a Package”, by default set this to “off”. When switched “on” reveal additional options including: input field for Number of sessions, dropdown menu for Session Duration with options: 15 min, 30 min, 1 hr, 2 hrs, 4 hrs, 8 hrs. A toggle for “Fixed Price” or “% Discount” and an input field for fixed price or % discount, and a calculation of total price based on number of sessions, the non the user’s rate and % discount. A toggle switch for “Require Package Purchase”.
+
+- Slide 6: Heading “Weekly Availability”, subheading “Set a recurring availability calendar below. Click a day below to add a time slot. Note that you can always modify your availability and edit specific days from your dashboard.”
+- Weekly Calendar: shows a basic grid with headings for each day of the week (Monday-Sunday) at the top. Below each day, show another grid for time with simple hash marks for each hour of the day, with 9am as the starting value and the ability to scroll up (to 12am) and down (to 11:59pm)
+Interactivity:
+- when a user clicks on a day and time, open a “Weekly Recurring Availability” pop-up that includes: heading “Add Time Slot”, a dropdown for “Start time”, a dropdown for “End Time”, a carrot for “add to multiple days” (when clicked, show check boxes for each day of the week), and a button to “Add Availability”.
+- After an expert clicks “Add Availability”, show the available time on the grid as a colored block on the corresponding day (or days) starting at the start time and ending at the end time. 
+-- Add an “x” to the block to delete it. 
+-- Clicking on an “available block” on the weekly calendar should open the “Add Availability” pop up with the start time, end time and corresponding days already populated and the ability to change them. Changes made should update on the grid and in the database. 
+
+-Slide 7: Heading “Payment Processing” Subheading: “Enter information below to receive payouts from your bookings. Note that convene uses direct bank payouts for transfers, processed by Stripe. Payouts are typically issued on a monthly basis, though early payouts can be requested from your dashboard.” 
+Include a DEV tool with a button to bypass payment information during testing. Add a section of the admin page to turn this tool on or off. 
+Include all information required by Stripe API to issue bank payments. When possible, populate fields with data already provided in the user registration or expert registration (ex. First name, last name, date of birth, etc.)
+
+Slide 8: Heading “Upgrade Your Membership”, subheading: “convene is free for everyone to advertise their services. Upgrading your membership allows convene verify your credentials and issue a public verification badge. Upgrading can also unlock additional features and help maximize exposure.” Include three tiers as follows, by default select the “free tier”:
+- Free, Heading: “Everything you need to start Booking Sessions”, bullets: Public Expert Profile, Scheduling and Booking System, User Messaging, Community Request Access, Booking Analytics, Customer Support
+- Verified ($12/mo), Heading: “By undergoing our verification process, Experts gain enhanced credibility in our community”, bullets: Verified Expert Badge, Priority Search Results, Priority Customer Support, Marketing Tools, Everything included in Free Tier
+- Enterprise (Custom Pricing), Heading: “Full-featured solution for established coaches, consultants, and B2B applications.” Bullets: Multiple Verified Experts, Dedicated Account Manager, Custom Branding, Advanced Integrations, Priority Feature requests, Custom Training Sessions.
+
+Subscription Payments:
+If user selects “Verified”, show a payment window to enter credit card information. Include a note that they will incur a monthly recurring expense, and they can cancel at any time. 
+Set up a monthly charge based on a defined subscription fee ($12/mo by default) to be billed through Stripe. 
+
+Slide 9: Review and confirm all booking preferences. Change “next” button to “Submit Expert Profile.” 
+
+After clicking “Submit Expert Profile” do each of the following:
+- Add expert registration to Admin page under the “for review” category
+- Start a new conversation between the user and “convene”. Send the user a welcome message from “convene” that says: 
+“Thank you for sharing your expertise! We're excited for you to engage with our community of learners. 
+
+Here are some tips to get started:
+
+• Browse our community message boards to interact with learners
+• Send custom offers to book your first sessions
+• Share the url to your Expert Profile (convene.io/[userfullname]) on your personal and social networks
+• Check out our Expert coaching resources for tips on maximizing your bookings
+
+Happy coaching!”
+
+- navigate user to the dashboard page
+- Show user a success prompt with a confetti animation that says: “Congratulations! Your expert registration has been submitted and is under review. You will receive an email as soon as your profile as been accepted and you’re ready to start making bookings. In the meantime, get to know your new Expert dashboard.” With a button to “Take a Quick Tour” or a hyperlink to “skip”
+
+Expert Dashboard Tour
+- For each step, put a Hero Orange outline around the highlighted feature. Show a pop up adjacent to the highlighted feature with specified text and a “Next” button. Put a 50% opacity grey filter over the part of the screen that is not within the Hero Orange outline or pop-up box. 
+- 1: Highlight: “Booked Sessions” in sidebar. Pop-Up Heading: “Booked Sessions”, Subheading: “You’ll find all of your upcoming bookings and previous session information here.”
+- 2: Show the “Booked Sessions” dialogue with a temporary, example booking with: Profile photo “Einstein_1933a” Expert Name: “Albert Einstein”, Profession “Theoretical Physicist & Nobel Prize Winner”, Date [Today’s date], Start time [current time +1 hour], end time [current time +2 hours]. After “tour” is complete, delete this temporary booking. Highlight “Join Session” in temporary booking. Pop-up Heading “Join Session”, subheading “You can join your session by clicking this button within 10 minutes of the start time.”
+- 3: Highlight: “Manage” button on temporary booking. Pop-Up Heading: “Manage Booking”, Subheading: You can manage a booking here, including cancelling, rescheduling, and sending special offers to learners. 
+- 4: Highlight: “Inbox” in sidebar. Pop-Up Heading: “Inbox”, Subheading: “You can interact with learners here. In addition to messaging, you can send special offers—including freelance or prep/review time, multi-session packages—and suggest session times.”
+- 5: Show the “Inbox” dialogue with a temporary example conversation with: Profile photo “Einstein_1933a” Expert Name: “Albert Einstein”, Profession “Theoretical Physicist & Nobel Prize Winner”. After “tour” is complete, delete this temporary booking. Highlight: “Suggest” button. Pop-Up Heading: “Send an Offer”, Subheading: “From your inbox, you can send Learners special offers for bookings. That includes suggesting a time, plus customized discounts, multi-session packages, and billable time for Session Prep or Review and freelance work.” 
+- 6: Highlight: “Community Requests” in sidebar. Pop-Up Heading: “Community Requests”, Subheading: “See a personalized a selection of user requests here that we think you’re qualified to address, or peruse the entire message board. Respond to requests, send offers, and engage with the community - this is a great way to promote new bookings!)”
+- 7: Highlight: Availability Calendar. Pop-Up Heading: Manage your Availability. Subheading: Update your recurring availability windows here at any time. You can also Add, delete, and manage availability on specific dates and times on the monthly calendar. 
+- 8: Highlight: lower section of sidebar (including Expert Status, Booking Preferences, Earnings, Expert Profile). Pop-Up Heading: Manage and Track, Sub-Heading: Update your preferences and track your progress here at any time. 
+- 9: No highlight, center pop-up on page. Heading: “Thank you for sharing your expertise on convene. Start perusing our message boards and engaging with the community to get your first booking.” Change the “next” button to “finish”, on click close the “tour”.
+
+
+When a new expert registration has been approved, send an email to the user from a template. Include a link to the user’s dashboard.
+When a user follows the link, show user a success prompt with a confetti animation that says: “Congratulations! You're all set up and ready to start booking sessions. You'll find information on your bookings, messages, and requests, plus manage your availability on your dashboard page.” Include a button to “Take a Quick Tour” or a hyperlink to “Skip”
+
+---
+
+RULES AND DEFINITIONS
+
+#Dependability Rating
+A “Dependability Score” should be assigned to each user after every completed (or canceled) booking
+A user’s “Dependability Rating” is the average of every “expert_dependabilty” or “learner_dependability” score they receive
+
+The dependability score for each booking is based on a total possible score of 100 points. Points are deducted as follows:
+- 100 point deduction if a user doesn’t join a booked session (without cancelling or attempting to reschedule)
+
+- 50 point deduction for cancelling a booking more than 24 hours before scheduled start
+- 60 point deduction for cancelling a booking more than 12-24 hours before scheduled start
+- 70 point deduction for cancelling a booking more than 6-12 hours before scheduled start
+- 80 point deduction for cancelling a booking more than 2-6 hours before scheduled start
+- 90 point deduction for cancelling a booking more than 1-2 hours before scheduled start
+- 95 point deduction for cancelling a booking more than 0-60 minutes before scheduled start
+
+- 10 point deduction for suggesting a rescheduled time more than 24 hours before scheduled start
+- 20 point deduction for suggesting a rescheduled time more than 12-24 hours before scheduled start
+- 30 point deduction for suggesting a rescheduled time more than 6-12 hours before scheduled start
+- 40 point deduction for suggesting a rescheduled time more than 2-6 hours before scheduled start
+- 55 point deduction for suggesting a rescheduled time more than 1-2 hours before scheduled start
+- 70 point deduction for suggesting a rescheduled time more than 0-60 minutes before scheduled start
+
+- 5 point deduction joining a call 1-3 minutes late
+- 10 point deduction joining a call 3-5 minutes late
+- 20 point deduction joining a call 5-10 minutes late
+- 50 point deduction joining a call more than 10 minutes late
+
+
+### Definitions: bookings and special bookings
+
+**Traditional booking** — Session scheduled from the calendar; `bookings` row; standard session pricing & ledger.
+
+**Special booking** — A learner–expert commercial arrangement that is **not** a traditional calendar session checkout. Deliverable-type special bookings (freelance, prep/review, scoped work with a deadline) use **`freelance_work`** and the lifecycle in “Special bookings — lifecycle” below.
+
+**Expert package purchase** — Handled via **`expert_packages`**, **`learner_package_credits`**, **`package_credit_redemptions`**; **not** the same UI lifecycle as deliverable special bookings (no “mark complete by deadline” for the package sale itself). See “Packages — credits and purchase.”
+
+**discount_redemptions** — Discount eligibility tracking only; **not** a special booking.
+
+**booking_offers (optional): on learner accept create `freelance_work` with status “offered” and proceed to payment.
+
+
+### Special bookings — lifecycle (deliverable / freelance_work)
+
+- Expert sends a **special booking offer** to the learner with **proposed deadline** (and scope/price per Inbox/offer UI).
+- Learner **accepts** or **declines**.
+  - If **declines:** prompt learner to **message the expert** for a revision; expert may send a **revised offer** (same `freelance_work` row updated or new row with `supersedes_freelance_id` — match schema).
+  - If **accepts:** charge learner **total_charge** using the **non-subscription marketplace fee stack** (taxable base **B** = negotiated offer total before platform/tax; platform 10%; taxes 6% on (B + platform fee)). Write **`transactions`** with `transaction_type` for special/freelance charge and **`freelance_id`** set. **Escrow:** funds held until completion acceptance or timeout below.
+- After **successful payment:** notify expert; show special booking on expert dashboard under upcoming **Bookings** or **Special bookings** as **In progress**, with **deadline**, **Mark as complete**, link to conversation/`booking_id` if applicable.
+- Expert **Mark as complete** (by deadline + grace): optional message and attachments to learner.
+- Learner **accepts** or **declines** completion.
+  - **Accept:** **release payout** to expert (**expert_earnings** = **B** per ledger).
+  - **Decline:** learner must message expert with problem; expert **3 calendar days** to rectify; unresolved → **admin_review**.
+- Expert **misses work deadline:** **admin_review**; **3 calendar days grace** after deadline; if still incomplete → **refund learner** (full or partial per policy; until policies exist, **admin case-by-case**).
+- Learner **no response** to completion within **3 calendar days** of expert submit → **auto-release payout** to expert (same as accept).
+
+### freelance_work — status enum, transitions, keys, payment
+
+**Statuses:** `offered` | `declined` | `accepted_pending_payment` (omit if accept+charge are atomic) | `paid_in_progress` | `completion_submitted` | `completed` | `refunded` | `admin_review`
+
+**Transitions:**
+- `offered` → `declined` | → `accepted_pending_payment` → `paid_in_progress` (skip middle if payment synchronous).
+- `declined` → `offered` (re-offer).
+- `paid_in_progress` → `completion_submitted` | → `admin_review` (missed deadline path).
+- `completion_submitted` → `completed` (learner accepts OR 3-day silence) | → `admin_review` (learner declines) | → `refunded` (if policy allows).
+- `admin_review` → `completed` | `refunded`.
+
+**Foreign keys:** Include **`booking_id`** when tied to an existing traditional booking; else nullable with required **`conversation_id`** and/or originating **`message_id`** per product rules. Every successful charge links **`transactions`** to **`freelance_id`**; store **Stripe PaymentIntent id** on `transactions` or `freelance_work` per schema.
+
+**Payment model:** Charge **total_charge** on learner **accept**; **transfer expert payout (B)** on learner **accept completion** or **3-day silence** after expert marks complete; refunds per deadline/dispute/**Admin — disputes and refunds**.
+
+
+#Packages
+- an expert should be able to offer a “package” of sessions, by defining the number of sessions, the duration of each session, and a fixed package price. 
+- a package can be offered globally (ie to every learner) or as a special offer to a single learner
+- if an expert opts to offer a package, treat it as a credit system. ie, expert can choose a number of sessions and a total price. User will be billed for the total price up front, then given credits to book each session with the expert.
+- when a user has credits with a specific expert, who a notice on their dashboard in the overview section and at the top of the “upcoming bookings” dialogue that says “You have [x] more sessions in your package with [Expert’s full name]. Click here to book.” Add a hyperlink to the expert’s profile page for “click here.” Allow users to select and book time (in allotted duration) on the expert’s profile page. On the Payment dialogue, instead of a payment amount, show the text “Session [x] of [your total] sessions in your package.” And allow them to make the booking without making a payment. 
+- if an expert offers a global Package, include a badge on the Expert’s profile page that includes the basic parameters of the offer
+
+Decisions:
+- Package credits are in-scope for v2 and must be implemented.
+- Credits expire 1 year from purchase/grant date.
+- First-session discount is one-time per learner per expert.
+- If discounted booking is cancelled/refunded, discount eligibility is still consumed.
+- Credit-to-rebook amount = full booking total.
+
+- Do not describe **package purchase** as following the **special booking** completion/payout lifecycle unless intentionally extended.
+- Do not use a generic **offers** staging table for deliverable special bookings; use **`freelance_work`** from first send (**Option B**).
+- Align **Table: transactions** field list with **`transaction_type`**, **`freelance_id`**, **`package_id`**, **`booking_id`** as in marketplace ledger sections.
+
+### expert_packages / learner_package_credits / package_credit_redemptions
+
+**Package purchase:** **Learner** checks out on the **package purchase** flow (separate from traditional session checkout and separate from **special booking** accept). On successful payment: create **`transactions`** (`transaction_type = package_purchase`, `package_id`, amounts per non-subscription fee stack); create **`learner_package_credits`** in the same DB transaction (`remaining_credits`, `expiration_at`).
+
+**Redeeming a credit:** On booking confirmation using a credit, **atomically** decrement **`remaining_credits`** and insert **`package_credit_redemptions`** in the **same transaction** as the booking. Enforce **`bookings`** duration vs **`expert_packages.session_duration_minutes`** unless upgrade rules exist.
+
+**Expiration:** Unused credits **expire** at `expiration_at` (**hard block**). Notify learner at **1 month**, **2 weeks**, **1 week**, and **3 days** before expiration.
+
+**Expert earnings:** On package purchase **`transactions`**, **expert_earnings = B** (package taxable base); platform/tax are in **total_charge**, not deducted from B for payout unless Bible is amended.
+
+### discount_redemptions
+
+- Row written at **checkout** when first-session (or applicable) discount is **applied**.
+- **Unique(expert_user_id, learner_user_id)** for that program.
+- If payment **fails** or booking **cancelled** before successful charge: **remove** or **void** row — redemption **not consumed**.
+- **Promo codes** (future): separate from this table; do not share uniqueness with first-session unless designed.
+
+First Session Discounts
+- an expert should be able to offer a first session discount either: 1) globally (ie to every learner) via the expert registration process or by updating preferences from the dashboard, or 2) as a special offer to a specific learner via the “send an offer” dialogue
+- the parameters can be set by the expert either as a fixed rate and fixed time, or as a percentage discount for any amount of time
+- the discount should be applied to the learner (or learners) for the first completed booking between that learner and the expert
+- if the booking is cancelled or rescheduled, the discount should carry over to the first actual session
+- if an expert offers a global First Session Discount, include a badge on the Expert’s profile page that includes the basic parameters of the offer
+
+
+### message_response_times / expert_response_time_stats
+
+**Implementation:** **Database trigger** on `messages` INSERT (preferred), or **trusted server** on each insert — **never** browser-only.
+
+**Rules:** Consecutive learner messages before expert reply → interval starts at **first** learner message in that run. **Exclude** system messages. **Exclude** edited/deleted messages for measurement; no retroactive recompute of old intervals.
+
+**Legacy:** No v1 backfill; stats from v2 go-live.
+
+**UI:** e.g. show average only when `response_interval_count >= 3`, else “New” (per existing Bible copy).
+
+
+### Flows — global FSD and packages
+
+**E1 — Expert configures (profile / booking settings)**  
+1. Expert opens **Expert Profile** or **Booking preferences** (single app surface per B1d).  
+2. UI loads **current** FSD fields and **expert_packages** list from **GET** (authenticated, owner).  
+3. Expert saves → **one** **PUT/PATCH** (or RPC) persists FSD columns + upserts/deletes **expert_packages** per validation.  
+4. Response is **source** for UI; no “success” without persisted read-back.
+
+**E2 — Expert onboarding (registration / setup wizard)**  
+Same as **E1** after account creation: call the **same** persist API as profile edit (or a single “complete onboarding” endpoint that internally uses the same service). **No separate** client-only object for packages that never hits the DB.
+
+**L1 — Learner views expert**  
+Public **GET** expert profile returns **sanitized** FSD summary (if enabled) and **published** **`expert_packages`** only (no draft rows).
+
+**L2 — Learner books traditional session with FSD**  
+1. Learner selects slot and duration → server **quotes** price using **hourly rate × duration**, then applies FSD **only if** expert FSD enabled **and** eligibility query passes.  
+2. Client displays quote; learner confirms → create **checkout session** or **PaymentIntent** with **metadata** (`expert_id`, `learner_id`, `booking_id` or draft id, `fsd_applied: true/false`).  
+3. On **payment success**: finalize **`bookings`**; insert **`discount_redemptions`** as **`consumed`** (or **`pending` → `consumed`** in one transaction with booking commit).  
+4. On **payment failure** or **cancel before capture**: **void** any **`discount_redemptions`** row for that attempt (B3).
+
+**L3 — Learner purchases a package**  
+1. From profile, learner selects package → **package checkout** (not session checkout).  
+2. On success: **`transactions`** (`package_purchase`) + **`learner_package_credits`** in one DB transaction (B2).  
+3. Confirmation email/UI shows **credits** and **expiration**.
+
+**L4 — Learner books using a package credit**  
+1. At session booking, learner chooses **pay with credit** (if credits exist for that expert).  
+2. On confirm: **atomic** decrement **`remaining_credits`** + insert **`package_credit_redemptions`** + create **`bookings`** (B2). **Do not** apply FSD to the marginal price of a credit session unless the Bible explicitly allows stacking (default: **no stacking**).
+
+**L5 — Expert disables FSD or unpublishes a package**  
+Existing **learner_package_credits** and **consumed** **`discount_redemptions`** are **unchanged**; only **new** quotes are affected. Unpublishing does **not** revoke already-purchased credits unless a separate policy is added.
+
+### Implementation contract — registration, profile, and APIs
+
+**Single write path:** FSD fields and **`expert_packages`** may only be changed through **one** server-side code path (e.g. `updateExpertPricingAndPackages(expertId, payload)`), invoked by: expert registration completion, setup wizard finish, availability page save, and profile editor save. **Forbidden:** duplicating save logic in the client that writes different columns or omits packages.
+
+**Single read model:** The app loads promotions for experts via **one** mapper from DB → DTO → UI. Public profile, search cards, and checkout **quote** service all use the **same** field definitions (no parallel `sampleData` / hardcoded package arrays for production).
+
+**Registration = initialize, not fork:** Expert registration may **pre-fill** forms, but on submit it must **persist** through the same API as profile updates. After signup, there is **no** “registration-only” package or FSD state.
+
+**Checkout authority:** **Price, FSD application, and eligibility** are computed **only** on the **server** (or trusted edge function). The client may display a quote but **cannot** send a final discounted amount that the server does not recompute.
+
+**Testing / acceptance:** Add checklist items: (1) create package in wizard → appears in DB and on public profile; (2) edit package on profile → wizard re-open shows same data; (3) FSD quote matches DB config; (4) failed payment does not leave **`discount_redemptions`** consumed; (5) credit booking decrements credits exactly once.
+
+
+#UserType
+To avoid confusion: everyone who registers is considered a user. 
+Every user is also a learner, meaning that they are allowed to book experts. 
+The term “learner” should only be used to define the “booker” of experts, all “learner” data is stored in the “user” table.
+Some users are also Experts. Only users with approved expert profiles can book sessions with learners.
+An expert should be able to “Switch to Learning”, ie switch from their Expert Profile to their Learning Profile, if they want to book sessions with an expert.
+If an expert is logged in to their expert profile, and attempts to book another expert, show them a prompt that says: “You must switch to your learning profile to book other experts. Use the menu at the upper right to switch to learning.”
+
+### categories
+
+**Seed:** Map legacy category **strings** → **`category_id`** at cutover.
+
+**icon:** Store **identifier string** (e.g. Lucide name `Briefcase`); app renders icon; no raw SVG required in DB for v2.
+
+**Deactivated:** `is_active = false` hides from new dropdowns; **admin tool** migrates experts **from category A to B** so none are stranded.
+
+
+### FAQ
+
+- Add **`display_order`** (integer); admin **sorts** entries for About page.
+- **Sections/groups** not required in v2 unless added later.
+
+**Public read:** Published rows only — load at **request time** **or** at **build time** (implementation choice). **Search/index refresh** on publish/unpublish as already required.
+
+
+---
+
+## Admin
+
+### Admin login (/admin-login)
+- Admin-only login to access admin dashboard.
+
+### Admin dashboard (/admin)
+Build the following functionality into the admin page for quick updates. Advise me if or when you think it makes sense to use a CMS to manage these functions. 
+- view a list of all new expert requests in a “for review” window with the ability to “approve” or “reject” each new expert. It should also be able to send an email directly to each new expert, either from a template or a custom message
+- Admin approval => set expert visibility state to `visible`.
+- Admin rejection => keep expert state as not-visible and ensure the header reasons list for the owner is updated based on what is missing/invalid (e.g., missing required fields vs payment/payout setup incomplete).
+- view incoming help or support messages and respond within the app or by external email
+- Manage “categories” for expert profiles. This should include the ability to turn each category “on” or “off” and the ability to add or edit category names and icons. Also include an option to turn off the entire category strip on the homepage.
+- Manage the grid of “featured experts” on the home page. Add a toggle to turn the grid “on” of “off”, when off, hide the grid from the homepage. Also include the ability to filter which expert profiles are featured in the grid: include options to filter by LIVE/TEMP, has profile photo, is verified, minimum number of complete sessions, and minimum star rating.
+- Ability to add, delete, or edit FAQ questions and answers.
+  - FAQ changes are saved as drafts until the admin explicitly publishes.
+  - Only published FAQ entries appear on the About page and are used by Search/Query Expansion.
+  - Publishing triggers any needed re-indexing for search.
+- Ability to edit all text blocks by page. I specifically want to be able to update text sections on the “About” page. 
+- Ability to add/edit email or internal message templates, including rules for auto-send triggers.
+- Template edits are drafts until explicitly published.
+- Publishing replaces the active template in DB and applies to all future auto-sends.
+- Add a toggle to “show” or “hide” the “resources” links in column 2 of the footer.
+- Show all DEV TOOLs on the Admin page, include the ability to turn individual DEV TOOLS “on” or “off”. 
+
+### Admin — disputes and refunds
+
+- **Admin Disputes** (or **Special booking disputes**): list rows flagged for review (missed deadlines, learner declined completion, timeouts, manual escalation).
+- Admin views linked **`freelance_work`**, **`transactions`**, messages, deadlines, timestamps.
+- Admin may issue **refunds** (full or partial). **Refund amounts are case-by-case** until formal policies exist; UI supports amount, reason, and execution via payment provider (e.g. Stripe).
+- All refunds **audited** (actor, time, amount, reason, linked ids).
+
+
+DEV Tools
+Mark these as “DEV tool” when visible within the app.
+- button to bypass the email verification process during sign up
+- button to bypass entering payout information in the expert registration process
+
+---
+
+## Dev and errors
+
+### Not found (*)
+- 404 page for unknown URLs.
+
+
+---
+
+DATABASE STRUCTURE
+
+The database structure, within Supabase, should include the following tables and fields. 
+Tell me when you think it’s necessary to add tables or fields or when there is a better way to organize tables and fields. 
+Ask questions if it is not clear where data should be stored in the database. 
+Try hard to avoid redundant fields, if categories are similar or unclear, ask questions. 
+Rule: Any “full_name” / “expert_full_name” / “learner_full_name” fields marked as “derived from users” are read-only calculated display fields computed via SQL joins/views. They must not be user-editable or written directly by clients.
+
+Table: users
+Fields:
+- user_id 
+- first_name
+- last_name
+- full_name (generate with first_name[space]last_name)
+- email_address
+- email_verified (yes/no)
+- password
+- profile_photo
+- phone_number
+- hometown
+- time_zone (generate from hometown)
+- language
+- profession
+- introduction
+- birthday
+- gender
+- user_id
+- has_expert_profile (yes/no)
+- created_at
+- updated_at
+- sessions_booked
+- sessions_completed
+- learner_dependability_rating
+- online (yes/no; set true while the user is signed in/active and cleared on sign-out/log-out; powers Online Now badge everywhere profile_photo is shown) NOTE: online status is sign in state only, DOES NOT have bearing on “Available_Now”
+
+
+Table: expert_profiles
+Fields:
+- user_id (FK to users.user_id; not user-editable)
+- expert_profile_id
+- full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- expert_status (active/pending/temp) - set all imports from v1 to “temp”
+- experience_level
+- category_id (FK to categories.category_id)
+- qualifications
+- expert_bio
+- about_services
+- skills_specializations
+- is_verified (yes/no, admin override for badge)
+- expert_dependability_rating
+- complete_sessions
+- created_at
+- updated_at
+
+
+
+Search indexing fields (implementation detail)
+- search_vector (tsvector) 
+- profile_embedding (vector) 
+- embedding_updated_at (timestamp)
+
+Rules:
+- search_vector and profile_embedding must be updated when an expert profile is published/updated.
+- search_vector supports fast keyword/FTS retrieval.
+- profile_embedding supports semantic retrieval.
+- Profile embedding / vector dimensions and index type must be fixed in implementation and documented here.
+
+Table: user_subscriptions
+Fields:
+- subscription_id
+- user_id (FK to users.user_id)
+- stripe_customer_id
+- stripe_subscription_id
+- plan_id
+- status (active/trialing/past_due/canceled/unpaid)
+- current_period_start (timestamp)
+- current_period_end (timestamp)
+- cancel_at_period_end (yes/no)
+- created_at (timestamp)
+- updated_at (timestamp)
+
+Rules:
+- Stripe webhooks update this table.
+- Stripe subscription state is primary.
+- expert_profiles.is_verified is a manual admin override for badge behavior.
+
+Table: expert_availability
+Fields:
+- user_id (FK to users.user_id; not user-editable)
+- full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- rate
+- weekly_schedule
+- availability_overrides (JSONB; repo currently uses date_overrides naming)
+
+JSON shape:
+- weekly_schedule: object keyed by day names (monday...sunday), each value is array of slots:
+  [{ startTime: "HH:mm", endTime: "HH:mm" }]
+- availability_overrides: array of date-specific override objects:
+  [{ date: "YYYY-MM-DD", isOverride: true/false, slots: [{ startTime: "HH:mm", endTime: "HH:mm" }] }]
+
+Behavior:
+- If override exists with isOverride=false, date is unavailable.
+- If override exists with isOverride=true, override slots replace weekly schedule for that date.
+
+- available_now (yes/no) NOTE: this is independent from “online” status. “available_now” is “true” if expert is available to be booked within 1 hour)
+- available_until
+- minimum_booking (min session duration - hours + minutes)
+- maximum_booking (max session duration - hours + minutes)
+- minimum_notice (min advance booking window)
+- maximum_notice (max advance booking window)
+- buffer_time (min time between bookings in minutes)
+- auto_accept (yes/no)
+- extend_sessions (yes/no)
+- allow_messaging (yes/no)
+- **`first_session_discount_enabled`** — boolean; default false.
+- **`first_session_discount_type`** — enum: `percent` | `fixed_amount` (currency minor units).
+- **`first_session_discount_value`** — numeric; meaning depends on `type` (e.g. 15 = 15%; or 2500 = $25.00 if storing cents).
+- **`first_session_discount_max_session_minutes`** — nullable int; if set, FSD applies only when booked **session length ≤** this value (optional product rule).
+- **`first_session_discount_effective_from` / `_until`** — nullable timestamps if you need scheduled promos later; omit in v1 if unused.
+
+**Eligibility (not stored on expert row):** Computed at checkout: learner has **no prior qualifying relationship** with this expert. **Define “qualifying” in the Bible**, e.g. *at least one **completed** traditional **`bookings`** row with successful charge* (adjust if you use other session types). Experts’ FSD config is **invalid for checkout** if `enabled` but `value`/`type` missing — API returns validation error on save.
+
+
+Table: bookings
+Fields: 
+- booking_id
+- expert_user_id
+- expert_full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- learner_full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- expert_profile_id
+- session_date
+- start_time (time-of-day)
+- end_time (time-of-day)
+- duration (as hours+minutess, derived from start_time and end_time)
+- rate
+- discount_applied
+- booking_amount (booking fee: rate per 15 min × 15-min blocks, after discounts; matches **transactions.booking_amount** for the charge)
+- platform_fee (10% of booking_amount; use underscore column name in schema)
+- taxes_fees (6% of booking_amount + platform_fee)
+- total_amount (booking_amount + platform_fee + taxes_fees; must equal **transactions.total_charge** for that booking's successful payment)
+- extensions (number of 15 min add ons)
+- extensions_amount (dollar amount, ie rate*number of 15 min add ons)
+- status (upcoming, live, complete)
+- payment_status
+- meeting_room_url
+- daily_room_id
+- created_at (timestamp)
+- updated_at (timestamp)
+- cancelled_at (timestamp)
+- cancelled_by
+- cancellation_reason
+- expert_joined (timestamp)
+- learner_joined (timestamp)
+- expert_delay (number of minutes)
+- learner_delay (number of minutes)
+- expert_dependability
+- learner_dependability
+- pending_reschedule_date
+- pending_reschedule_start_time
+- pending_reschedule_end_time
+- reschedule_request_id
+
+Rules:
+- reschedule_request_id is FK to messages.message_id.
+- pending_reschedule_* fields store proposed values for reschedule_request flow.
+- pending_reschedule_* fields are cleared when request is accepted or declined.
+
+- chat_transcript
+- session_transcript
+
+Table: freelance_work
+Fields:
+- freelance_id
+- status (offered/approved/complete)
+- expert_user_id
+- learner_user_id
+- duration
+- description_of_work
+- deadline
+- rate
+- total_price
+- payment_status
+- created_at (timestamp)
+- updated_at (timestamp)
+
+**freelance_work — deadline and SLA fields (suggested):**
+- `work_deadline` — expert must Mark as complete by …
+- `completion_submitted_at`
+- `learner_completion_deadline_at` — completion_submitted_at + 3 days
+- `expert_grace_end_at` — missed work deadline + 3 days
+- `rectification_deadline_at` — learner declined completion + 3 days for expert fix
+(Optional: `offer_deadline` for learner accept/decline.)
+
+Cron/server jobs evaluate these for `admin_review`, auto-payout, auto-refund.
+
+
+Table: expert_packages
+Fields:
+- package_id
+- expert_user_id (FK to users.user_id)
+- **`title`** — display name (e.g. “5 × 60 min”).
+- status (active/archived)
+- **`description`** — optional; public or post-purchase only per UX.
+- **`session_count`** — int ≥ 1.
+- **`session_duration_minutes`** — int; used when redeeming against **`bookings`** duration.
+- **`price_cents`** (or **`stripe_price_id`** if price is owned in Stripe — if so, still store display metadata for profile).
+- **`currency`** — ISO code; must match marketplace default unless multi-currency is a named product.
+- **`is_published`** — boolean; only published rows appear on public profile and in purchase API.
+- **`display_order`** — int for sorting on profile.
+- **`credit_expiration_days`** — nullable; from purchase → sets **`learner_package_credits.expiration_at`** (see package section).
+- **`created_at`**, **`updated_at`**.
+
+**Constraint:** At least one of **`price_cents`** or **`stripe_price_id`** required when `is_published = true` (exact rule in schema).
+
+
+
+Table: learner_package_credits
+Fields:
+- credit_id
+- package_id (FK to expert_packages.package_id)
+- learner_user_id (FK to users.user_id)
+- remaining_credits
+- granted_at (timestamp)
+- expiration_at (timestamp; 1 year from purchase/grant by default)
+- created_at
+- updated_at
+
+Table: package_credit_redemptions
+Fields:
+- redemption_id
+- credit_id (FK to learner_package_credits.credit_id)
+- booking_id (FK to bookings.booking_id)
+- credits_used
+- created_at
+
+Table: discount_redemptions
+Fields:
+- redemption_id
+- expert_user_id (FK to users.user_id)
+- learner_user_id (FK to users.user_id)
+**first-session program** per B3.
+- **`booking_id`** — nullable until booking exists; set when checkout creates booking in pending state if applicable.
+- **`discount_type`**, **`discount_value_applied`** — snapshot at apply time (matches expert config at moment of quote).
+- **`status`** — enum e.g. `pending` | `consumed` | `voided` (or use `voided_at` timestamp only).
+- used_at (timestamp)
+Constraint:
+- unique(expert_user_id, learner_user_id)
+- **`stripe_checkout_session_id`** or **`payment_intent_id`** — nullable; link to payment for reconciliation.
+- **`voided_at`**, **`void_reason`** — set when payment fails or booking cancelled before capture.
+
+**Rule:** **Never** treat the expert’s profile field alone as proof the learner “used” FSD; **`consumed`** redemption row (or equivalent) is the source of truth
+
+
+Table: conversations
+Fields: 
+- conversation_id
+- expert_user_id
+- expert_full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- learner_user_id
+- learner_full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- created_at (timestamp)
+- updated_at (timestamp)
+- last_message_at (timestamp)
+Constraint:
+- unique(learner_user_id, expert_user_id)
+
+Table: messages
+Fields:
+- message_id
+- conversation_id
+- sender_id
+- message
+- is_read (yes/no)
+- created_at (timestamp)
+- metadata (JSONB), examples:
+  - { type: "reschedule_request", bookingId, proposedDate, proposedStartTime, proposedEndTime, status }
+  - { type: "time_suggestion", bookingId, proposedDate, proposedStartTime, proposedEndTime, status }
+  - status: pending | accepted | declined
+
+Table: message_response_times (records time from a learner message to the first expert reply)
+Fields:
+- id (primary key)
+- conversation_id (FK to conversations)
+- expert_id (FK to users for the expert)
+- learner_id (FK to users for the learner)
+- learner_message_id (FK to messages.message_id)
+- expert_message_id (FK to messages.message_id)
+- response_time_seconds (integer, NOT NULL)
+- created_at (timestamp)
+
+Rules / invariants:
+- UNIQUE(learner_message_id) so we record only one “first expert response” interval per learner message.
+- Only create a row when:
+  - the inserted message is sent by the expert, AND
+  - there is a prior learner message in the same conversation (with created_at earlier).
+- response_time_seconds = (expert_message.created_at - prior_learner_message.created_at).
+
+
+Table: expert_response_time_stats (fast computed averages)
+Fields:
+- expert_id (primary key)
+- response_interval_count (integer)
+- total_response_time_seconds (bigint)
+- updated_at (timestamp)
+
+Computed display rule:
+- expert_avg_response_time_seconds = total_response_time_seconds / response_interval_count
+
+Rule:
+- expert_avg_response_time_seconds = total_response_time_seconds / response_interval_count
+- UI should display “No data yet” or hide the metric until count >= [threshold you choose].
+
+Response time recording logic (deterministic):
+- On INSERT into messages:
+  1) Determine if the inserted message sender_id is the conversation’s expert_id.
+  2) If it is an expert message, find the immediately preceding learner message in the same conversation (created_at < inserted_message.created_at).
+  3) If that learner_message exists and we do not already have a message_response_times row for that learner_message_id:
+     - compute response_time_seconds
+     - insert into message_response_times
+     - update expert_response_time_stats:
+       - response_interval_count += 1
+       - total_response_time_seconds += response_time_seconds
+
+Table: reviews_of_experts (ie reviews that learners leave for experts)
+Fields:
+- review_id
+- booking_id
+- learner_reviewer_id
+- expert_reviewee_id
+- overall_rating
+- questions_rating
+- knowledgeable_rating
+- personable_rating (import “punctuality_rating from v1”)
+- public_review
+- private_message
+- created_at (timestamp)
+- updated_at (timestamp)
+
+Table: reviews_of_learners (ie reviews that experts leave for learners)
+Fields:
+- review_id
+- booking_id
+- expert_reviewer_id
+- learner_reviewee_id
+- overall_rating
+- prepared_rating
+- respectful_rating
+- personable_rating (import “punctuality_rating from v1”)
+- public_review
+- private_message
+- created_at (timestamp)
+- updated_at (timestamp)
+
+Table: requests
+Fields:
+- request_id
+- user_id
+- full_name (derived read-only from users.full_name via join/view; not stored as an editable field)
+- title
+- description
+- category_id (FK to categories.category_id)
+- skills (TEXT[] free-form tags, max 10 entries; user-selected and/or AI-suggested)
+- is_active (yes/no)
+- is_public (yes/no)
+- response_count
+- created_at (timestamp)
+- updated_at (timestamp)
+- expires_at (timestamp)
+
+Table: request_responses
+- response_id
+- request_id
+- expert_user_id
+- message
+- is_seen (yes/no)
+- upvote_count (optional aggregate; source of truth in request_response_upvotes)
+- responded_at (timestamp)
+
+Table: seen_requests
+Fields:
+- request_id (FK to requests.request_id)
+- expert_id (FK to users.user_id)
+- seen_at (timestamp)
+Constraint:
+- unique(request_id, expert_id)
+
+Table: archived_requests
+Fields:
+- request_id (FK to requests.request_id)
+- expert_id (FK to users.user_id)
+- archived_at (timestamp)
+Constraint:
+- unique(request_id, expert_id)
+
+Table: request_response_upvotes
+Fields:
+- response_id (FK to request_responses.response_id)
+- user_id (FK to users.user_id)
+- created_at (timestamp)
+Constraint:
+- unique(response_id, user_id)
+
+Rule:
+- Upvotes are only for public message board content.
+
+
+Table: categories
+Fields:
+- category_id
+- name (required, unique)
+- icon
+- is_active (yes/no)
+- created_at (timestamp)
+- updated_at (timestamp)
+
+Rules:
+- Admin can add/edit/disable categories.
+- Category dropdowns across app use active categories only.
+
+
+Table: transactions
+Fields:
+- transaction_id
+- booking_id
+- expert_user_id (FK to users.user_id)
+- learner_user_id (FK to users.user_id)
+- booking_amount
+- extensions_amount
+- platform_fee
+- taxes_fees
+- total_charge
+- expert_earnings
+- status
+- payment_method
+- transaction_date
+- created_at (timestamp)
+- updated_at (timestamp)
+
+### Session pricing & ledger (canonical)
+
+**Definitions (currency per deployment, store consistent decimal rules e.g. half-up to cents):**
+- **num_15min_blocks** = integer count of 15-minute increments in the booked session (from start_time/end_time on session_date).
+- **booking_amount** (booking fee) = expert **rate** (per 15 minutes) × **num_15min_blocks**, minus any applicable **discounts** (first session, package credit, promo), applied in an order defined in product rules.
+- **platform_fee** = 10% × **booking_amount**.
+- **subtotal_pre_tax** = **booking_amount** + **platform_fee** (learner sees this as one **Subtotal** in checkout; **Cost totals** breaks out the two lines).
+- **taxes_fees** = 6% × **subtotal_pre_tax**.
+- **total_charge** = **booking_amount** + **platform_fee** + **taxes_fees** (Stripe charge amount).
+
+**Payout:**
+- **expert_earnings** for the session transaction = **booking_amount** (the expert's share before platform fee/tax; platform fee and taxes are not part of expert payout unless Bible is later amended).
+
+**Single source of truth:**
+- Implement pricing in **one shared server-side function** used by checkout, Stripe PaymentIntent creation, webhooks, and DB writes so UI, `bookings` snapshot fields, and `transactions` never diverge.
+- **`transactions`** is the **ledger** for completed charges; **`bookings`** may duplicate key amounts for convenience but **learners' transaction history** reads from **`transactions`**.
+
+**Stripe:**
+- PaymentIntent amount = **total_charge**; metadata should include booking_id and breakdown fields for support and reconciliation.
+
+
+Rules:
+- One primary **charge** row per successful session payment (unique on booking_id unless Bible defines partial captures/refunds as separate rows).
+- Row is created or finalized when payment succeeds (e.g. Stripe webhook), not from the browser alone.
+- **booking_amount**, **platform_fee**, **taxes_fees**, **total_charge**, **expert_earnings** must match the canonical **Session pricing & ledger** formulas.
+- **extensions_amount** (if used) follows the same fee/tax rules on extension increments or is documented in extensions section; sum with base session per Bible.
+- Refunds/disputes: update **status** and/or append adjustment rows per admin/Stripe policy (specify in Stripe/refund subsection when added).
+
+### Non‑subscription charges (extensions, freelance, packages, offers)
+
+**Scope:** Any one‑time or non‑recurring learner charge processed as a Stripe PaymentIntent (or equivalent) **except** subscription plans. Each charge produces a **`transactions`** row (or adjustment row) so learner history, expert payout, and tax reporting stay consistent.
+
+**Charge categories (examples — use `transaction_type` or parallel FKs in schema):**
+- **session_booking** — primary session; `booking_id` required; formulas in **Session pricing & ledger**.
+- **session_extension** — additional 15‑min blocks after initial booking; `booking_id` required. **Taxable base** = expert rate × extension blocks (after any extension discount rules). Apply **same** platform % and tax % as session booking. Store extension portion in **`transactions.extensions_amount`** (or a dedicated column) and/or link to a child line; expert **earnings** for that row = extension **booking_amount** (taxable base before platform/tax), unless Bible defines a bundle rule.
+- **freelance_work** — `freelance_id` required; **taxable base** = negotiated **total_price** (or `rate` × agreed units per `freelance_work` rules). **Platform fee** = 10% × taxable base; **taxes_fees** = 6% × (taxable base + platform fee); **total_charge** = sum of those three. **expert_earnings** = taxable base (amount released to expert when work is approved), unless a different split is defined.
+- **package_purchase** — `package_id` / credit grant; **taxable base** = package **total_price** from **`expert_packages`** (after discounts). Same 10% / 6% stack. **expert_earnings** = taxable base (or prorated per Bible when credits are redeemed).
+- **custom_offer** / **prep_review** (if separate from `freelance_work`) — same stack: define **taxable base** from the offer row, then platform 10%, tax 6% on (base + platform), **total_charge**, **expert_earnings** = base unless specified otherwise.
+
+**Universal fee stack (default for all categories above):**
+- Let **B** = **taxable base** (the amount the expert is “paid for” before platform and tax — session fee, extension fee, freelance total, package price, etc.).
+- **platform_fee** = 10% × **B**
+- **subtotal_pre_tax** = **B** + **platform_fee**
+- **taxes_fees** = 6% × **subtotal_pre_tax**
+- **total_charge** = **B** + **platform_fee** + **taxes_fees**
+- **expert_earnings** = **B** (for standard marketplace sessions, extensions, freelance, and packages unless Bible states an exception).
+
+**UI:** For every charge type, learner sees **Subtotal** = **B** + **platform_fee** and a **Cost totals** breakdown; then taxes; then **Total** — same pattern as session booking.
+
+**`transactions` table (Bible):** Add **`transaction_type`** (enum) and nullable FKs **`freelance_id`**, **`package_id`**, **`booking_id`** (booking_id populated for session + extension charges). Exactly one “primary” link should be set per row. **Subscriptions** do not use this row type.
+
+**Implementation:** One shared server function **`computeMarketplaceCharge({ taxableBase })`** returns `{ platform_fee, taxes_fees, total_charge }`; category‑specific code supplies **B** only. Do not duplicate percentage logic per product surface.
+
+
+Table: FAQ
+Fields:
+- faq_id (primary key)
+- question (required text)
+- answer (required text; supports line breaks)
+- status (enum: draft, published)  -- drives what the public can see
+- published_at (timestamp with time zone; NULL unless status = published)
+- created_at
+- updated_at
+
+Rules:
+- Admin can create/edit as draft.
+- Public users can read only rows where status = 'published'.
+- Publishing overwrites the currently active FAQ content (no version history):
+  - the draft question/answer replace what is publicly shown
+  - status becomes 'published' and published_at is set
+- When an FAQ entry is published/unpublished, the search index / query-expansion cache must be refreshed for correctness.
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,17 @@
+{
+  "name": "convene-v2-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm --prefix \"apps/web\" run dev",
+    "build:web": "npm --prefix \"apps/web\" run build",
+    "start:web": "npm --prefix \"apps/web\" run start",
+    "lint:web": "npm --prefix \"apps/web\" run lint",
+    "smoke:uuids": "npm --prefix \"apps/web\" run smoke:uuids",
+    "migrate:v1-v2": "node \"v1 migration/migrate.mjs\""
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.100.0",
+    "dotenv": "^16.4.7"
+  }
+}
