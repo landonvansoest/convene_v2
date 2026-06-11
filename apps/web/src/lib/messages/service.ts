@@ -10,6 +10,9 @@ type PublicUser = {
   phone_number: string | null;
   profile_photo: string | null;
   has_expert_profile: boolean | null;
+  profession: string | null;
+  online: boolean | null;
+  last_seen_at: string | null;
 };
 
 export async function getAuthedUserId(): Promise<string | null> {
@@ -26,11 +29,14 @@ export function displayName(user: Pick<PublicUser, "first_name" | "last_name" | 
 }
 
 export async function getUsersByIds(userIds: string[]) {
+  if (userIds.length === 0) {
+    return [] as PublicUser[];
+  }
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("users")
     .select(
-      "user_id, first_name, last_name, email_address, phone_number, profile_photo, has_expert_profile"
+      "user_id, first_name, last_name, email_address, phone_number, profile_photo, has_expert_profile, profession, online, last_seen_at"
     )
     .in("user_id", userIds);
 

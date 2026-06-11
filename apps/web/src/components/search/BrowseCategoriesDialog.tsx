@@ -6,14 +6,13 @@ import { LayoutGrid } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SKILLS_BY_CATEGORY } from "@/components/search/skillsByCategory";
 
-type Cat = { category_id: string; name: string; icon: string | null };
+type Cat = { category_id: string; name: string; icon: string | null; is_active?: boolean };
 
 type Props = {
   open: boolean;
@@ -48,28 +47,29 @@ export function BrowseCategoriesDialog({ open, onOpenChange }: Props) {
             <LayoutGrid className="h-5 w-5" />
             Browse categories
           </DialogTitle>
-          <DialogDescription>
-            Pick a category to see experts in that area (same flow as v1 categories pop-up).
-          </DialogDescription>
         </DialogHeader>
         <ul className="space-y-3 py-2">
-          {categories.map((cat) => {
-            const hints = SKILLS_BY_CATEGORY[cat.name]?.slice(0, 6).join(" · ");
+          {categories
+            .filter((cat) => cat.is_active !== false)
+            .map((cat) => {
+            const hints = SKILLS_BY_CATEGORY[cat.name]?.slice(0, 6).join(", ");
             return (
               <li key={cat.category_id}>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-auto w-full justify-start border-[#003049]/20 px-4 py-3 text-left hover:bg-[#003049]/5"
+                  className="h-auto w-full justify-start whitespace-normal border-[#003049] bg-[#003049] px-4 py-3 text-left text-white hover:bg-[#003049]/95"
                   onClick={() => {
                     router.push(`/search?category=${encodeURIComponent(cat.category_id)}`);
                     onOpenChange(false);
                   }}
                 >
-                  <span className="mr-3 text-2xl leading-none">{cat.icon?.trim() || "·"}</span>
+                  {cat.icon?.trim() ? <span className="mr-3 text-2xl leading-none">{cat.icon.trim()}</span> : null}
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="font-semibold text-[#003049]">{cat.name}</span>
-                    {hints ? <span className="text-xs font-normal text-muted-foreground">{hints}</span> : null}
+                    <span className="font-semibold text-white">{cat.name}</span>
+                    {hints ? (
+                      <span className="text-xs font-normal text-white break-words">{hints}</span>
+                    ) : null}
                   </span>
                 </Button>
               </li>

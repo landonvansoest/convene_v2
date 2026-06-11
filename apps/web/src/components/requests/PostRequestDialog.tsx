@@ -31,9 +31,11 @@ type Cat = { category_id: string; name: string };
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after a request is successfully created (before the success modal). */
+  onPosted?: () => void;
 };
 
-export function PostRequestDialog({ open, onOpenChange }: Props) {
+export function PostRequestDialog({ open, onOpenChange, onPosted }: Props) {
   const router = useRouter();
   const [categories, setCategories] = useState<Cat[]>([]);
   const [title, setTitle] = useState("");
@@ -126,6 +128,7 @@ export function PostRequestDialog({ open, onOpenChange }: Props) {
       setErr(typeof data.error === "string" ? data.error : "Failed to post");
       return;
     }
+    onPosted?.();
     setSuccess(true);
   }
 

@@ -1,8 +1,23 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
+
+type LatestRow = {
+  conversation_id: string;
+  message_id: string;
+  sender_id: string;
+  message: string;
+  created_at: string;
+  is_read: boolean;
+};
+
+type UnreadRow = {
+  conversation_id: string;
+  unread_count: number;
+};
 
 export async function GET() {
   const userId = await getAuthedUserId();
@@ -32,27 +47,53 @@ export async function GET() {
   const byId = new Map(users.map((u) => [u.user_id, u]));
 
   const convoIds = conversations.map((c) => c.conversation_id);
-  const { data: messages, error: msgErr } = await admin
-    .from("messages")
-    .select("conversation_id, sender_id, message, created_at, is_read")
-    .in("conversation_id", convoIds)
-    .order("created_at", { ascending: false });
 
-  if (msgErr) {
-    return Response.json({ error: publicApiError(msgErr) }, { status: 500 });
-  }
+  const [latestResult, unreadResult] = await Promise.all([
+    admin.rpc("latest_message_per_conversation", { p_conversation_ids: convoIds }),
+    admin.rpc("unread_message_counts_by_conversation", {
+      p_viewer_user_id: userId,
+      p_conversation_ids: convoIds,
+    }),
+  ]);
 
-  const latestByConversation = new Map<string, (typeof messages)[number]>();
+  const latestErr = latestResult.error;
+  const unreadErr = unreadResult.error;
+  const latestRows = latestResult.data;
+  const unreadRpcRows = unreadResult.data;
+
+  const useFallback = latestErr != null || unreadErr != null;
+
+  const latestByConversation = new Map<string, LatestRow>();
   const unreadByConversation = new Map<string, number>();
-  for (const m of messages ?? []) {
-    if (!latestByConversation.has(m.conversation_id)) {
-      latestByConversation.set(m.conversation_id, m);
+
+  if (!useFallback) {
+    for (const row of latestRows as LatestRow[]) {
+      latestByConversation.set(row.conversation_id, row);
     }
-    if (!m.is_read && m.sender_id !== userId) {
-      unreadByConversation.set(
-        m.conversation_id,
-        (unreadByConversation.get(m.conversation_id) ?? 0) + 1
-      );
+    for (const row of unreadRpcRows as UnreadRow[]) {
+      unreadByConversation.set(row.conversation_id, Number(row.unread_count ?? 0));
+    }
+  } else {
+    const { data: messages, error: msgErr } = await admin
+      .from("messages")
+      .select("conversation_id, sender_id, message, created_at, is_read")
+      .in("conversation_id", convoIds)
+      .order("created_at", { ascending: false });
+
+    if (msgErr) {
+      return Response.json({ error: publicApiError(msgErr) }, { status: 500 });
+    }
+
+    for (const m of messages ?? []) {
+      if (!latestByConversation.has(m.conversation_id)) {
+        latestByConversation.set(m.conversation_id, m as LatestRow);
+      }
+      if (!m.is_read && m.sender_id !== userId) {
+        unreadByConversation.set(
+          m.conversation_id,
+          (unreadByConversation.get(m.conversation_id) ?? 0) + 1
+        );
+      }
     }
   }
 
@@ -65,6 +106,7 @@ export async function GET() {
       partner_id: partnerId,
       partner_name: partner ? displayName(partner) : null,
       partner_photo: partner?.profile_photo ?? null,
+      partner_online: isUserOnlineFresh(partner?.online, partner?.last_seen_at),
       partner_type: partner?.has_expert_profile ? "expert" : "learner",
       last_message: latest?.message ?? null,
       last_message_time: latest?.created_at ?? c.last_message_at ?? c.updated_at,

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { upsertPublicUserFromAuth } from "@/lib/users/sync-public-user";
 import { publicApiError } from "@/lib/api/public-error";
+import { loadMeSessionForRequest } from "@/lib/me/load-me-session";
 
 export const dynamic = "force-dynamic";
 
@@ -21,71 +21,38 @@ const profilePatchSchema = z
       .optional(),
     gender: z.string().max(80).nullable().optional(),
     profile_photo: z.string().max(2000).nullable().optional(),
+    convene_role_mode: z.enum(["learner", "expert"]).optional(),
   })
   .strict();
 
-function nextLearnerVisibility(input: {
-  email_verified: boolean;
-  first_name: string;
-  last_name: string;
-}): "learner_hidden_email_unverified" | "learner_hidden_incomplete_fields" | "visible" {
-  if (!input.email_verified) return "learner_hidden_email_unverified";
-  if (!input.first_name.trim() || !input.last_name.trim()) {
-    return "learner_hidden_incomplete_fields";
+function isValidIanaTimeZone(tz: string): boolean {
+  try {
+    // Intl throws RangeError for unknown time zone ids.
+    Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
   }
-  return "visible";
 }
 
 /**
  * Session + public.users profile (v2 schema). Ensures a profile row exists.
  */
 export async function GET() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  const me = await loadMeSessionForRequest();
+  if (me.kind === "no_session") {
     return Response.json({ user: null, profile: null }, { status: 200 });
   }
-
-  const admin = createAdminClient();
-  const { data: existing, error: fetchError } = await admin
-    .from("users")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (fetchError) {
-    return Response.json({ error: publicApiError(fetchError) }, { status: 500 });
+  if (me.kind === "error") {
+    return Response.json({ error: me.message }, { status: 500 });
   }
-
-  if (!existing) {
-    try {
-      await upsertPublicUserFromAuth(user);
-    } catch (e) {
-      return Response.json({ error: publicApiError(e, "upsert failed") }, { status: 500 });
-    }
-  }
-
-  const { data: profile, error: profileError } = await admin
-    .from("users")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    return Response.json({ error: publicApiError(profileError) }, { status: 500 });
-  }
-
   return Response.json({
     user: {
-      id: user.id,
-      email: user.email,
-      email_confirmed_at: user.email_confirmed_at,
+      id: me.user.id,
+      email: me.user.email,
+      email_confirmed_at: me.user.email_confirmed_at,
     },
-    profile,
+    profile: me.profile,
   });
 }
 
@@ -123,12 +90,17 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "No fields to update" }, { status: 400 });
   }
 
+  if (patch.time_zone != null && patch.time_zone.trim() && !isValidIanaTimeZone(patch.time_zone)) {
+    return Response.json(
+      { error: "time_zone must be a valid IANA timezone (e.g. America/New_York)" },
+      { status: 400 }
+    );
+  }
+
   const admin = createAdminClient();
   const { data: current, error: curErr } = await admin
     .from("users")
-    .select(
-      "user_id, email_verified, first_name, last_name, has_expert_profile, profile_visibility_state"
-    )
+    .select("user_id, has_expert_profile")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -137,19 +109,11 @@ export async function PATCH(request: Request) {
     return Response.json({ error: errMsg }, { status: 404 });
   }
 
-  const merged = {
-    first_name: patch.first_name ?? current.first_name,
-    last_name: patch.last_name ?? current.last_name,
-    email_verified: current.email_verified,
-  };
-
-  let profile_visibility_state = current.profile_visibility_state;
-  if (!current.has_expert_profile) {
-    profile_visibility_state = nextLearnerVisibility({
-      email_verified: merged.email_verified,
-      first_name: merged.first_name ?? "",
-      last_name: merged.last_name ?? "",
-    });
+  if (patch.convene_role_mode === "expert" && !current.has_expert_profile) {
+    return Response.json(
+      { error: "Cannot set convene_role_mode to expert without an expert profile." },
+      { status: 400 }
+    );
   }
 
   let birthdayUpdate: string | null | undefined;
@@ -160,7 +124,6 @@ export async function PATCH(request: Request) {
 
   const updatePayload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-    profile_visibility_state,
   };
 
   if (patch.first_name !== undefined) updatePayload.first_name = patch.first_name;
@@ -174,6 +137,7 @@ export async function PATCH(request: Request) {
   if (birthdayUpdate !== undefined) updatePayload.birthday = birthdayUpdate;
   if (patch.gender !== undefined) updatePayload.gender = patch.gender;
   if (patch.profile_photo !== undefined) updatePayload.profile_photo = patch.profile_photo;
+  if (patch.convene_role_mode !== undefined) updatePayload.convene_role_mode = patch.convene_role_mode;
 
   const { error: updErr } = await admin
     .from("users")

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Mail } from "lucide-react";
+import { ArrowLeft, CheckCircle, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -68,7 +68,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, onBackToSignIn, initi
           <>
             <DialogHeader>
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+                <CheckCircle className="h-10 w-10 text-emerald-600" />
               </div>
               <DialogTitle className="text-center text-xl font-bold text-[#003049]">Check your email</DialogTitle>
               <DialogDescription className="text-center">

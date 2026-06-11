@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { RefreshCw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  dashboardTabPillClass,
+  dashboardViewCardClass,
+  dashboardViewContentBoxClass,
+  DashboardViewHeader,
+} from "@/app/dashboard/DashboardViewShell";
+import { RequestCard, type RequestCardData } from "@/components/requests/RequestCard";
+import { cn } from "@/lib/utils";
 
-type Req = {
-  request_id: string;
-  title: string;
-  description: string;
-  response_count: number;
-  created_at: string;
-  skills: string[];
-  category_id: string | null;
-};
+type Req = RequestCardData;
 
 type CategoryRow = {
   category_id: string;
@@ -27,6 +28,56 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [listCategoryFilter, setListCategoryFilter] = useState("");
+  const [busyUpvoteId, setBusyUpvoteId] = useState<string | null>(null);
+
+  async function toggleUpvote(reqId: string) {
+    if (busyUpvoteId) return;
+    setBusyUpvoteId(reqId);
+    // Optimistic update first.
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.request_id === reqId
+          ? {
+              ...r,
+              i_upvoted: !r.i_upvoted,
+              upvote_count: r.upvote_count + (r.i_upvoted ? -1 : 1),
+            }
+          : r,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/requests/${encodeURIComponent(reqId)}/upvote`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // Revert if the server rejects us.
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.request_id === reqId
+              ? {
+                  ...r,
+                  i_upvoted: !r.i_upvoted,
+                  upvote_count: r.upvote_count + (r.i_upvoted ? -1 : 1),
+                }
+              : r,
+          ),
+        );
+        window.alert(typeof data.error === "string" ? data.error : "Could not upvote");
+        return;
+      }
+      // Reconcile with server-authoritative counts.
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.request_id === reqId
+            ? { ...r, i_upvoted: !!data.upvoted, upvote_count: Number(data.count ?? r.upvote_count) }
+            : r,
+        ),
+      );
+    } finally {
+      setBusyUpvoteId(null);
+    }
+  }
 
   useEffect(() => {
     let c = false;
@@ -73,51 +124,48 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
   }, [load]);
 
   const categoryNameById = useMemo(() => new Map(categories.map((c) => [c.category_id, c.name])), [categories]);
+  const categoryIconById = useMemo(() => new Map(categories.map((c) => [c.category_id, c.icon])), [categories]);
 
   const showForYouEmpty = tab === "forYou" && !categoryId;
 
   return (
-    <div className="rounded-xl border-2 border-[#003049]/10 bg-white p-6 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-[#003049]">Community requests</h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Browse public asks. Respond from a request&apos;s detail page if you&apos;re an active expert.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="rounded-lg border border-[#003049]/15 px-3 py-1.5 text-sm font-medium text-[#003049] hover:bg-gray-50"
-          >
-            Refresh
-          </button>
-          <Link
-            href="/requests"
-            className="rounded-lg border border-[#003049]/15 px-3 py-1.5 text-sm font-medium text-[#003049] hover:bg-gray-50"
-          >
-            Open full board
-          </Link>
-        </div>
-      </div>
+    <div className={dashboardViewCardClass}>
+      <DashboardViewHeader
+        Icon={Sparkles}
+        title="Community Requests"
+        subtitle="See hand selected user requests, respond with information or offers to book a session."
+        actions={
+          <>
+            <button
+              type="button"
+              aria-label="Refresh requests"
+              onClick={() => void load()}
+              className="rounded-md p-2 text-[#003049] transition hover:bg-[#003049]/5"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden />
+            </button>
+            <Link
+              href="/requests"
+              className="rounded-lg border border-[#003049]/15 px-3 py-1.5 text-sm font-medium text-[#003049] hover:bg-gray-50"
+            >
+              Open full board
+            </Link>
+          </>
+        }
+      />
 
-      <div className="mt-6 inline-flex rounded-lg border border-[#003049]/15 p-0.5">
+      <div className="mt-6 grid w-full max-w-md grid-cols-2 gap-0.5 rounded-lg border border-[#003049]/15 p-0.5">
         <button
           type="button"
           onClick={() => setTab("forYou")}
-          className={`rounded-md px-4 py-2 text-sm font-medium ${
-            tab === "forYou" ? "bg-[#003049] text-white" : "text-[#003049] hover:bg-gray-50"
-          }`}
+          className={cn(dashboardTabPillClass(tab === "forYou"), "w-full")}
         >
           For you
         </button>
         <button
           type="button"
           onClick={() => setTab("all")}
-          className={`rounded-md px-4 py-2 text-sm font-medium ${
-            tab === "all" ? "bg-[#003049] text-white" : "text-[#003049] hover:bg-gray-50"
-          }`}
+          className={cn(dashboardTabPillClass(tab === "all"), "w-full")}
         >
           All requests
         </button>
@@ -145,8 +193,10 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
 
       {err ? <p className="mt-4 text-sm text-red-600">{err}</p> : null}
 
+      <div className={dashboardViewContentBoxClass}>
       {showForYouEmpty ? (
-        <div className="mt-6 rounded-lg border border-dashed border-[#003049]/20 bg-gray-50 p-6 text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-[#003049]/20 bg-gray-50 p-6 text-center text-sm text-muted-foreground">
+          <Sparkles className="mx-auto h-10 w-10 text-[#003049]/25" strokeWidth={1.5} aria-hidden />
           <p>We don&apos;t know your expert category yet. Complete your expert profile with a category to see tailored
             requests here, or switch to &quot;All requests&quot;.</p>
           <Link href="/profile" className="mt-3 inline-block font-medium text-[#F77F00] underline">
@@ -154,38 +204,28 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
           </Link>
         </div>
       ) : loading ? (
-        <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : requests.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">No requests in this view.</p>
+        <div className="py-6 text-center">
+          <Sparkles className="mx-auto h-10 w-10 text-[#003049]/25" strokeWidth={1.5} aria-hidden />
+          <p className="mt-2 text-sm text-muted-foreground">No requests yet, check back soon.</p>
+        </div>
       ) : (
-        <ul className="mt-6 space-y-3">
+        <ul className="space-y-3">
           {requests.map((r) => (
             <li key={r.request_id}>
-              <Link
-                href={`/requests/${encodeURIComponent(r.request_id)}`}
-                className="block rounded-xl border border-[#003049]/10 bg-gray-50/60 p-4 transition hover:border-[#003049]/25 hover:bg-white"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h3 className="font-semibold text-[#003049]">{r.title}</h3>
-                  <span className="text-xs text-muted-foreground">
-                    {r.response_count} response{r.response_count === 1 ? "" : "s"}
-                  </span>
-                </div>
-                {r.category_id ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {categoryNameById.get(r.category_id) ?? "Category"}
-                  </p>
-                ) : null}
-                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{r.description}</p>
-                {r.skills?.length ? (
-                  <p className="mt-2 text-xs text-muted-foreground">Skills: {r.skills.join(", ")}</p>
-                ) : null}
-                <p className="mt-2 text-[10px] text-muted-foreground">{r.created_at}</p>
-              </Link>
+              <RequestCard
+                request={r}
+                categoryName={r.category_id ? categoryNameById.get(r.category_id) : null}
+                categoryIcon={r.category_id ? categoryIconById.get(r.category_id) : null}
+                onToggleUpvote={toggleUpvote}
+                busyUpvote={busyUpvoteId === r.request_id}
+              />
             </li>
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }

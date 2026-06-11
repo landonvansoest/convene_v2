@@ -1,17 +1,27 @@
-import { Suspense } from "react";
+import { loadDashboardBootstrap } from "@/lib/dashboard/load-dashboard-bootstrap";
 import DashboardClient from "./DashboardClient";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const viewRaw = sp.view;
+  const initialView = typeof viewRaw === "string" && viewRaw ? viewRaw : "overview";
+  const showRegistrationSuccess = sp.registrationComplete === "1";
+  const showExpertRegistrationSuccess = sp.expertRegistrationComplete === "1";
+
+  const bootstrap = await loadDashboardBootstrap();
+
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 px-4 py-10 text-muted-foreground">
-          <p className="mx-auto max-w-xl">Loading…</p>
-        </div>
-      }
-    >
-      <DashboardClient />
-    </Suspense>
+    <DashboardClient
+      bootstrap={bootstrap}
+      initialView={initialView}
+      showRegistrationSuccess={showRegistrationSuccess}
+      showExpertRegistrationSuccess={showExpertRegistrationSuccess}
+    />
   );
 }
-

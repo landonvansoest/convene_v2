@@ -1,26 +1,48 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { User } from "lucide-react";
+import { CircleCheck, Star, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { OnlineDot } from "@/components/presence/OnlineDot";
+import { cn } from "@/lib/utils";
 import type { DashboardSummaryJson } from "./DashboardOverview";
 
 export type SidebarEntry =
   | { kind: "view"; key: string; label: string; icon: ReactNode }
   | { kind: "link"; key: string; href: string; label: string; icon: ReactNode };
 
+function sidebarDataTourTarget(entry: SidebarEntry): string | undefined {
+  if (entry.kind !== "view") return undefined;
+  if (entry.key === "overview") return "sidebar-overview";
+  if (entry.key === "sessions") return "sidebar-booked-sessions";
+  if (entry.key === "inbox") return "sidebar-inbox";
+  if (entry.key === "requests") return "sidebar-requests";
+  if (entry.key === "community-requests") return "sidebar-community-requests";
+  if (entry.key === "availability") return "sidebar-availability";
+  return undefined;
+}
+
+const EXPERT_SIDEBAR_FOOTER_KEYS = new Set([
+  "expert-status",
+  "booking-prefs",
+  "earnings",
+  "expert-profile",
+]);
+
 function SidebarRow({
   active,
   icon,
   label,
   badge,
+  dataTourTarget,
   onClick,
 }: {
   active: boolean;
   icon: ReactNode;
   label: string;
   badge?: number;
+  dataTourTarget?: string;
   onClick: () => void;
 }) {
   return (
@@ -28,6 +50,7 @@ function SidebarRow({
       type="button"
       variant={active ? "secondary" : "ghost"}
       className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal rounded-md px-3 py-2 text-left"
+      data-tour-target={dataTourTarget}
       onClick={onClick}
     >
       {icon}
@@ -86,83 +109,139 @@ export function DashboardSidebar({
 }) {
   const { profile, expert, ratings } = summary;
   const isExpert = profile.hasExpertProfile;
-  const displayName =
-    [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Member";
+  const nameFromParts = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  const emailLocal =
+    typeof profile.email === "string" && profile.email.includes("@")
+      ? profile.email.split("@")[0]?.trim() || ""
+      : "";
+  const displayName = nameFromParts || emailLocal || "Member";
 
   const userRating = isExpert ? ratings.asExpertAvg : ratings.asLearnerAvg;
   const ratingLabel =
     userRating != null ? `${userRating.toFixed(1)} / 5` : "—";
-  const sessionsComplete = isExpert
-    ? String(expert?.completeSessions ?? 0)
-    : String(profile.sessionsCompleted);
+  const rawSessionsComplete = isExpert
+    ? Number(expert?.completeSessions ?? 0)
+    : Number(profile.sessionsCompleted ?? 0);
+  const sessionsComplete = rawSessionsComplete > 0 ? String(rawSessionsComplete) : "—";
   const dependability = isExpert
     ? expert?.expertDependabilityRating
     : profile.learnerDependabilityRating;
   const dependLabel = dependability != null ? String(dependability) : "—";
 
+  const avatarInitials =
+    [profile.firstName, profile.lastName]
+      .map((s) => s?.trim().slice(0, 1))
+      .filter(Boolean)
+      .join("")
+      .toUpperCase() ||
+    emailLocal.slice(0, 2).toUpperCase() ||
+    "U";
+
+  const mainNavEntries = isExpert
+    ? entries.filter((e) => !EXPERT_SIDEBAR_FOOTER_KEYS.has(e.key))
+    : entries;
+  const footerNavEntries = isExpert
+    ? entries.filter((e) => EXPERT_SIDEBAR_FOOTER_KEYS.has(e.key))
+    : [];
+
+  const statRows: Array<{ icon: ReactNode; label: string; value: string }> = [
+    {
+      icon: <Star className="h-4 w-4 shrink-0 text-[#F77F00]" strokeWidth={2} aria-hidden />,
+      label: "User rating",
+      value: ratingLabel,
+    },
+    {
+      icon: <CircleCheck className="h-4 w-4 shrink-0 text-[#F77F00]" strokeWidth={2} aria-hidden />,
+      label: "Sessions complete",
+      value: sessionsComplete,
+    },
+    {
+      icon: <TrendingUp className="h-4 w-4 shrink-0 text-[#F77F00]" strokeWidth={2} aria-hidden />,
+      label: "Dependability rating",
+      value: dependLabel,
+    },
+  ];
+
   return (
-    <aside className="w-full shrink-0 lg:w-72">
-      <div className="rounded-xl border-2 border-[#003049]/10 bg-white p-4 shadow-sm">
+    <aside
+      className={cn(
+        "w-52 shrink-0 self-stretch border-r border-[#003049]/12 bg-white sm:w-60 lg:w-72",
+      )}
+    >
+      <div className="flex flex-col p-4 sm:p-5">
         <div className="flex gap-3">
           <div className="relative shrink-0">
-            <Avatar className="h-14 w-14 border-2 border-[#003049]/15">
+            <Avatar className="h-14 w-14 border-2 border-[#FFF6EE]">
               <AvatarImage src={profile.profilePhoto ?? undefined} alt="" />
-              <AvatarFallback className="bg-[#F77F00] text-white">
-                <User className="h-6 w-6" />
+              <AvatarFallback className="bg-[#FFF6EE] text-base font-semibold text-[#003049]">
+                {avatarInitials.slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            {profile.online ? (
-              <span
-                className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
-                title="Online now"
-              />
-            ) : null}
+            <OnlineDot online={profile.online} />
+
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-[#003049]">{displayName}</p>
+            <p className="truncate font-bold text-[#003049]">{displayName}</p>
             <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
             {profile.online ? (
-              <p className="mt-1 text-xs font-medium text-emerald-600">Online now</p>
+              <p className="mt-1 text-xs font-medium text-convene-online">Online now</p>
             ) : null}
           </div>
         </div>
 
-        <dl className="mt-4 space-y-2 border-t border-border pt-4 text-xs">
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">User rating</dt>
-            <dd className="font-medium text-foreground">{ratingLabel}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Sessions complete</dt>
-            <dd className="font-medium text-foreground">{sessionsComplete}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Dependability</dt>
-            <dd className="font-medium text-foreground">{dependLabel}</dd>
-          </div>
-        </dl>
-
-        <div className="my-4 h-px bg-border" />
-
-        <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Navigation
+        <div className="mt-4 rounded-lg border border-[#003049]/10 bg-[#F3F4F6] p-3">
+          <dl className="space-y-2.5 text-xs">
+            {statRows.map((row) => (
+              <div key={row.label} className="flex items-start justify-between gap-2">
+                <dt className="flex min-w-0 items-start gap-2 text-[#003049]/80">
+                  {row.icon}
+                  <span className="pt-0.5 font-medium leading-snug">{row.label}</span>
+                </dt>
+                <dd className="shrink-0 pt-0.5 font-semibold tabular-nums text-[#003049]">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-        <div className="space-y-1">
-          {entries.map((item) => (
-            <div key={item.key}>
-              {isExpert && item.key === "link-expert-status" ? (
-                <div className="mb-2 mt-3 h-px bg-border" />
-              ) : null}
-              <SidebarRow
-                active={entryActive(item, view, pathname)}
-                icon={item.icon}
-                label={item.label}
-                badge={navBadge(item.key, isExpert, summary.counts)}
-                onClick={() => onGo(item)}
-              />
-            </div>
-          ))}
-        </div>
+
+        <nav className="mt-5 space-y-0.5">
+          {mainNavEntries.map((item, index) => {
+            const prev = mainNavEntries[index - 1];
+            const showDividerBefore =
+              (item.key === "sessions" && prev?.key === "overview") ||
+              (item.key === "transactions" && prev?.key === "requests");
+            return (
+              <div key={item.key}>
+                {showDividerBefore ? <div className="my-3 h-px bg-[#003049]/12" aria-hidden /> : null}
+                <SidebarRow
+                  active={entryActive(item, view, pathname)}
+                  icon={item.icon}
+                  label={item.label}
+                  badge={navBadge(item.key, isExpert, summary.counts)}
+                  dataTourTarget={sidebarDataTourTarget(item)}
+                  onClick={() => onGo(item)}
+                />
+              </div>
+            );
+          })}
+          {footerNavEntries.length ? (
+            <>
+              <div className="my-3 h-px bg-[#003049]/12" aria-hidden />
+              <div className="space-y-0.5" data-tour-target="expert-sidebar-footer-links">
+                {footerNavEntries.map((item) => (
+                  <SidebarRow
+                    key={item.key}
+                    active={entryActive(item, view, pathname)}
+                    icon={item.icon}
+                    label={item.label}
+                    badge={navBadge(item.key, isExpert, summary.counts)}
+                    dataTourTarget={sidebarDataTourTarget(item)}
+                    onClick={() => onGo(item)}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+        </nav>
       </div>
     </aside>
   );

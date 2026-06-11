@@ -39,9 +39,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    // Skip all Next internals (static CSS/JS/chunks, RSC payloads, HMR) and API routes so
-    // middleware never runs on asset fetches — avoids flaky session refresh breaking styles/chunks.
-    "/((?!_next/|api/|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  /**
+   * Middleware only needs to run for `/login` (redirect if already signed in). Matching almost
+   * every path meant Supabase session refresh ran on `/`, `/search`, RSC fetches, etc. Recreating
+   * `NextResponse.next({ request })` from cookie `setAll` is a known source of flaky/missing
+   * `/_next/static` CSS in Next 15 dev.
+   */
+  matcher: ["/login"],
 };

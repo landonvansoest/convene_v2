@@ -26,9 +26,9 @@ export async function GET() {
     return Response.json({ count: 0 });
   }
 
-  const { data: unreadRows, error: unreadErr } = await admin
+  const { count, error: unreadErr } = await admin
     .from("messages")
-    .select("message_id, sender_id", { count: "exact" })
+    .select("message_id", { count: "exact", head: true })
     .in("conversation_id", conversationIds)
     .eq("is_read", false)
     .neq("sender_id", userId);
@@ -37,5 +37,5 @@ export async function GET() {
     return Response.json({ error: publicApiError(unreadErr) }, { status: 500 });
   }
 
-  return Response.json({ count: unreadRows?.length ?? 0 });
+  return Response.json({ count: count ?? 0 });
 }

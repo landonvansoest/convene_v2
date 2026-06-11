@@ -2,12 +2,22 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { persistBookingDependability } from "@/lib/dependability-persist";
+import { dispatchBookingCanceled } from "@/lib/notifications/booking-notifications";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-const bookingStatusSchema = z.enum(["upcoming", "live", "complete", "cancelled"]);
+const bookingStatusSchema = z.enum([
+  "upcoming",
+  "live",
+  "complete",
+  "cancelled",
+  "no_show_expert",
+  "no_show_learner",
+  "no_show",
+]);
 
 const updateStatusSchema = z.object({
   status: bookingStatusSchema,
@@ -63,6 +73,33 @@ export async function PUT(request: Request, { params }: Params) {
 
   if (updateErr) {
     return Response.json({ error: publicApiError(updateErr) }, { status: 500 });
+  }
+
+  // Bible §"Dependability Rating": cancellation deductions (50/60/70/80/90/95
+  // pts depending on how far before scheduled start) and no-show deductions
+  // (100 pts) are recorded the moment the status changes. The persist helper
+  // looks at the just-updated row and writes the per-side scores; a Postgres
+  // trigger rolls them into the user-level averages.
+  if (
+    status === "cancelled" ||
+    status === "no_show" ||
+    status === "no_show_learner" ||
+    status === "no_show_expert" ||
+    status === "complete"
+  ) {
+    try {
+      await persistBookingDependability(admin, id);
+    } catch {
+      // Non-fatal — score can be backfilled later.
+    }
+  }
+
+  if (status === "cancelled") {
+    try {
+      await dispatchBookingCanceled(id);
+    } catch (e) {
+      console.error("[session-status] cancel notification failed", e);
+    }
   }
 
   return Response.json({ message: "Session status updated" });

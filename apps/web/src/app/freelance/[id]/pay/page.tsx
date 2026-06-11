@@ -1,13 +1,10 @@
 "use client";
 
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-
-const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
-const stripePromise = pk ? loadStripe(pk) : null;
+import { STRIPE_PUBLISHABLE_KEY, stripePromise } from "@/lib/stripe/loadStripeClient";
 
 function PayForm({ returnPath }: { returnPath: string }) {
   const stripe = useStripe();
@@ -88,8 +85,13 @@ export default function FreelancePayPage() {
         setLoadErr("Only the learner can pay for this work.");
         return;
       }
-      if (f.status !== "approved") {
-        setLoadErr("This offer must be approved before payment.");
+      // Per Bible §"accept+charge atomic", the learner pays directly from
+      // `offered` (skipping accepted_pending_payment), or from
+      // accepted_pending_payment if they previously accepted via PATCH.
+      if (f.status !== "offered" && f.status !== "accepted_pending_payment") {
+        setLoadErr(
+          `This offer can no longer be paid (status: ${String(f.status)}).`,
+        );
         return;
       }
       const ps = String(f.payment_status ?? "").toLowerCase();
@@ -131,7 +133,7 @@ export default function FreelancePayPage() {
     };
   }, [freelanceId]);
 
-  if (!pk || !stripePromise) {
+  if (!STRIPE_PUBLISHABLE_KEY || !stripePromise) {
     return (
       <div className="min-h-screen bg-[var(--convene-primary)] px-4 py-10 text-white">
         <p className="text-sm text-red-300">

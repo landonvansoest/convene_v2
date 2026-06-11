@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { getStripe } from "@/lib/stripe/server";
 import { publicApiError } from "@/lib/api/public-error";
+import { getDevToolEnabled } from "@/lib/devTools/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,8 +62,16 @@ export async function POST(request: Request) {
   if (row.learner_user_id !== learnerId) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (row.status !== "approved") {
-    return Response.json({ error: "Freelance must be approved before payment" }, { status: 400 });
+  // Bible §"freelance_work — status enum": payment is normally synchronous
+  // with accept (offered → paid_in_progress via webhook), so we accept both
+  // `offered` (atomic accept+pay path used by the simple flow) and
+  // `accepted_pending_payment` (used when the learner explicitly accepted
+  // first via PATCH `action=accept`).
+  if (row.status !== "offered" && row.status !== "accepted_pending_payment") {
+    return Response.json(
+      { error: `Freelance must be 'offered' or 'accepted_pending_payment' before payment (current: ${row.status})` },
+      { status: 400 },
+    );
   }
   const ps = String(row.payment_status ?? "").toLowerCase();
   if (ps === "paid" || ps === "succeeded") {
@@ -92,7 +101,8 @@ export async function POST(request: Request) {
   const destination = expertProfile.stripe_connect_account_id;
   const allowBypass =
     process.env.NODE_ENV !== "production" &&
-    process.env.ALLOW_PAYMENT_BYPASS === "true";
+    (process.env.ALLOW_PAYMENT_BYPASS === "true" ||
+      (await getDevToolEnabled(admin, "payment_bypass_session")));
 
   const metaBase = {
     convene_type: "freelance_work",

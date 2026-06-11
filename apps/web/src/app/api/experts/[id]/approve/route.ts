@@ -2,14 +2,42 @@ import { z } from "zod";
 import { assertAdmin } from "@/lib/admin/assert-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
+import { dispatchExpertApproved } from "@/lib/notifications/booking-notifications";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
 const approveSchema = z.object({
-  action: z.enum(["approve", "reject"]),
+  action: z.enum(["approve", "reject", "waitlist"]),
 });
+
+type ActionResult = {
+  expert_visibility_state: string;
+  membership_tier?: "free" | "verified";
+  verbMessage: string;
+};
+
+function resultForAction(action: "approve" | "reject" | "waitlist"): ActionResult {
+  if (action === "approve") {
+    return {
+      expert_visibility_state: "visible_active",
+      membership_tier: "verified",
+      verbMessage: "approved",
+    };
+  }
+  if (action === "waitlist") {
+    return {
+      expert_visibility_state: "waitlisted",
+      verbMessage: "waitlisted",
+    };
+  }
+  return {
+    expert_visibility_state: "hidden_incomplete_fields",
+    membership_tier: "free",
+    verbMessage: "rejected",
+  };
+}
 
 export async function PUT(request: Request, { params }: Params) {
   const denied = await assertAdmin(request);
@@ -28,19 +56,22 @@ export async function PUT(request: Request, { params }: Params) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, { status: 400 });
   }
 
-  const isApproved = parsed.data.action === "approve";
-  const expertStatus = isApproved ? "active" : "temp";
   const admin = createAdminClient();
+  const result = resultForAction(parsed.data.action);
+
+  const updateBody: Record<string, unknown> = {
+    expert_visibility_state: result.expert_visibility_state,
+    updated_at: new Date().toISOString(),
+  };
+  if (result.membership_tier) {
+    updateBody.membership_tier = result.membership_tier;
+  }
 
   const { data, error } = await admin
     .from("expert_profiles")
-    .update({
-      expert_status: expertStatus,
-      is_verified: isApproved,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateBody)
     .eq("user_id", id)
-    .select("user_id, expert_profile_id, expert_status, is_verified")
+    .select("user_id, expert_profile_id, expert_visibility_state, membership_tier")
     .maybeSingle();
 
   if (error) {
@@ -50,19 +81,30 @@ export async function PUT(request: Request, { params }: Params) {
     return Response.json({ error: "Expert profile not found" }, { status: 404 });
   }
 
-  if (isApproved) {
-    await admin
+  if (parsed.data.action === "approve") {
+    const { data: user } = await admin
       .from("users")
-      .update({
-        profile_visibility_state: "visible",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", id);
+      .select("first_name, last_name, email_address")
+      .eq("user_id", id)
+      .maybeSingle();
+    if (user?.email_address) {
+      const name =
+        `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email_address;
+      try {
+        await dispatchExpertApproved({
+          recipientUserId: id,
+          recipientEmail: user.email_address,
+          recipientName: name,
+        });
+      } catch (e) {
+        console.error("[expert-approve] notification failed", e);
+      }
+    }
   }
 
   return Response.json({
     success: true,
-    message: `Expert ${parsed.data.action}d successfully`,
+    message: `Expert ${result.verbMessage} successfully`,
     expert: data,
   });
 }

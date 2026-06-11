@@ -130,9 +130,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, initialKeywords = "" 
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl text-[#003049]">Advanced Search</DialogTitle>
-          <DialogDescription>
-            Use these filters to find the right expert (v1-style; wired to Convene v2 search).
-          </DialogDescription>
+          <DialogDescription />
         </DialogHeader>
 
         <div className="space-y-6 py-4">

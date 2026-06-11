@@ -24,6 +24,15 @@ export async function ensureDailyRoom(opts: {
 }): Promise<EnsureDailyRoomResult> {
   const { apiKey, dailyDomain, roomName, expSeconds } = opts;
 
+  /** Daily Prebuilt lobby (“Are you ready to join?”) — disable so join goes straight in. */
+  const prebuiltProps = {
+    enable_prejoin_ui: false,
+    /** In-call chat panel (Prebuilt tray). */
+    enable_chat: true,
+    /** Screen share button in Prebuilt + getDisplayMedia in the call. */
+    enable_screenshare: true,
+  };
+
   let room: unknown = null;
   const getResp = await dailyFetch(`/rooms/${encodeURIComponent(roomName)}`, { method: "GET" }, apiKey);
   if (getResp.ok) {
@@ -45,7 +54,7 @@ export async function ensureDailyRoom(opts: {
         body: JSON.stringify({
           name: roomName,
           privacy: "public",
-          properties: { exp },
+          properties: { exp, ...prebuiltProps },
         }),
       },
       apiKey
@@ -54,6 +63,21 @@ export async function ensureDailyRoom(opts: {
     if (!createResp.ok) {
       const details = await createResp.text();
       throw new Error(`Failed to create Daily room: ${details}`);
+    }
+  } else {
+    const updateResp = await dailyFetch(
+      `/rooms/${encodeURIComponent(roomName)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          properties: { ...prebuiltProps },
+        }),
+      },
+      apiKey
+    );
+    if (!updateResp.ok) {
+      const details = await updateResp.text();
+      console.warn(`[daily] could not update room ${roomName} (prejoin UI may still show): ${details}`);
     }
   }
 

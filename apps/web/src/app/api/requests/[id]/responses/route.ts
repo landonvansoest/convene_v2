@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +36,11 @@ export async function POST(request: Request, { params }: Params) {
 
   const { data: profile } = await admin
     .from("expert_profiles")
-    .select("user_id, expert_status")
+    .select("user_id, expert_visibility_state")
     .eq("user_id", expertUserId)
     .maybeSingle();
 
-  if (!profile || profile.expert_status !== "active") {
+  if (!profile || profile.expert_visibility_state !== "visible_active") {
     return Response.json({ error: "Active expert profile required" }, { status: 403 });
   }
 
@@ -103,10 +104,13 @@ export async function GET(_request: Request, { params }: Params) {
     .eq("request_id", requestId)
     .maybeSingle();
 
-  if (!reqRow?.is_active) {
+  if (!reqRow) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
   const isOwner = userId === reqRow.user_id;
+  if (!reqRow.is_active && !isOwner) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
   if (!reqRow.is_public && !isOwner) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -123,5 +127,45 @@ export async function GET(_request: Request, { params }: Params) {
     return Response.json({ error: publicApiError(error) }, { status: 500 });
   }
 
-  return Response.json({ responses: responses ?? [] });
+  const list = responses ?? [];
+  const expertIds = [...new Set(list.map((r) => r.expert_user_id))];
+  type ExpertSnippetRow = {
+    user_id: string;
+    first_name: string | null;
+    last_name: string | null;
+    profile_photo: string | null;
+    online: boolean | null;
+    last_seen_at: string | null;
+  };
+  let expertById = new Map<string, ExpertSnippetRow>();
+  if (expertIds.length > 0) {
+    const { data: users, error: uErr } = await admin
+      .from("users")
+      .select("user_id, first_name, last_name, profile_photo, online, last_seen_at")
+      .in("user_id", expertIds);
+    if (uErr) {
+      return Response.json({ error: publicApiError(uErr) }, { status: 500 });
+    }
+    expertById = new Map(
+      (users ?? []).map((u) => [u.user_id, u as ExpertSnippetRow]),
+    );
+  }
+
+  const enriched = list.map((r) => {
+    const u = expertById.get(r.expert_user_id) ?? null;
+    return {
+      ...r,
+      expert: u
+        ? {
+            user_id: u.user_id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            profile_photo: u.profile_photo,
+            online: isUserOnlineFresh(u.online, u.last_seen_at),
+          }
+        : null,
+    };
+  });
+
+  return Response.json({ responses: enriched });
 }

@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { finalizeFreelanceFromPaymentIntent } from "@/lib/stripe/finalize-freelance-payment";
 import { finalizePackagePurchaseFromCheckoutSession } from "@/lib/stripe/finalize-package-purchase";
 import { finalizeSessionBookingFromPaymentIntent } from "@/lib/stripe/finalize-session-payment";
+import { finalizeSessionExtensionFromPaymentIntent } from "@/lib/stripe/finalize-session-extension-payment";
 import { getStripe } from "@/lib/stripe/server";
 import { syncUserSubscriptionFromStripe } from "@/lib/stripe/sync-user-subscription";
 
@@ -62,7 +63,11 @@ export async function POST(request: Request) {
       const pi = event.data.object;
       console.info("[stripe] payment_intent.succeeded", pi.id);
       try {
-        await finalizeSessionBookingFromPaymentIntent(admin, pi);
+        if ((pi.metadata?.conveneSessionExtension ?? "").trim() === "1") {
+          await finalizeSessionExtensionFromPaymentIntent(admin, pi);
+        } else {
+          await finalizeSessionBookingFromPaymentIntent(admin, pi, { stripe });
+        }
       } catch (e) {
         console.error("[stripe] finalize session payment failed", e);
       }
@@ -79,7 +84,8 @@ export async function POST(request: Request) {
       const nowIso = new Date().toISOString();
       try {
         const bookingId = (pi.metadata?.bookingId ?? "").trim();
-        if (bookingId) {
+        const sessionExtension = (pi.metadata?.conveneSessionExtension ?? "").trim() === "1";
+        if (bookingId && !sessionExtension) {
           await admin
             .from("bookings")
             .update({

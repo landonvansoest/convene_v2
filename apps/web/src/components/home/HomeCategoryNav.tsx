@@ -32,9 +32,8 @@ export function HomeCategoryNav() {
   const router = useRouter();
 
   function handleCategoryClick(categoryName: string) {
-    // Match v1 routing contract: /search?category=... where '+' is encoded as '%2B'
-    const encodedCategory = categoryName.replace(/\+/g, "%2B");
-    router.push(`/search?category=${encodeURIComponent(encodedCategory)}`);
+    // Pass display name; search page resolves this to a category UUID.
+    router.push(`/search?category=${encodeURIComponent(categoryName)}`);
   }
 
   return (

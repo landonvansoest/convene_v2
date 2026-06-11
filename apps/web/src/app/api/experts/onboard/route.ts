@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         about_services,
         skills_specializations,
         ...(category_id !== undefined ? { category_id } : {}),
-        expert_status: "pending",
+        expert_visibility_state: "pending_admin_review",
         updated_at: now,
       })
       .eq("user_id", userId);
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
       about_services,
       skills_specializations,
       category_id: category_id ?? null,
-      expert_status: "pending",
+      expert_visibility_state: "pending_admin_review",
       updated_at: now,
     });
 
@@ -115,7 +115,6 @@ export async function POST(request: Request) {
     .update({
       has_expert_profile: true,
       updated_at: now,
-      profile_visibility_state: "expert_pending_admin_review",
     })
     .eq("user_id", userId);
 

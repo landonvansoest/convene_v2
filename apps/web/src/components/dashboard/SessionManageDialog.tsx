@@ -1,17 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { CalendarClock, CreditCard, MessageSquare, Video, ClipboardList } from "lucide-react";
+import { ClipboardList, Gift, Ban, CalendarRange } from "lucide-react";
+import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
+import { RescheduleSessionDialog } from "@/components/dashboard/RescheduleSessionDialog";
+import { sessionWallClockInstant } from "@/lib/sessionWallClock";
 
 export type ManagedSessionRow = Record<string, unknown> & {
   id?: string;
@@ -31,22 +27,57 @@ export type ManagedSessionRow = Record<string, unknown> & {
   cancelled_at?: string | null;
 };
 
-function isJoinWindowOpen(sessionDate: string | undefined, startTime: string | undefined): boolean {
-  if (!sessionDate) return false;
-  const st = (startTime || "00:00:00").toString();
-  const timePart =
-    st.length >= 8 ? st.slice(0, 8) : st.length >= 5 ? `${st.slice(0, 5)}:00` : "00:00:00";
-  const start = new Date(`${sessionDate}T${timePart}`);
-  const t = start.getTime();
-  if (!Number.isFinite(t)) return false;
-  return Date.now() >= t - 10 * 60 * 1000;
+function ordinalSuffix(n: number): string {
+  const j = n % 10;
+  const k = n % 100;
+  if (k >= 11 && k <= 13) return "th";
+  if (j === 1) return "st";
+  if (j === 2) return "nd";
+  if (j === 3) return "rd";
+  return "th";
 }
 
-function partnerUserId(s: ManagedSessionRow): string | null {
-  const role = String(s.user_role ?? "").toLowerCase();
-  if (role === "learner") return s.expert_id ? String(s.expert_id) : null;
-  if (role === "expert") return s.learner_id ? String(s.learner_id) : null;
-  return null;
+/** e.g. "April 28th" */
+function monthDayOrdinal(date: Date): string {
+  const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
+  const d = date.getDate();
+  return `${month} ${d}${ordinalSuffix(d)}`;
+}
+
+function formatTimeHm(d: Date): string {
+  return d
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    .replace(/\s/g, "")
+    .toLowerCase();
+}
+
+function sessionTimeString(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string" && value.trim() !== "") return value;
+  return undefined;
+}
+
+/** e.g. "April 28th | 3:15pm–3:45pm" */
+function formatSessionDatePipeRange(sessionDate: string | undefined, startTime: unknown, endTime: unknown): string {
+  const a = sessionWallClockInstant(String(sessionDate ?? ""), sessionTimeString(startTime));
+  const b = sessionWallClockInstant(String(sessionDate ?? ""), sessionTimeString(endTime));
+  if (!a || !b) return "—";
+  return `${monthDayOrdinal(a)} | ${formatTimeHm(a)}–${formatTimeHm(b)}`;
+}
+
+/** e.g. "Booked April 28th, 3:15pm · Total Paid $69.96" */
+function formatBookedLine(
+  sessionDate: string | undefined,
+  startTime: unknown,
+  price: number | null | undefined,
+): string {
+  const start = sessionWallClockInstant(String(sessionDate ?? ""), sessionTimeString(startTime));
+  if (!start) return price != null ? `Booked · Total Paid $${Number(price).toFixed(2)}` : "Booked";
+  const dayPart = monthDayOrdinal(start);
+  const t = formatTimeHm(start);
+  const paid =
+    price != null ? `Total Paid $${Number(price).toFixed(2)}` : "Total Paid —";
+  return `Booked ${dayPart}, ${t} · ${paid}`;
 }
 
 type Props = {
@@ -56,18 +87,31 @@ type Props = {
   onPutStatus: (
     bookingId: string,
     status: "upcoming" | "live" | "complete" | "cancelled",
-    cancellationReason?: string | null
+    cancellationReason?: string | null,
   ) => void | Promise<void>;
+  /** Retry checkout after `payment_status === "failed"` */
+  onPayForSession?: (bookingId: string) => void;
+  /** Invoked after reschedule / offer succeeds so the dashboard can refresh bookings. */
+  onSessionUpdated?: () => void;
 };
 
-export function SessionManageDialog({ open, onOpenChange, session, onPutStatus }: Props) {
+export function SessionManageDialog({
+  open,
+  onOpenChange,
+  session,
+  onPutStatus,
+  onPayForSession: _onPayForSession,
+  onSessionUpdated,
+}: Props) {
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+
   if (!session) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Manage session</DialogTitle>
-            <DialogDescription>No session selected.</DialogDescription>
+            <DialogTitle>Manage Session</DialogTitle>
           </DialogHeader>
         </DialogContent>
       </Dialog>
@@ -76,198 +120,132 @@ export function SessionManageDialog({ open, onOpenChange, session, onPutStatus }
 
   const id = String(session.id ?? session.booking_id ?? "");
   const price = session.total_price ?? session.total_amount;
-  const ps = String(session.payment_status ?? "").toLowerCase();
-  const unpaid = ps !== "paid" && ps !== "succeeded";
   const st = String(session.status ?? "").toLowerCase();
   const isCancelled = st === "cancelled" || !!session.cancelled_at;
-  const canLifecycle = !isCancelled && st !== "complete";
-  const paid = !unpaid;
-  const joinAllowed =
-    paid && !isCancelled && (st === "live" || isJoinWindowOpen(session.session_date, session.start_time));
-  const pid = partnerUserId(session);
-  const role = String(session.user_role ?? "");
+  const role = String(session.user_role ?? "").toLowerCase();
+  const isExpert = role === "expert";
+
+  const counterpartId = isExpert ? (session.learner_id ? String(session.learner_id) : "") : (session.expert_id ? String(session.expert_id) : "");
+  const counterpartName = session.partner_name?.trim() || "your partner";
+
+  const datePipeRange = formatSessionDatePipeRange(session.session_date, session.start_time, session.end_time);
+  const bookedLine = formatBookedLine(session.session_date, session.start_time, price);
+
+  function confirmCancel() {
+    if (!window.confirm("Cancel this session? Your partner will see the updated status on their dashboard.")) {
+      return;
+    }
+    const r = window.prompt("Optional cancellation reason (visible to support)") ?? "";
+    void (async () => {
+      await onPutStatus(id, "cancelled", r.trim() || null);
+      onSessionUpdated?.();
+      onOpenChange(false);
+    })();
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-[#003049]">
-            <ClipboardList className="h-5 w-5 text-[#F77F00]" />
-            Manage session
-          </DialogTitle>
-          <DialogDescription>
-            v1-style command center. Actions use the same routes and APIs as the list below; this dialog is for
-            testing and UX parity.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <RescheduleSessionDialog
+        open={rescheduleOpen}
+        onOpenChange={(o) => setRescheduleOpen(o)}
+        bookingId={id}
+        toUserId={counterpartId}
+        defaultDate={session.session_date ? String(session.session_date) : undefined}
+        defaultStartTime={session.start_time ? String(session.start_time) : undefined}
+        defaultEndTime={session.end_time ? String(session.end_time) : undefined}
+        counterpartName={counterpartName}
+        viewerRole={isExpert ? "expert" : "learner"}
+        onSubmitted={() => {
+          onSessionUpdated?.();
+          onOpenChange(false);
+        }}
+      />
+      {isExpert && counterpartId ? (
+        <SendOfferDialog
+          open={offerOpen}
+          onOpenChange={setOfferOpen}
+          recipientUserId={counterpartId}
+          recipientFullName={counterpartName}
+          recipientFirstName={counterpartName.split(/\s+/)[0]}
+          relatedBookingId={id}
+          onSubmitted={() => {
+            onSessionUpdated?.();
+            onOpenChange(false);
+          }}
+        />
+      ) : null}
 
-        <div className="flex gap-3 rounded-lg border border-[#003049]/10 bg-gray-50/80 p-3">
-          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-[#003049]/10 bg-white">
-            {session.partner_photo ? (
-              <Image
-                src={session.partner_photo}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="56px"
-                unoptimized
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-[#003049]/40">
-                {(session.partner_name || "?").slice(0, 1).toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-[#003049]">{session.partner_name?.trim() || "Session"}</p>
-            <p className="text-xs text-muted-foreground">You are the {role || "participant"}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {String(session.session_date ?? "")} · {String(session.start_time ?? "")}–
-              {String(session.end_time ?? "")}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Status <span className="font-medium">{String(session.status ?? "—")}</span> · Payment{" "}
-              <span className="font-medium">{String(session.payment_status ?? "—")}</span>
-              {price != null ? (
-                <>
-                  {" "}
-                  · <span className="tabular-nums">${Number(price).toFixed(2)}</span>
-                </>
-              ) : null}
-            </p>
-          </div>
-        </div>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#003049]">
+              <ClipboardList className="h-5 w-5 text-[#F77F00]" />
+              Manage Session
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#003049]">
-              <Video className="h-4 w-4 text-[#F77F00]" />
-              Video
-            </h3>
-            {joinAllowed ? (
-              <Button asChild className="w-full bg-[#F77F00] text-white hover:bg-[#F77F00]/90">
-                <Link href={`/sessions/${id}/join`} onClick={() => onOpenChange(false)}>
-                  Join session
-                </Link>
-              </Button>
-            ) : paid && !isCancelled && (st === "upcoming" || st === "live") ? (
-              <p className="text-sm text-muted-foreground">Join opens about 10 minutes before the scheduled start.</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Join is not available for this session state.</p>
-            )}
-          </section>
-
-          <Separator />
-
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#003049]">
-              <CreditCard className="h-4 w-4 text-[#F77F00]" />
-              Payment
-            </h3>
-            {role === "learner" && unpaid && !isCancelled ? (
-              <Button asChild variant="outline" className="w-full border-[#003049] text-[#003049]">
-                <Link href={`/sessions/${id}/pay`} onClick={() => onOpenChange(false)}>
-                  Pay for session
-                </Link>
-              </Button>
-            ) : role === "learner" ? (
-              <p className="text-sm text-muted-foreground">No learner payment step for this booking state.</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Learner pays from their account; experts see payout via Stripe Connect.</p>
-            )}
-          </section>
-
-          <Separator />
-
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#003049]">
-              <MessageSquare className="h-4 w-4 text-[#F77F00]" />
-              Messages
-            </h3>
-            {pid ? (
-              <Button asChild variant="secondary" className="w-full">
-                <Link href={`/messages/${encodeURIComponent(pid)}`} onClick={() => onOpenChange(false)}>
-                  Open conversation
-                </Link>
-              </Button>
-            ) : (
-              <p className="text-sm text-muted-foreground">Partner id missing — cannot open thread.</p>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">
-              v1 used an inline chat modal; v2 uses the full messages page (embed modal is optional later).
-            </p>
-          </section>
-
-          <Separator />
-
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#003049]">
-              <CalendarClock className="h-4 w-4 text-[#F77F00]" />
-              Reviews
-            </h3>
-            <div className="flex flex-col gap-2">
-              {role === "learner" && st === "complete" ? (
-                <Button asChild variant="outline" className="w-full border-[#003049] text-[#003049]">
-                  <Link href={`/sessions/${id}/review`} onClick={() => onOpenChange(false)}>
-                    Review expert
-                  </Link>
-                </Button>
-              ) : null}
-              {role === "expert" && st === "complete" ? (
-                <Button asChild variant="outline" className="w-full border-[#003049] text-[#003049]">
-                  <Link href={`/sessions/${id}/review-learner`} onClick={() => onOpenChange(false)}>
-                    Review learner
-                  </Link>
-                </Button>
-              ) : null}
-              {st !== "complete" ? (
-                <p className="text-sm text-muted-foreground">Reviews unlock after the session is complete.</p>
-              ) : null}
-            </div>
-          </section>
-
-          {canLifecycle ? (
-            <>
-              <Separator />
-              <section>
-                <h3 className="text-sm font-semibold text-[#003049]">Expert / lifecycle</h3>
-                <p className="mb-2 text-xs text-muted-foreground">
-                  Same status API as the dashboard list. Confirm Bible-allowed transitions before production use.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void onPutStatus(id, "live")}
-                  >
-                    Mark live
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void onPutStatus(id, "complete")}
-                  >
-                    Mark complete
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      const r = window.prompt("Cancellation reason (optional)") ?? "";
-                      void onPutStatus(id, "cancelled", r.trim() || null);
-                    }}
-                  >
-                    Cancel
-                  </Button>
+          <div className="flex gap-3 rounded-lg border border-[#003049]/10 bg-gray-50/80 p-3">
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-[#003049]/10 bg-white">
+              {session.partner_photo ? (
+                <Image
+                  src={session.partner_photo}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="56px"
+                  unoptimized
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-[#003049]/40">
+                  {(session.partner_name || "?").slice(0, 1).toUpperCase()}
                 </div>
-              </section>
-            </>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[#003049]">{counterpartName}</p>
+              <p className="mt-1 text-sm text-[#003049]/80">{datePipeRange}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{bookedLine}</p>
+            </div>
+          </div>
+
+          {!isCancelled && st !== "complete" ? (
+            <div data-tour-target="tour-manage-booking" className="mt-5 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 justify-start gap-2 border-[#003049]/20 bg-white font-semibold text-[#003049] hover:bg-[#003049]/5"
+                  disabled={!counterpartId || isCancelled || st === "complete"}
+                  onClick={() => setRescheduleOpen(true)}
+                >
+                  <CalendarRange className="h-4 w-4 shrink-0 text-[#F77F00]" aria-hidden />
+                  Reschedule Session
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 justify-start gap-2 border-red-200 bg-red-50/60 font-semibold text-red-900 hover:bg-red-100/80"
+                  disabled={isCancelled}
+                  onClick={confirmCancel}
+                >
+                  <Ban className="h-4 w-4 shrink-0" aria-hidden />
+                  Cancel Session
+                </Button>
+                {isExpert && counterpartId ? (
+                  <Button
+                    type="button"
+                    className="h-11 justify-start gap-2 bg-[#F77F00] font-semibold text-white hover:bg-[#F77F00]/92"
+                    onClick={() => setOfferOpen(true)}
+                  >
+                    <Gift className="h-4 w-4 shrink-0" aria-hidden />
+                    Send an Offer
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { SessionPaymentDialog } from "@/components/dashboard/SessionPaymentDialog";
 
 type PackageCreditRow = {
   credit_id: string;
@@ -46,10 +47,36 @@ export function SessionsPageClient() {
   const [packageCredits, setPackageCredits] = useState<PackageCreditRow[]>([]);
   const [packageCreditId, setPackageCreditId] = useState("");
   const [applyFirstSessionDiscount, setApplyFirstSessionDiscount] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [payBookingId, setPayBookingId] = useState<string | null>(null);
+  const [skipBusyId, setSkipBusyId] = useState<string | null>(null);
+
+  const showDevSessionPaymentSkip =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_CONVENE_DEV_SESSION_PAYMENT_SKIP === "true";
+
+  async function devSkipPaymentForBooking(bookingId: string) {
+    setSkipBusyId(bookingId);
+    try {
+      const res = await fetch("/api/dev/complete-session-payment-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "legacy_booking", bookingId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        window.alert(typeof data.error === "string" ? data.error : "Skip payment not allowed");
+        return;
+      }
+      await refresh();
+    } finally {
+      setSkipBusyId(null);
+    }
+  }
 
   async function refresh() {
     setLoadErr(null);
-    const res = await fetch("/api/sessions/my-sessions");
+    const res = await fetch("/api/sessions/my-sessions?include_pending_unpaid=1");
     const data = await res.json();
     if (!res.ok) {
       setLoadErr(typeof data.error === "string" ? data.error : "Failed to load");
@@ -171,6 +198,7 @@ export function SessionsPageClient() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-[var(--convene-primary)] px-4 py-10 text-white">
       <div className="mx-auto max-w-2xl">
         <p className="mb-2 text-sm uppercase tracking-widest text-[var(--convene-hero)]">Bookings</p>
@@ -353,13 +381,30 @@ export function SessionsPageClient() {
                       {price != null ? <> · ${Number(price).toFixed(2)}</> : null}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs">
-                      <Link href={`/sessions/${bid}/join`} className="text-[var(--convene-hero)] underline">
+                      <Link href={`/session/${bid}`} className="text-[var(--convene-hero)] underline">
                         Join video
                       </Link>
                       {s.user_role === "learner" && unpaid && !isCancelled ? (
-                        <Link href={`/sessions/${bid}/pay`} className="text-[var(--convene-hero)] underline">
-                          Pay
-                        </Link>
+                        <button
+                          type="button"
+                          className="text-[var(--convene-hero)] underline"
+                          onClick={() => {
+                            setPayBookingId(bid);
+                            setPayOpen(true);
+                          }}
+                        >
+                          Pay with card
+                        </button>
+                      ) : null}
+                      {showDevSessionPaymentSkip && s.user_role === "learner" && unpaid && !isCancelled ? (
+                        <button
+                          type="button"
+                          disabled={skipBusyId === bid}
+                          className="text-amber-200 underline disabled:opacity-50"
+                          onClick={() => void devSkipPaymentForBooking(bid)}
+                        >
+                          {skipBusyId === bid ? "Skipping…" : "Skip pay (dev)"}
+                        </button>
                       ) : null}
                       {s.user_role === "learner" && st === "complete" ? (
                         <Link href={`/sessions/${bid}/review`} className="text-[var(--convene-hero)] underline">
@@ -417,5 +462,15 @@ export function SessionsPageClient() {
         </p>
       </div>
     </div>
+    <SessionPaymentDialog
+      open={payOpen}
+      onOpenChange={(o) => {
+        setPayOpen(o);
+        if (!o) setPayBookingId(null);
+      }}
+      bookingId={payBookingId}
+      onPaid={() => void refresh()}
+    />
+    </>
   );
 }

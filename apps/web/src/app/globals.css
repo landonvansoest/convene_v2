@@ -1,6 +1,20 @@
 @import "tailwindcss";
-/* Explicit scan roots — helps Tailwind v4 when the project lives on sync FS (e.g. Dropbox) */
-@source "../**/*.{js,ts,jsx,tsx,mdx}";
+
+/*
+ * Tailwind v4 scans sources listed here. Paths are relative to THIS file (`src/app/globals.css`).
+ *
+ * Use explicit recursive globs over `./app` directory entries: on some machines/sync clients, bare
+ * directory `@source` may not recurse reliably → almost no utility classes → pages look totally
+ * unstyled.
+ *
+ * Do NOT use `@config "../../tailwind.config.ts"` here: when PostCSS resolves from `apps/web` cwd,
+ * that path escapes the package and points at a missing file (see past incidents).
+ */
+@source "../**/*.tsx";
+@source "../**/*.ts";
+@source "../**/*.jsx";
+@source "../**/*.js";
+@source "../**/*.mdx";
 
 /* Bible + legacy v2 utilities (hex) */
 :root {
@@ -10,6 +24,7 @@
   --convene-taupe: #bba89b;
   --convene-grey: #dfe0df;
   --convene-star: #fcbf49;
+  --convene-online: #4e9553;
 }
 
 /* v1 “Warm Autumn Glow” / shadcn HSL tokens (cloned from no-code-clone-studio/src/index.css) */
@@ -73,7 +88,15 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    /* Ensures Geist (next/font CSS variables on <body>) is actually used — avoids “preloaded but not used” warnings. */
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  /* Keep expected affordances: hand cursor for clickable controls. */
+  a[href],
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }
 
@@ -97,6 +120,14 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+  /* Bible hex palette as Tailwind theme colors */
+  --color-convene-hero: var(--convene-hero);
+  --color-convene-primary: var(--convene-primary);
+  --color-convene-teal: var(--convene-teal);
+  --color-convene-taupe: var(--convene-taupe);
+  --color-convene-grey: var(--convene-grey);
+  --color-convene-star: var(--convene-star);
+  --color-convene-online: var(--convene-online);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -185,3 +216,4 @@
     transform: scale(1) translateY(0);
   }
 }
+

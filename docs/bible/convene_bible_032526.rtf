@@ -2,9 +2,11 @@
 \cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Bold;\f1\fnil\fcharset0 Menlo-Regular;\f2\fnil\fcharset0 Menlo-Italic;
 }
 {\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red104\green116\blue144;\red254\green209\blue207;
-\red102\green177\blue50;\red243\green235\blue10;\red217\green234\blue202;\red0\green0\blue0;}
+\red255\green255\blue10;\red102\green177\blue50;\red243\green235\blue10;\red217\green234\blue202;\red0\green0\blue0;
+}
 {\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c48235\c53333\c63137;\cssrgb\c100000\c85667\c84695;
-\cssrgb\c46532\c73327\c25364;\cssrgb\c96264\c92423\c0;\cssrgb\c87817\c93001\c83061;\csgray\c0;}
+\cssrgb\c99942\c98555\c0;\cssrgb\c46532\c73327\c25364;\cssrgb\c96264\c92423\c0;\cssrgb\c87817\c93001\c83061;\csgray\c0;
+}
 {\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
 {\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
 \paperw11900\paperh16840\margl1440\margr1440\vieww15780\viewh17520\viewkind0
@@ -114,9 +116,8 @@ Tell me if a request in a chat contradicts this bible or requires specification 
 - Stripe dashboard navigation\
 - Test vs production modes\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 **Key Concepts:**
+\f0\b **Key Concepts:**
 \f1\b0 \
 - Connected accounts\
 - Application fees\
@@ -383,29 +384,24 @@ Tell me if a request in a chat contradicts this bible or requires specification 
 #DFE0DF - Grey Muted Color (use for muted backgrounds)\
 #FCBF49 - Yellow (use only for star ratings)\
 #FFFFFF - Text color (on dark background)\
+#4e9553 - Green for \'93online now\'94\
 \
 \
-\
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 SITE MAP\
-\pard\pardeftab720\partightenfactor0
+\f0\b SITE MAP\
 
-\f1\b0 \cf2 \
+\f1\b0 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 ## Header (on every page)
+\f0\b ## Header (on every page)
 \f1\b0 \
 \
 
 \f0\b ALWAYS VISIBLE: \
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 \
-\pard\pardeftab720\partightenfactor0
+\f1\b0 \
 
-\f0\b \cf2 **Logo \'93convene\'94**
+\f0\b **Logo \'93convene\'94**
 \f1\b0 : \
 - links to homepage.\
 \
@@ -545,23 +541,32 @@ After a user Post\'92s a Request, do each of the following: \
 When not logged in: \
 - Sign In (open Sign In pop up) \
 - Sign Up (open Sign In pop up) \
-- Community Message Board\
-- Become an Expert\
+Dividing line\
 - Learn More (Navigate to About page)\
+- Community Message Board\
 \
 When logged in as user: \
+- profile pic in avatar\
+- Full name, email address\
+Dividing line\
 - Dashboard (navigate to Dashboard)\
 - Inbox (navigate to Dashboard, open Inbox tab)\
 - Settings (navigate to Dashboard, open \'93Profile Settings tab)\
-- [only if an Expert Profile exists for user] Switch to Coaching (log user in as Expert)\
 - Community Message Board\
+Dividing line\
+- Switch to Coaching (only if Expert Profile exists)\
+- Become an Expert (only if no Expert Profile exists)\
 - Sign out (sign the user out)\
 \
 When logged in as expert: \
+- profile pic in avatar\
+- Full name, email address\
+Dividing line\
 - Dashboard (navigate to Dashboard)\
 - Inbox (navigate to Dashboard, open Inbox tab)\
 - Settings (navigate to Dashboard, open Profile Settings tab)\
 - Community Message Board\
+Dividing Line\
 - Switch to Learning (log user in as a User)\
 - Sign out (sign the user out)\
 \
@@ -572,12 +577,10 @@ When logged in as expert: \
 \
 
 \f0\b NOT ALWAYS VISIBLE:\
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 \
-\pard\pardeftab720\partightenfactor0
+\f1\b0 \
 
-\f0\b \cf2 **Become an Expert**
+\f0\b **\cb5 Become an Expert\cb1 **
 \f1\b0 : only visible if user is not signed in, or if user is signed in and no expert profile exists\
 - if not signed in, clicking opens Sign In pop up with subheading \'93You must sign in or register to become an expert\'94\
 - if signed in as a user, navigate to Expert Set Up Wizard\
@@ -607,11 +610,11 @@ After a \'93new_expert_request\'94 is submit, do each of the following: \
 - Show the user a success pop up that says: \'93Success! Thank you for submitting your Expert profile request. We are thrilled that you\'92re part of our community and are interested in sharing your expertise. We will follow up by email with additional instructions.\'94\
 \
 
-\f0\b **Next session countdown**
+\f0\b **\cb5 Next session countdown\cb1 **
 \f1\b0  (only visible if logged in and you have a confirmed booking): display time until next session in hours and minutes (if over an hour) or minutes if under 1 hour; click goes to dashboard \uc0\u8594  Booked Sessions.\
 
 \f0\b \
-**New Bookings**
+**\cb5 New Bookings\cb1 **
 \f1\b0  (only visible if logged in as an expert and you have a new booking or booking pending approval) calendar icon: badge count of actions required / new bookings; goes to dashboard \uc0\u8594  Booked Sessions.\
 
 \f0\b \
@@ -664,10 +667,9 @@ Owner UX rule:\
 
 \f0\b ## Footer (on every page)\
 Column 1\
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 - Heading: Support \
-- About us (navigate to about page)\
+\f1\b0 - Heading: Support \
+- About convene (navigate to about page)\
 - FAQs (navigate to about page, just to FAQ section)\
 - Become an Expert (follow same path as \'93become an expert in header)\
 - Contact Us (open a pop up with a template to email \'93support@convene.io\'94)
@@ -676,8 +678,9 @@ Column 1\
 Column 2\
 
 \f1\b0 - Heading: Resources\
-- For users: How to get the most out of your session\
-- For experts: How to maximize your impact on convene\
+- For users\
+- For experts\
+- Subheading: (in italic) Learn how to get the most of your convene sessions\
 *add a feature flag to show or hide column 2. Add a section to the admin page to show or hide \'93resources\'94 links
 \f0\b \
 \
@@ -688,9 +691,8 @@ Column 3\
 \
 --- \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 ## Public pages (no login required)
+\f0\b ## Public pages (no login required)
 \f1\b0 \
 \
 
@@ -716,6 +718,7 @@ Column 3\
 - FAQ accordion.\
 *add ability to edit FAQ text on the admin page. Also add the ability to add or delete questions from the FAQ accordion on admin pate. \
 - \'93Ready to Get Started\'94 row, subheading, then three buttons: find an expert (open the \'93advanced search\'94 pop up), Browse Categories (open the \'93categories\'94 pop up), Post a Request (open the \'93post a request\'94 pop up)\
+- \'93Resources\'94 for users and for experts section. \
 \
 
 \f0\b ### Search results (/search)
@@ -787,7 +790,6 @@ Row #1 (in one bounding box) includes:\
 -- professional title\
 -- hometown\
 -- star rating (displayed as star icon, number, and number of reviews), sessions completed\
--- performance badges when applicable: \'93Top rated\'94 (if over 4 stars average), \'93Most booked\'94 (if expert is in top 50% of experts in their category for number of sessions complete), Experience in Field (if over 3 years), Most Reliable (if Dependability Rating is over 90%)\
 -- short bio\
 \
 - Column 3: (justified right) Rate (as $xx per 15 min), minimum booking (as [xx] minutes minimum booking), Message Expert button (when clicked, open messaging pop-up with conversation between user and expert (sign in required if not logged in). If no conversation exists between user and expert, create a new \'93message\'94 entry and add it to the database), below \'93Message Expert\'94 button, include small italicized text that says \'93Avg. Response Time; [expert average response time ( - If expert_response_time_stats.response_interval_count >= 3 show: "Avg response: X min" (X = round(total_response_time_seconds / response_interval_count to the nearest minute, If < 3 show: "Avg response: New" (or hide the line entirely; but prefer showing "New" to set expectations).]\'94\
@@ -799,7 +801,8 @@ Column 1 (2/3 page width)\
 -- A weekly calendar (with ability to navigate horizontally to upcoming weeks), where each day\'92s column shows the expert\'92s available time as clickable 15-minute increments. Clicking a time slot opens the \'93Booking Pop up\'94\
 \
 Column 2 (1/3 page width, justified right)\
-- \'93Session Details\'94 box with expert-specific data including: Minimum Booking Duration, Maximum Booking Duration, Dependability Rating, Cancellation Rate, Response Time\
+- \'93Session Details\'94 box with expert-specific data. Always show: Minimum Booking, Maximum Booking, Auto-Booking (on or off), Booking Notice (minimum_notice). If available show: First Session Discount, Packages\
+- \'93Performance Highlights\'94 with rows for \'93Sessions Complete\'94, \'93Cancellation Rate\'94, \'93Dependability Rating\'94\
 \
 Row #3 includes: \
 Column 1 (1/3 page width):\
@@ -812,7 +815,8 @@ Row #5 includes:\
 -- Large number for average reviews, visual of five stars with corresponding highlights, text \'93(Based on [x] reviews)\'94 (with number of reviews), visual for how many reviews the expert has received for each star rating. \
 -- Full list of reviews with user\'92s profile pic, user\'92s name, user\'92s number of sessions complete, user\'92s star rating for expert, date, and user\'92s full review of expert. \
 \
-BOOKING POP UP: \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb5 BOOKING POP UP: \cb1 \
 - Heading: \'93Book a Session with [Expert\'92s full name]\'94\
 - Subheading: \'93Click consecutive time slots to create your booking. [Expert\'92s first name] allows bookings between [minimum booking duration] and [maximum booking duration]. \
 - A row of clickable time slots in 15-minute increments corresponding to the expert\'92s availability, starting with the time slot that the user clicked to open the booking pop up. Clicking consecutive time slots should highlight each selected time and set the duration of the booking. \
@@ -866,8 +870,8 @@ After a user successfully completes payment for a session, do each of the follow
 \
 \pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 ### Learner profile
-\f1\b0  (/learner/:id)\
+\f0\b \cf2 \cb5 ### Learner profile
+\f1\b0  \cb1 (/learner/:id)\
 - Public learner profile view\
 \pard\pardeftab720\partightenfactor0
 \cf2 \cb4 - If a learner profile is not `visible`:\
@@ -891,8 +895,8 @@ Row #3: \
 \
 \pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 ### Community Message Board
-\f1\b0 \
+\f0\b \cf2 \cb5 ### Community Message Board
+\f1\b0 \cb1 \
 This page should be an archive of all \'93public\'94 requests, with responses from experts\
 It should be navigable by category and searchable\
 Requests and answers should function similar to a reddit post, and allow users to up-vote popular expert responses (for users to upvote, they must be signed in)\
@@ -907,18 +911,19 @@ Requests and answers should function similar to a reddit post, and allow users t
 \pard\pardeftab720\partightenfactor0
 \cf2 \cb1 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 ## Private pages (login required)
+\f0\b ## Private pages (login required)
 \f1\b0 \
 \
 ## Dashboard (/dashboard or /expert-dashboard)\
 \
 Same app; sidebar and some sections change by role (learner vs expert).\
-\
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb5 \
+\pard\pardeftab720\partightenfactor0
 
-\f0\b DASHBOARD - If signed in as an Expert:
-\f1\b0 \
+\f0\b \cf2 DASHBOARD - If signed in as an Expert:
+\f1\b0 \cb1 \
 \
 ### Sidebar\
 - Profile block: profile picture (with Online Now badge when users.online = true), name, email.\
@@ -1005,7 +1010,7 @@ Interactivity:\
 Note: if an expert marks a day with existing bookings as \'93unavailable\'94, show them a warning pop up that reads: \'93You have made yourself unavailable on a day with existing bookings. Note that this will prevent future bookings on this day, but not cancel the existing bookings. To cancel or reschedule existing bookings, please visit your dashboard.\'94\
 - Clicking and dragging across multiple days should highlight each day and open the \'93Modify Availability\'94 pop up for the specified range of dates. If the days have existing availability, show the user a prompt that says \'93You have selected multiple days with existing availability. Are you sure you want to delete the existing availability data and replace it for these days?\'94 If a user clicks \'93yes\'94, clear availability data for these days, show the user the \'93Modify Availability\'94 pop up options, and apply new availability data to each day in the selected range. If the user clicks \'93no\'94 to the prompt, close the pop up. \
 \
-Add a button to \'93Pause Availability\'94. This should save availability data, but disable it from being seen or booked publicly. If a user clicks \'93Pause Availability\'94 show a prompt that reads: \'93Pausing availability will hide all of your availability for future bookings. Note that any existing bookings will not be affected, please cancel or re-schedule as needed under Booked Sessions. You can re-start your calendar at any time.\'94 With a button to \'93Continue\'94 or \'93Cancel\'94. If an availability calendar is paused, change this button to say \'93Resume Availability\'94 to unhide availability for future bookings.\cb5 \
+Add a button to \'93Pause Availability\'94. This should save availability data, but disable it from being seen or booked publicly. If a user clicks \'93Pause Availability\'94 show a prompt that reads: \'93Pausing availability will hide all of your availability for future bookings. Note that any existing bookings will not be affected, please cancel or re-schedule as needed under Booked Sessions. You can re-start your calendar at any time.\'94 With a button to \'93Continue\'94 or \'93Cancel\'94. If an availability calendar is paused, change this button to say \'93Resume Availability\'94 to unhide availability for future bookings.\cb6 \
 \pard\pardeftab720\partightenfactor0
 \cf2 \cb1 \
 ### Expert Status\
@@ -1032,7 +1037,7 @@ Add a button to \'93Pause Availability\'94. This should save availability data, 
 \
 Send an Offer Pop-Up:\
 - Heading: Send an Offer\
-- Sub-heading: Create a custom offer for [recipient\'92s full name]. You can suggest a start time, duration, or customized price for a booking. You can also offer a discount for a multi-session package, and offer to do freelance work or offline prep/review for an upcoming session.\'94\cb6 \
+- Sub-heading: Create a custom offer for [recipient\'92s full name]. You can suggest a start time, duration, or customized price for a booking. You can also offer a discount for a multi-session package, and offer to do freelance work or offline prep/review for an upcoming session.\'94\cb7 \
 \cb1 - Button to \'93Suggest a Time\'94. Click reveals dialogue with a mini-calendar, clicking a day prompts user to enter a \'93Start Time\'94 and \'93End Time\'94. \
 - Button to \'93Offer a Custom Price\'94. Click reveals dialogue to enter Duration and Total Price. If user leaves blank, use their standard rate to calculate price.\
 - Button to \'93Suggest a Multi-Session Package\'94. Click reveals dialogue to enter Number of Sessions and Package Price.\
@@ -1066,11 +1071,11 @@ Change the status of the freelance_work to \'93approved\'94 in the database. \
 Create a dialogue for the expert to send \'93complete\'94 work to the user. Include input for a description of work complete and the ability to attach documents or photos. \
 When a user receives a \'93complete work\'94 message, give the user the option to \'93approve\'94 or \'93deny\'94 work. If work is approved as complete, release payment of the offer rate to the Expert. Change the status to \'93complete\'94 in the database.\cb4 \
 \cb1 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 \
-DASHBOARD - If signed in as a learner:
-\f1\b0 \
+\f0\b \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb5 DASHBOARD - If signed in as a learner:
+\f1\b0 \cb1 \
 \
 ### Sidebar\
 - Profile block: profile picture (with Online Now badge when users.online = true), name, email.\
@@ -1142,8 +1147,8 @@ Dividing line\
 \
 \pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 ## Session room (/session/:sessionId)
-\f1\b0 \
+\f0\b \cf2 \cb5 ## Session room (/session/:sessionId)
+\f1\b0 \cb1 \
 \
 - Join video call (Daily.co) for the booked session.\
 - Before both users join the session, show session details on screen: Expert Profile Picture, expert name, Learner Profile Picture, Learner name, start time, end time, and duration.\
@@ -1175,12 +1180,15 @@ Learner Review Pop Up (Show to expert immediately after session):\
 ---\
 \
 \
+\pard\pardeftab720\partightenfactor0
 
-\f0\b ## Sign-up and account
+\f0\b \cf2 ## Sign-up and account
 \f1\b0 \
 \
 ### Sign up (/signup)\
 - Sign up pop up with Heading: \'93Create Your Account\'94, input for First Name, Last Name, and Email Address, and \'93Sign Up\'94 button, and a \'93Continue\'94 button, \'93Create a Password\'94 (with \'93eye\'94 icon to show text), and \'93Confirm Password\'94 (with \'93eye\'94 icon to show text), and a \'93Sign Up\'94 button. \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb5 - include pathways to sign in via google, Facebook, or apple\cb1 \
 \
 - After a user clicks \'93Sign Up\'94, create a new user in the database and enter data for: First Name, Last Name, Email Address, and Password. Set the user status to \'93pending\'94\
 - Show a \'93Success\'94 screen with text that an email has been sent to confirm their email. \
@@ -1255,14 +1263,16 @@ USER REGISTRATION PAGE\
 - After a user clicks \'93Create Account\'94, change the user status from \'93Pending\'94 to \'93Active\'94\
 - Slide 7: show page confetti animation. Heading: \'93Congratulations!\'94, Subheading \'93You\'92re all set up and ready to start booking experts. You\'92ll find information on your bookings, messages, and request on your dashboard page.\'94 With a button to \'93Take a Quick Tour\'94 and a hyperlink to \'93Skip\'94. \
 \
-- Start a new conversation between the user and \'93convene\'94. Send the user a welcome message that says:\cb6 \
+- Start a new conversation between the user and \'93convene\'94. Send the user a welcome message that says:\cb7 \
 \cb1 \'93Welcome to convene! \uc0\u55356 \u57225 \
 \
-We're excited to have you join our community of learners and experts. Here are some tips to get started:\
+We're excited to have you join our community of learners and experts. \
+\
+Here are some tips to get started:\
 \
 \'95 Browse experts in your area of interest\
 \'95 Message experts to find a good fit\
-\'95 Post requests to get have experts come to you\
+\'95 Post requests to have experts come to you\
 \'95 Join our community message boards to engage with other users\
 \
 Happy learning!\'93\
@@ -1296,13 +1306,13 @@ Expert submission rule:\
 - All subsequent slides should show a progress bar at the top (with \'93x\'94 of \'93y\'94 slides and a % complete), and buttons at the bottom to \'93Continue\'94 or go \'93Back\'94. Formatting should match the User Registration Wizard. \
 - Any data input should be saved to the database when a user clicks \'93continue\'94\
 \
-- Slide 2: Heading: \'93\cb7 Basic Information\cb1 \'94. A circular placeholder avatar with the user\'92s initials (if available, populate profile photo with data from the user\'92s user registration), a button to \'93Upload a Photo\'94 (opens a dialogue to select a local photo, then the ability to reframe, zoom, or rotate photo), a button to \'93Take a photo\'94 (uses camera on the user\'92s device). Inputs for: First Name, Last Name, Phone Number, Hometown, and Time Zone. Whenever possible, populate input fields with data from the user\'92s user registration. If no data exists for in the user registration or user makes changes to these fields, overwrite these fields in the user settings (do not duplicate data in the Expert_Profiles section of the database)\
+- Slide 2: Heading: \'93\cb8 Basic Information\cb1 \'94. A circular placeholder avatar with the user\'92s initials (if available, populate profile photo with data from the user\'92s user registration), a button to \'93Upload a Photo\'94 (opens a dialogue to select a local photo, then the ability to reframe, zoom, or rotate photo), a button to \'93Take a photo\'94 (uses camera on the user\'92s device). Inputs for: First Name, Last Name, Phone Number, Hometown, and Time Zone. Whenever possible, populate input fields with data from the user\'92s user registration. If no data exists for in the user registration or user makes changes to these fields, overwrite these fields in the user settings (do not duplicate data in the Expert_Profiles section of the database)\
 \
-- Slide 3: Heading \'93\cb7 Expert Profile\cb1 \'94. Input field for \'93Profession\'94 (populate with data from the user\'92s user registration. If no data exists for in the user registration or user makes changes, overwrite these fields in the user settings (do not duplicate data in the Expert_Profiles section of the database), a dropdown for Category (give options for every \'93Category\'94 made active from the Admin page. Include an \'93Other\'94 category. (If a user selects other, show a prompt that says: \'93Not seeing a relevant category for your expertise? Please suggest a new category or specialization to better serve our community.\'94 With an input field and a button that says \'93Send Feedback\'94. Save \'93Feedback\'94 data in a separate table in the database called \'93User Feedback\'94 in a field called \'93Expert_Category_Suggestions\'94), a dropdown for \'93Experience Level\'94 (with options for: Less than 1 year, 3-5 Years, 6-10 Years, 10-20 Years, and 20+ Years). An input field for Qualifications (with temp text \'93Qualifications (List education, certification, awards, job experience, etc) with a \'93+\'94 button to add up to 10 entries. Save \'93experience level\'94, \'93category\'94, and \'93Qualifications\'94 to the \'93Expert_Profiles\'94 section of the database. \
+- Slide 3: Heading \'93\cb8 Expert Profile\cb1 \'94. Input field for \'93Profession\'94 (populate with data from the user\'92s user registration. If no data exists for in the user registration or user makes changes, overwrite these fields in the user settings (do not duplicate data in the Expert_Profiles section of the database), a dropdown for Category (give options for every \'93Category\'94 made active from the Admin page. Include an \'93Other\'94 category. (If a user selects other, show a prompt that says: \'93Not seeing a relevant category for your expertise? Please suggest a new category or specialization to better serve our community.\'94 With an input field and a button that says \'93Send Feedback\'94. Save \'93Feedback\'94 data in a separate table in the database called \'93User Feedback\'94 in a field called \'93Expert_Category_Suggestions\'94), a dropdown for \'93Experience Level\'94 (with options for: Less than 1 year, 3-5 Years, 6-10 Years, 10-20 Years, and 20+ Years). An input field for Qualifications (with temp text \'93Qualifications (List education, certification, awards, job experience, etc) with a \'93+\'94 button to add up to 10 entries. Save \'93experience level\'94, \'93category\'94, and \'93Qualifications\'94 to the \'93Expert_Profiles\'94 section of the database. \
 \
 - Slide 4: Heading \'93Expert Profile (cont)\'94, Subheading: Tell us about yourself and what you can offer users. Feeling stuck? Use our auto-generator anywhere you see the [magic wand icon] to get you started.\'94, multiline input (limit 1000 characters) for Professional Bio (include a [magic wand icon] button. When clicked, open a prompt with the Heading \'93Bio Generator\'94, subheading \'93Tell us a little about yourself and we\'92ll create a personalized bio for you. Here are some prompts to get you started:\'94 then the following questions: What is your main area of expertise or specialization? (Input with temp text \'93e.g. Full-stack web development, Wood Turning\'94), Notable achievements or credentials (input with temp text: \'93e.g. Published Author, Worked with Fortune 500 companies\'94), What is your favorite thing about your field? (Input with temp text: \'93e.g. Helping people solve complex problems, bringing creative ideas to life\'94. Use OpenAI API to generate a bio based on these prompts and additional data entered by the user in \'93Profession, Qualifications, etc), a multiline input (limit 1000 characters) for Services (use temp text: \'93About Your Services (describe how you can help learners on convene)\'94, include another [magic wand icon] button. When clicked, open a prompt with the Heading \'93Services Generator\'94, subheading \'93Answer a few prompts and we\'92ll help write a short description for you.\'94, with the following prompts: What specific skill or skills are you best at teaching? (with temp text examples), How have you taught or coached others in the past? (with temp text examples), Who would benefit the most from your consulting? (Input with temp text: \'93e.g. Beginners looking to start their journey, Career Changers, Professionals looking to sharpen their skills\'94. Use Open AI API to generate a short description of services), Skills (input field with temporary text: \'93Skills & Specializations (add any topic you feel comfortable advising on)\'94 with a \'93+\'94 button to add up to 30 entries.) Include a [magic wand icon] button, when clicked open a prompt with Heading: \'93Suggested Skills & Specializations\'94, subheading \'93Based on your profile, here are some relevant skills you might want to add. Select any that apply to you.\'94 And a list of clickable skills with a button below to \'93Add Selected Skills\'94 and a button to \'93Regenerate\'94 suggestions. Use Open AI API to generate a list of popular and relevant skills based on the user\'92s profile data. Save all data from this slide to the \'93expert_profile\'94 table in the database.\
 \
-- Slide 5: Heading \'93\cb7 Booking Preferences\cb1 \'94, subheading: \'93Set preferences for how users will be able to book your time. See tips for maximizing your success and feel free to use that [magic wand icon] button to get started.\'94 \
+- Slide 5: Heading \'93\cb8 Booking Preferences\cb1 \'94, subheading: \'93Set preferences for how users will be able to book your time. See tips for maximizing your success and feel free to use that [magic wand icon] button to get started.\'94 \
 Line 1: Input field Rate (use temp text \'93Booking Rate (per 15 min)\'94, include an \'93i" icon for a tooltip with text \'93convene bookings operate on 15-minute intervals. We suggest dividing your hourly rate by 4 and rounding up!\'94)\
 Line 2: Dropdown input for Minimum Booking Duration, with options: 15 min, 30 min, 45 min, 1 hr, 1.5 hrs, 2 hrs (include an \'93i" icon for a tooltip with text \'93This is the shortest possible time for each booking. Note that users will be able to extend time in 15-minute increments based on your availability.\'94), Dropdown for Maximum Booking Duration, with options: 30 min, 1 hr, 2 hrs, 3 hrs, 4 hrs, 6 hrs, 8 hrs. (include an \'93i" icon for a tooltip with text \'93The longest possible time for each booking. When users reach the maximum time period, the session will be concluded.\'94)\
 Line 3: Dropdown for Minimum Booking Notice, with options: None, 5 min, 10 min, 15 min, 20 min, 30 min, 1 hr, 2 hrs, 4 hrs, 8 hrs, 24 hrs, 48 hrs. Include an \'93i" icon for a tooltip with text \'93The amount of lead time you need from the time a booking is made to the start time of the session. Note that many users look for the \'93Next Available\'94 Expert, so the sooner you make yourself available the more likely you are to get bookings.\'94 A dropdown menu for Maximum Booking Notice, with options: 1 day, 3 days, 1 week, 2 weeks, 1 month, 3 months, 6 months, 1 year. Include an \'93i" icon for a tooltip with text \'93A personal preference for how long in advance you want to populate your calendar. Note that making changes or cancellations to bookings will impact your dependability rating, so we suggest setting a realistic period of time for future bookings.\'94\
@@ -1367,7 +1377,7 @@ Expert Dashboard Tour\
 - 6: Highlight: \'93Community Requests\'94 in sidebar. Pop-Up Heading: \'93Community Requests\'94, Subheading: \'93See a personalized a selection of user requests here that we think you\'92re qualified to address, or peruse the entire message board. Respond to requests, send offers, and engage with the community - this is a great way to promote new bookings!)\'94\
 - 7: Highlight: Availability Calendar. Pop-Up Heading: Manage your Availability. Subheading: Update your recurring availability windows here at any time. You can also Add, delete, and manage availability on specific dates and times on the monthly calendar. \
 - 8: Highlight: lower section of sidebar (including Expert Status, Booking Preferences, Earnings, Expert Profile). Pop-Up Heading: Manage and Track, Sub-Heading: Update your preferences and track your progress here at any time. \
-- 9: No highlight, center pop-up on page. Heading: \'93Thank you for sharing your expertise on convene. Start perusing our message boards and engaging with the community to get your first booking.\'94 Change the \'93next\'94 button to \'93finish\'94, on click close the \'93tour\'94.\cb7 \
+- 9: No highlight, center pop-up on page. Heading: \'93Thank you for sharing your expertise on convene. Start perusing our message boards and engaging with the community to get your first booking.\'94 Change the \'93next\'94 button to \'93finish\'94, on click close the \'93tour\'94.\cb8 \
 \cb1 \
 \
 When a new expert registration has been approved, send an email to the user from a template. Include a link to the user\'92s dashboard.\cf0 \
@@ -1472,7 +1482,7 @@ Decisions:\
 - Align **Table: transactions** field list with **`transaction_type`**, **`freelance_id`**, **`package_id`**, **`booking_id`** as in marketplace ledger sections.\cf3 \cb1 \
 \cf2 \cb4 \
 \pard\pardeftab720\partightenfactor0
-\cf8 \cb4 ### expert_packages / learner_package_credits / package_credit_redemptions\
+\cf9 ### expert_packages / learner_package_credits / package_credit_redemptions\
 \
 **Package purchase:** **Learner** checks out on the **package purchase** flow (separate from traditional session checkout and separate from **special booking** accept). On successful payment: create **`transactions`** (`transaction_type = package_purchase`, `package_id`, amounts per non-subscription fee stack); create **`learner_package_credits`** in the same DB transaction (`remaining_credits`, `expiration_at`).\
 \
@@ -1626,9 +1636,8 @@ Build the following functionality into the admin page for quick updates. Advise 
 \pard\pardeftab720\partightenfactor0
 \cf2 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 DEV Tools
+\f0\b DEV Tools
 \f1\b0 \
 Mark these as \'93DEV tool\'94 when visible within the app.\
 - button to bypass the email verification process during sign up\
@@ -1654,9 +1663,8 @@ Rule: Any \'93full_name\'94 / \'93expert_full_name\'94 / \'93learner_full_name\'
 \
 
 \f0\b Table: users\
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - user_id \
 - first_name\
 - last_name\
@@ -1673,22 +1681,20 @@ Rule: Any \'93full_name\'94 / \'93expert_full_name\'94 / \'93learner_full_name\'
 - introduction\
 - birthday\
 - gender\
-- user_id\
 - has_expert_profile (yes/no)\
 - created_at\
 - updated_at\
 - sessions_booked\
 - sessions_completed\
 - learner_dependability_rating\
-- online (\cb4 yes/no; set true while the user is signed in/active and cleared on sign-out/log-out; powers Online Now badge everywhere profile_photo is shown) NOTE: online status is sign in state only, DOES NOT have bearing on \'93Available_Now\'94\cb1 \
+- online (\cb4 yes/no; set true while the user is signed in/active and cleared on sign-out/log-out; powers Online Now badge everywhere profile_photo is shown) NOTE: online status is sign in state only, DOES NOT have bearing on \'93Available_Now\'94\
+\cb1 - convene_role_mode (learner/expert)\
 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: expert_profiles\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: expert_profiles\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - user_id (FK to users.user_id; not user-editable)\
 \pard\tx220\tx720\pardeftab720\li720\fi-720\sa40\partightenfactor0
 
@@ -1727,9 +1733,8 @@ Rules:\
 \pard\pardeftab720\partightenfactor0
 
 \f0\b \cf2 Table: user_subscriptions\
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - subscription_id\
 - user_id (FK to users.user_id)\
 - stripe_customer_id\
@@ -1747,12 +1752,10 @@ Rules:\
 - Stripe subscription state is primary.\
 - expert_profiles.is_verified is a manual admin override for badge behavior.\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: expert_availability\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: expert_availability\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - user_id (FK to users.user_id; not user-editable)\
 \pard\pardeftab720\partightenfactor0
 
@@ -1793,12 +1796,10 @@ Behavior:\
 \pard\pardeftab720\partightenfactor0
 \cf2 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: bookings\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: bookings\
 
-\f1\b0 \cf2 Fields: \
+\f1\b0 Fields: \
 - booking_id\
 - expert_user_id\
 - expert_full_name (derived read-only from users.full_name via join/view; not stored as an editable field)\
@@ -1848,9 +1849,8 @@ Rules:\
 \pard\pardeftab720\partightenfactor0
 
 \f0\b \cf2 Table: freelance_work\
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - freelance_id\
 - status (offered/approved/complete)\
 - expert_user_id\
@@ -1877,12 +1877,10 @@ Cron/server jobs evaluate these for `admin_review`, auto-payout, auto-refund.\cf
 \pard\pardeftab720\partightenfactor0
 \cf2 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: expert_packages\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: expert_packages\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - package_id\
 - expert_user_id (FK to users.user_id)\
 \pard\pardeftab720\partightenfactor0
@@ -1903,12 +1901,10 @@ Cron/server jobs evaluate these for `admin_review`, auto-payout, auto-refund.\cf
 \cf2 \cb1 \
 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: learner_package_credits\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: learner_package_credits\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - credit_id\
 - package_id (FK to expert_packages.package_id)\
 - learner_user_id (FK to users.user_id)\
@@ -1918,24 +1914,20 @@ Cron/server jobs evaluate these for `admin_review`, auto-payout, auto-refund.\cf
 - created_at\
 - updated_at\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: package_credit_redemptions\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: package_credit_redemptions\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - redemption_id\
 - credit_id (FK to learner_package_credits.credit_id)\
 - booking_id (FK to bookings.booking_id)\
 - credits_used\
 - created_at\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: discount_redemptions\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: discount_redemptions\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - redemption_id\
 - expert_user_id (FK to users.user_id)\
 - learner_user_id (FK to users.user_id)\
@@ -1954,12 +1946,10 @@ Constraint:\
 \pard\pardeftab720\partightenfactor0
 \cf2 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: conversations\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: conversations\
 
-\f1\b0 \cf2 Fields: \
+\f1\b0 Fields: \
 - conversation_id\
 - expert_user_id\
 - expert_full_name (derived read-only from users.full_name via join/view; not stored as an editable field)\
@@ -1971,12 +1961,10 @@ Constraint:\
 Constraint:\
 - unique(learner_user_id, expert_user_id)\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: messages\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: messages\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - message_id\
 - conversation_id\
 - sender_id\
@@ -1991,7 +1979,7 @@ Constraint:\
 \pard\pardeftab720\partightenfactor0
 
 \f0\b \cf2 \cb4 Table: message_response_times
-\f1\b0 \cb4  (records time from a learner message to the first expert reply)\
+\f1\b0  (records time from a learner message to the first expert reply)\
 Fields:\
 - id (primary key)\
 - conversation_id (FK to conversations)\
@@ -2013,8 +2001,8 @@ Rules / invariants:\
 \
 \pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 \cb4 Table: expert_response_time_stats
-\f1\b0 \cb4  (fast computed averages)\
+\f0\b \cf2 Table: expert_response_time_stats
+\f1\b0  (fast computed averages)\
 Fields:\
 - expert_id (primary key)\
 - response_interval_count (integer)\
@@ -2040,47 +2028,10 @@ Computed display rule:\
        - response_interval_count += 1\
        - total_response_time_seconds += response_time_seconds\cb1 \
 \
-\pard\pardeftab720\partightenfactor0
-
-\f0\b \cf2 Table: reviews_of_experts
-\f1\b0  (ie reviews that learners leave for experts)
-\f0\b \
-\pard\pardeftab720\partightenfactor0
-
-\f1\b0 \cf2 Fields:\
-- review_id\
-- booking_id\
-- learner_reviewer_id\
-- expert_reviewee_id\
-- overall_rating\
-- questions_rating\
-- knowledgeable_rating\
-- personable_rating (import \'93punctuality_rating from v1\'94)\
-- public_review\
-- private_message\
-- created_at (timestamp)\
-- updated_at (timestamp)\
 \
 \pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: reviews_of_learners
-\f1\b0  (ie reviews that experts leave for learners)\
-Fields:\
-- review_id\
-- booking_id\
-- expert_reviewer_id\
-- learner_reviewee_id\
-- overall_rating\
-- prepared_rating\
-- respectful_rating\
-- personable_rating (import \'93punctuality_rating from v1\'94)\
-- public_review\
-- private_message\
-- created_at (timestamp)\
-- updated_at (timestamp)\
-\
-
-\f0\b Table: requests
+\f0\b \cf2 Table: requests
 \f1\b0 \
 Fields:\
 - request_id\
@@ -2099,9 +2050,8 @@ Fields:\
 \
 
 \f0\b Table: request_responses\
-\pard\pardeftab720\partightenfactor0
 
-\f1\b0 \cf2 - response_id\
+\f1\b0 - response_id\
 - request_id\
 - expert_user_id\
 - message\
@@ -2109,36 +2059,30 @@ Fields:\
 - upvote_count (optional aggregate; source of truth in request_response_upvotes)\
 - responded_at (timestamp)\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: seen_requests\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: seen_requests\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - request_id (FK to requests.request_id)\
 - expert_id (FK to users.user_id)\
 - seen_at (timestamp)\
 Constraint:\
 - unique(request_id, expert_id)\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: archived_requests\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: archived_requests\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - request_id (FK to requests.request_id)\
 - expert_id (FK to users.user_id)\
 - archived_at (timestamp)\
 Constraint:\
 - unique(request_id, expert_id)\
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: request_response_upvotes\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: request_response_upvotes\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - response_id (FK to request_responses.response_id)\
 - user_id (FK to users.user_id)\
 - created_at (timestamp)\
@@ -2149,12 +2093,10 @@ Rule:\
 - Upvotes are only for public message board content.\
 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: categories\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: categories\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - category_id\
 - name (required, unique)\
 - icon\
@@ -2167,12 +2109,10 @@ Rules:\
 - Category dropdowns across app use active categories only.\
 \
 \
-\pard\pardeftab720\partightenfactor0
 
-\f0\b \cf2 Table: transactions\
-\pard\pardeftab720\partightenfactor0
+\f0\b Table: transactions\
 
-\f1\b0 \cf2 Fields:\
+\f1\b0 Fields:\
 - transaction_id\
 - booking_id\
 \pard\pardeftab720\partightenfactor0
@@ -2254,7 +2194,7 @@ Rules:\
 \pard\pardeftab720\partightenfactor0
 
 \f0\b \cf2 \cb4 Table: FAQ
-\f1\b0 \cb4 \
+\f1\b0 \
 Fields:\
 - faq_id (primary key)\
 - question (required text)\

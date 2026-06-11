@@ -1,12 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatChatMessageDate } from "@/lib/messages/formatMessageDate";
 import { Input } from "@/components/ui/input";
+import { dispatchInboxUnreadMayHaveChanged } from "@/lib/messages/inbox-unread-events";
+import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
+import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
 
 type Msg = {
   id: string;
@@ -15,6 +19,9 @@ type Msg = {
   message_body: string;
   created_at?: string;
   is_read?: boolean;
+  offer_id?: string | null;
+  offer_type?: string | null;
+  offer_status?: string | null;
 };
 
 type Conv = {
@@ -34,6 +41,9 @@ export default function MessageThreadPage() {
   const [sending, setSending] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [partnerMeta, setPartnerMeta] = useState<{ name: string | null; photo: string | null } | null>(null);
+  const [hasExpertProfile, setHasExpertProfile] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const pageComposerRef = useRef<HTMLInputElement>(null);
 
   const loadThread = useCallback(async () => {
     if (!partnerId) return;
@@ -46,6 +56,7 @@ export default function MessageThreadPage() {
       return;
     }
     setMessages((data.messages as Msg[]) ?? []);
+    dispatchInboxUnreadMayHaveChanged();
   }, [partnerId]);
 
   const resolvePartner = useCallback(async () => {
@@ -65,8 +76,14 @@ export default function MessageThreadPage() {
     (async () => {
       const res = await fetch("/api/me");
       if (!res.ok || cancelled) return;
-      const data = (await res.json()) as { user?: { id?: string } | null };
-      if (!cancelled) setMeId(data.user?.id ?? null);
+      const data = (await res.json()) as {
+        user?: { id?: string } | null;
+        profile?: { has_expert_profile?: boolean } | null;
+      };
+      if (!cancelled) {
+        setMeId(data.user?.id ?? null);
+        setHasExpertProfile(Boolean(data.profile?.has_expert_profile));
+      }
     })();
     return () => {
       cancelled = true;
@@ -108,6 +125,9 @@ export default function MessageThreadPage() {
   const displayName =
     partnerMeta?.name?.trim() || (partnerId ? `${partnerId.slice(0, 8)}…` : "Conversation");
 
+  const fullNameForOffer = partnerMeta?.name?.trim() ?? displayName;
+  const firstForOffer = fullNameForOffer.split(/\s+/)[0] ?? fullNameForOffer;
+
   if (!partnerId) {
     return (
       <div className="min-h-screen bg-gray-50 px-4 py-10">
@@ -122,7 +142,8 @@ export default function MessageThreadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-foreground">
+    <>
+      <div className="min-h-screen bg-gray-50 text-foreground">
       <div className="mx-auto flex max-w-2xl flex-col px-4 py-6" style={{ minHeight: "calc(100vh - 2rem)" }}>
         <Link
           href="/messages"
@@ -175,10 +196,17 @@ export default function MessageThreadPage() {
                     >
                       {m.created_at ? (
                         <p className={`mb-1 text-[10px] ${mine ? "text-white/80" : "text-muted-foreground"}`}>
-                          {m.created_at}
+                          {formatChatMessageDate(m.created_at)}
                         </p>
                       ) : null}
                       <p className="whitespace-pre-wrap">{m.message_body}</p>
+                      <RescheduleOfferMessageActions
+                        message={m}
+                        viewerUserId={meId}
+                        variant={mine ? "mineSolid" : "theirs"}
+                        onThreadChanged={() => void loadThread()}
+                        composerInputRef={pageComposerRef}
+                      />
                     </div>
                   </div>
                 );
@@ -189,6 +217,7 @@ export default function MessageThreadPage() {
           <form onSubmit={(e) => void onSend(e)} className="border-t border-[#003049]/10 bg-white p-4">
             <div className="flex gap-2">
               <Input
+                ref={pageComposerRef}
                 className="min-w-0 flex-1 border-[#003049]/15 focus-visible:ring-[#F77F00]"
                 placeholder="Write a message…"
                 value={body}
@@ -203,8 +232,32 @@ export default function MessageThreadPage() {
               </Button>
             </div>
           </form>
+          {hasExpertProfile ? (
+            <div className="border-t border-[#003049]/10 bg-white px-4 pb-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-[#003049]/25 font-semibold text-[#003049]"
+                onClick={() => setOfferOpen(true)}
+              >
+                Suggest
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
-    </div>
+      </div>
+      {hasExpertProfile ? (
+        <SendOfferDialog
+          open={offerOpen}
+          onOpenChange={setOfferOpen}
+          recipientUserId={partnerId}
+          recipientFullName={fullNameForOffer}
+          recipientFirstName={firstForOffer}
+          relatedBookingId={null}
+          onSubmitted={() => void loadThread()}
+        />
+      ) : null}
+    </>
   );
 }

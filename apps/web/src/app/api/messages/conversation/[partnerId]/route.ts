@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +41,37 @@ export async function GET(_request: Request, { params }: Params) {
     return Response.json({ error: publicApiError(msgErr) }, { status: 500 });
   }
 
+  const offerIds = [
+    ...new Set(
+      (rows ?? [])
+        .map((m) => {
+          const meta = m.metadata as Record<string, unknown> | null | undefined;
+          return typeof meta?.offer_id === "string" ? meta.offer_id : null;
+        })
+        .filter((x): x is string => Boolean(x)),
+    ),
+  ];
+
+  let offerStatusById = new Map<string, string>();
+  if (offerIds.length > 0) {
+    const { data: osRows, error: osErr } = await admin
+      .from("offers")
+      .select("offer_id, status")
+      .in("offer_id", offerIds);
+    if (osErr) {
+      return Response.json({ error: publicApiError(osErr) }, { status: 500 });
+    }
+    offerStatusById = new Map((osRows ?? []).map((r) => [String(r.offer_id), String(r.status)]));
+  }
+
   const users = await getUsersByIds([userId, partnerId]);
   const byId = new Map(users.map((u) => [u.user_id, u]));
 
   const mapped = (rows ?? []).map((m) => {
     const sender = byId.get(m.sender_id);
+    const meta = (m.metadata ?? {}) as Record<string, unknown>;
+    const oid = typeof meta.offer_id === "string" ? meta.offer_id : null;
+    const otype = typeof meta.offer_type === "string" ? meta.offer_type : null;
     return {
       id: m.message_id,
       conversation_id: m.conversation_id,
@@ -59,6 +86,10 @@ export async function GET(_request: Request, { params }: Params) {
         typeof m.metadata?.parent_message_id === "string"
           ? m.metadata.parent_message_id
           : null,
+      metadata: meta,
+      offer_id: oid,
+      offer_type: otype,
+      offer_status: oid ? offerStatusById.get(oid) ?? null : null,
       is_read: m.is_read,
       created_at: m.created_at,
       sender_name: sender ? displayName(sender) : null,
@@ -73,5 +104,17 @@ export async function GET(_request: Request, { params }: Params) {
     .eq("is_read", false)
     .neq("sender_id", userId);
 
-  return Response.json({ messages: mapped });
+  const partner = byId.get(partnerId);
+
+  return Response.json({
+    messages: mapped,
+    partner: partner
+      ? {
+          user_id: partner.user_id,
+          name: displayName(partner),
+          profile_photo: partner.profile_photo,
+          online: isUserOnlineFresh(partner.online, partner.last_seen_at),
+        }
+      : null,
+  });
 }

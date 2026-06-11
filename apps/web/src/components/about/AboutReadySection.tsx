@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdvancedSearchDialog } from "@/components/search/AdvancedSearchDialog";
 import { BrowseCategoriesDialog } from "@/components/search/BrowseCategoriesDialog";
@@ -44,9 +43,6 @@ export function AboutReadySection() {
       <div className="bg-[#003049] py-8">
         <div className="container mx-auto max-w-4xl px-4 text-center">
           <h2 className="mb-6 text-4xl font-bold text-[#F77F00]">Ready to Get Started?</h2>
-          <p className="mb-8 text-xl text-white/90">
-            Find an expert, browse categories, or post a request — same pop-up flow as v1 (Bible).
-          </p>
           <div className="flex flex-col justify-center gap-4 sm:flex-row sm:flex-wrap">
             <Button
               size="lg"
@@ -55,7 +51,6 @@ export function AboutReadySection() {
               onClick={() => setAdvancedOpen(true)}
             >
               Find an Expert
-              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <Button
               size="lg"

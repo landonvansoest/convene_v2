@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { dispatchInboxUnreadMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { Input } from "@/components/ui/input";
 
 type Conv = {
@@ -26,24 +27,23 @@ export default function MessagesInboxPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    const [cRes, uRes] = await Promise.all([
-      fetch("/api/messages/conversations"),
-      fetch("/api/messages/unread/count"),
-    ]);
+    const cRes = await fetch("/api/messages/conversations");
     const cData = await cRes.json();
-    const uData = await uRes.json();
     if (!cRes.ok) {
       setError(typeof cData.error === "string" ? cData.error : "Failed to load");
       setConversations([]);
-    } else {
-      setConversations((cData.conversations as Conv[]) ?? []);
-    }
-    if (uRes.ok && typeof uData.count === "number") {
-      setUnreadTotal(uData.count);
-    } else {
       setUnreadTotal(null);
+    } else {
+      const list = (cData.conversations as Conv[]) ?? [];
+      setConversations(list);
+      const total = list.reduce(
+        (s, c) => s + (typeof c.unread_count === "number" ? c.unread_count : 0),
+        0,
+      );
+      setUnreadTotal(total);
     }
     setLoading(false);
+    dispatchInboxUnreadMayHaveChanged();
   }
 
   useEffect(() => {

@@ -1,2 +1,7 @@
 node_modules/
+.DS_Store
+.cursor/
+convene_cursor
+desktop
+landonvansoest
 v1 migration/.env.migration

@@ -12,11 +12,11 @@ export async function GET(_request: Request, { params }: Params) {
 
   const { data: profile } = await admin
     .from("expert_profiles")
-    .select("user_id, expert_status")
+    .select("user_id, expert_visibility_state")
     .eq("user_id", expertUserId)
     .maybeSingle();
 
-  if (!profile || profile.expert_status !== "active") {
+  if (!profile || profile.expert_visibility_state !== "visible_active") {
     return Response.json({ packages: [] });
   }
 

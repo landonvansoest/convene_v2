@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: Params) {
   const { data: user, error: userErr } = await admin
     .from("users")
     .select(
-      "user_id, first_name, last_name, profile_photo, profession, hometown, introduction, profile_visibility_state, sessions_completed, learner_dependability_rating, has_expert_profile"
+      "user_id, first_name, last_name, profile_photo, profession, hometown, introduction, sessions_completed, learner_dependability_rating, has_expert_profile"
     )
     .eq("user_id", id)
     .maybeSingle();
@@ -22,10 +22,6 @@ export async function GET(_request: Request, { params }: Params) {
     return Response.json({ error: publicApiError(userErr) }, { status: 500 });
   }
   if (!user) {
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
-
-  if (user.profile_visibility_state !== "visible") {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 

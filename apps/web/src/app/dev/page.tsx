@@ -10,6 +10,12 @@ export default function DevPlaceholderPage() {
           v1&apos;s <code className="rounded bg-muted px-1 py-0.5 text-xs">/dev</code> route is not
           ported yet. Use the admin surface or local API routes while building v2.
         </p>
+        <Link
+          href="/dev/success-dialog-icons"
+          className="mt-4 inline-block text-sm font-medium text-primary underline"
+        >
+          Success dialogue icon preview
+        </Link>
         <Link href="/" className="mt-6 inline-block text-sm font-medium text-primary underline">
           Back to home
         </Link>

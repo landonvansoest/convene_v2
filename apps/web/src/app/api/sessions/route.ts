@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { bookingRowVisibleInSessionList } from "@/lib/booking-dashboard-visibility";
 import { evaluateFirstSessionDiscount } from "@/lib/pricing/first-session-discount";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
 
@@ -248,6 +250,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
   const status = searchParams.get("status");
+  const includePendingUnpaid =
+    process.env.NODE_ENV !== "production" &&
+    searchParams.get("include_pending_unpaid") === "1";
 
   const admin = createAdminClient();
   let query = admin
@@ -273,7 +278,7 @@ export async function GET(request: Request) {
   const partners = await getUsersByIds(Array.from(partnerIds));
   const byId = new Map(partners.map((u) => [u.user_id, u]));
 
-  const sessions = (bookings ?? []).map((b) => {
+  let sessions = (bookings ?? []).map((b) => {
     const partnerId = b.learner_user_id === userId ? b.expert_user_id : b.learner_user_id;
     const partner = byId.get(partnerId);
     return {
@@ -284,11 +289,18 @@ export async function GET(request: Request) {
       user_role: b.learner_user_id === userId ? "learner" : "expert",
       partner_name: partner ? displayName(partner) : null,
       partner_photo: partner?.profile_photo ?? null,
+      partner_online: isUserOnlineFresh(partner?.online, partner?.last_seen_at),
       duration_minutes: null,
       total_price: b.total_amount,
       cancellation_reason: b.cancellation_reason,
     };
   });
+
+  if (!includePendingUnpaid) {
+    sessions = sessions.filter((s) =>
+      bookingRowVisibleInSessionList(s.payment_status, s.user_role),
+    );
+  }
 
   return Response.json({ sessions });
 }

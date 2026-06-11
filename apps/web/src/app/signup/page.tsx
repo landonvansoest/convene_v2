@@ -1,5 +1,6 @@
-import { SignUpPageClient } from "@/components/auth/SignUpPageClient";
+import { redirect } from "next/navigation";
 
-export default function SignUpPage() {
-  return <SignUpPageClient />;
+/** Legacy path; canonical learner registration wizard is `/auth/callback/signup`. */
+export default function SignUpPageRedirect() {
+  redirect("/auth/callback/signup");
 }

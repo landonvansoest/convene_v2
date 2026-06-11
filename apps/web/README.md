@@ -34,6 +34,7 @@ See `.env.example`.
 | `GET /api/me` | Cookie session + `public.users` profile; upserts profile if missing |
 | `POST /api/notifications/webhook/message` | DB/worker hook; Bearer `NOTIFICATION_WEBHOOK_SECRET`; body snake_case or camelCase |
 | `GET` / `POST /api/notifications/check-booking-reminders` | Cron; Bearer `CRON_SECRET` or `?secret=`; **v2** `bookings.status = upcoming` |
+| `GET` / `POST /api/cron/finalize-no-show-sessions` | Cron; same auth; finalizes past sessions from `learner_joined` / `expert_joined` (no-show statuses + refund queue) |
 | `POST /api/stripe/create-payment-intent` | Port of Express; body `{ amount, expertUserId, bookingId? }` (amount in **cents**) |
 | `POST /api/stripe/webhook` | Raw body + `stripe-signature`; `STRIPE_WEBHOOK_SECRET` |
 
@@ -43,11 +44,13 @@ Notification dispatch is stubbed in `src/lib/notifications/dispatch.ts` until Se
 
 `GET /auth/callback` — Supabase PKCE email/OAuth return. In Supabase Dashboard → Auth → URL config, add redirect: `{ORIGIN}/auth/callback`.
 
+`GET /auth/callback/signup` — Learner registration wizard (v1-style). Post-signup email confirm / dev bypass should use **`{ORIGIN}/auth/callback/signup/complete`** as `redirectTo`; that handler sets the session then redirects here.
+
 ## Deploy (Vercel)
 
 - **Root directory:** `apps/web`
 - Set env vars from `.env.example` (including `CRON_SECRET`; Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when configured).
-- **`vercel.json`** defines a cron hitting `/api/notifications/check-booking-reminders` every 2 minutes (adjust as needed).
+- **`vercel.json`** defines crons: booking reminders every 2 minutes, **`/api/cron/finalize-no-show-sessions`** every 5 minutes (adjust schedules as needed). Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically when **`CRON_SECRET`** is set in the project env.
 - Stripe Dashboard → webhook URL: `https://<deployment>/api/stripe/webhook`
 
 ## Express → Next port map (in progress)

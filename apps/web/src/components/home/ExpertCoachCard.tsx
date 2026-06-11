@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Star, Zap } from "lucide-react";
+import { OnlineDot } from "@/components/presence/OnlineDot";
 
 export type ExpertCoachCardProps = {
   id: string;
@@ -10,6 +11,7 @@ export type ExpertCoachCardProps = {
   rating?: number | null;
   availableNow?: boolean;
   isVerified?: boolean;
+  online?: boolean;
 };
 
 export function ExpertCoachCard({
@@ -20,6 +22,7 @@ export function ExpertCoachCard({
   rating = null,
   availableNow = false,
   isVerified = false,
+  online = false,
 }: ExpertCoachCardProps) {
   const initials = name
     .split(/\s+/)
@@ -54,11 +57,12 @@ export function ExpertCoachCard({
             Available Now
           </div>
         ) : null}
+        <OnlineDot online={online} />
       </div>
-      <div className="space-y-2 p-4">
+      <div className="space-y-1 p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
-            <h3 className="truncate text-sm font-semibold transition-colors group-hover:text-primary">{name}</h3>
+            <h3 className="truncate text-base font-bold transition-colors group-hover:text-primary">{name}</h3>
             {isVerified ? (
               <Image
                 src="/verification-badge.png"
@@ -78,7 +82,7 @@ export function ExpertCoachCard({
             {ratingNum > 0 ? <span className="text-sm font-semibold">{ratingNum.toFixed(1)}</span> : null}
           </div>
         </div>
-        <p className="line-clamp-2 min-h-[2rem] text-xs text-muted-foreground">{title}</p>
+        <p className="truncate text-sm text-muted-foreground">{title}</p>
       </div>
     </Link>
   );

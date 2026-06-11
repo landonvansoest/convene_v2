@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { parseIntervalFromMinutes } from "@/lib/expert-registration";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,17 @@ const availabilitySchema = z
     firstSessionDiscountMaxSessionMinutes: z.number().int().positive().nullable().optional(),
     firstSessionDiscountEffectiveFrom: z.string().max(40).nullable().optional(),
     firstSessionDiscountEffectiveUntil: z.string().max(40).nullable().optional(),
+    minimumNoticeMinutes: z.number().int().nonnegative().optional(),
+    maximumNoticeMinutes: z.number().int().positive().optional(),
+    bufferTimeMinutes: z.number().int().nonnegative().optional(),
+    autoAccept: z.boolean().optional(),
+    extendSessions: z.boolean().optional(),
+    packageDealEnabled: z.boolean().optional(),
+    packageSessionCount: z.number().int().positive().nullable().optional(),
+    packageSessionDurationMinutes: z.number().int().positive().nullable().optional(),
+    packageDiscountType: z.enum(["percent", "fixed_amount"]).nullable().optional(),
+    packageDiscountValue: z.number().nonnegative().nullable().optional(),
+    packageRequirePurchase: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.ratePer15Min === undefined && data.hourlyRate === undefined) {
@@ -90,6 +102,17 @@ export async function PUT(request: Request) {
     firstSessionDiscountMaxSessionMinutes,
     firstSessionDiscountEffectiveFrom,
     firstSessionDiscountEffectiveUntil,
+    minimumNoticeMinutes,
+    maximumNoticeMinutes,
+    bufferTimeMinutes,
+    autoAccept,
+    extendSessions,
+    packageDealEnabled,
+    packageSessionCount,
+    packageSessionDurationMinutes,
+    packageDiscountType,
+    packageDiscountValue,
+    packageRequirePurchase,
   } = parsed.data;
   const admin = createAdminClient();
   const now = new Date().toISOString();
@@ -128,8 +151,87 @@ export async function PUT(request: Request) {
       : null;
   }
 
+  if (minimumNoticeMinutes !== undefined) {
+    payload.minimum_notice = parseIntervalFromMinutes(minimumNoticeMinutes) ?? null;
+  }
+  if (maximumNoticeMinutes !== undefined) {
+    payload.maximum_notice = parseIntervalFromMinutes(maximumNoticeMinutes) ?? null;
+  }
+  if (bufferTimeMinutes !== undefined) {
+    payload.buffer_time = bufferTimeMinutes;
+  }
+  if (autoAccept !== undefined) {
+    payload.auto_accept = autoAccept;
+  }
+  if (extendSessions !== undefined) {
+    payload.extend_sessions = extendSessions;
+  }
+  if (packageDealEnabled !== undefined) {
+    payload.package_deal_enabled = packageDealEnabled;
+  }
+  if (packageSessionCount !== undefined) {
+    payload.package_session_count = packageSessionCount;
+  }
+  if (packageSessionDurationMinutes !== undefined) {
+    payload.package_session_duration_minutes = packageSessionDurationMinutes;
+  }
+  if (packageDiscountType !== undefined) {
+    payload.package_discount_type = packageDiscountType;
+  }
+  if (packageDiscountValue !== undefined) {
+    payload.package_discount_value = packageDiscountValue;
+  }
+  if (packageRequirePurchase !== undefined) {
+    payload.package_require_purchase = packageRequirePurchase;
+  }
+
   const { error } = await admin.from("expert_availability").upsert(payload, { onConflict: "user_id" });
   if (error) return Response.json({ error: publicApiError(error) }, { status: 500 });
 
   return Response.json({ message: "Availability updated successfully" });
+}
+
+const calendarPauseSchema = z.object({ calendarPaused: z.boolean() });
+
+/** Toggle whether public availability is hidden (bookings preserved). */
+export async function PATCH(request: Request) {
+  const userId = await getAuthedUserId();
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const parsed = calendarPauseSchema.safeParse(json);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const { data: existing, error: selErr } = await admin
+    .from("expert_availability")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (selErr) return Response.json({ error: publicApiError(selErr) }, { status: 500 });
+
+  if (!existing) {
+    const { error: insErr } = await admin.from("expert_availability").insert({
+      user_id: userId,
+      calendar_paused: parsed.data.calendarPaused,
+      updated_at: now,
+    });
+    if (insErr) return Response.json({ error: publicApiError(insErr) }, { status: 500 });
+  } else {
+    const { error: upErr } = await admin
+      .from("expert_availability")
+      .update({ calendar_paused: parsed.data.calendarPaused, updated_at: now })
+      .eq("user_id", userId);
+    if (upErr) return Response.json({ error: publicApiError(upErr) }, { status: 500 });
+  }
+
+  return Response.json({ ok: true, calendarPaused: parsed.data.calendarPaused });
 }

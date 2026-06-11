@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { hasSessionEndedByWallClock } from "@/lib/sessionWallClock";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function POST(request: Request, { params }: Params) {
   const admin = createAdminClient();
   const { data: booking, error: bookErr } = await admin
     .from("bookings")
-    .select("booking_id, learner_user_id, expert_user_id, status")
+    .select("booking_id, learner_user_id, expert_user_id, status, session_date, end_time, cancelled_at")
     .eq("booking_id", bookingId)
     .maybeSingle();
 
@@ -57,7 +58,18 @@ export async function POST(request: Request, { params }: Params) {
   if (booking.learner_user_id !== userId) {
     return Response.json({ error: "Only the learner can submit this review" }, { status: 403 });
   }
-  if (booking.status !== "complete") {
+  const st = String(booking.status ?? "").toLowerCase();
+  if (booking.cancelled_at || st === "cancelled") {
+    return Response.json({ error: "Cancelled bookings cannot be reviewed" }, { status: 400 });
+  }
+  if (st === "no_show_expert" || st === "no_show_learner" || st === "no_show") {
+    return Response.json({ error: "This session cannot be reviewed" }, { status: 400 });
+  }
+  const endedByWallClock = hasSessionEndedByWallClock(
+    booking.session_date != null ? String(booking.session_date) : "",
+    booking.end_time != null ? String(booking.end_time) : undefined,
+  );
+  if (booking.status !== "complete" && !endedByWallClock) {
     return Response.json({ error: "Session must be complete before reviewing" }, { status: 400 });
   }
 

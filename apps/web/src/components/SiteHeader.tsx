@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Briefcase,
   Calendar,
@@ -10,10 +10,12 @@ import {
   GraduationCap,
   LayoutGrid,
   LogIn,
+  LogOut,
   Mail,
   Menu,
   MessageSquare,
   Search,
+  Settings,
   User,
 } from "lucide-react";
 import {
@@ -24,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { OnlineDot } from "@/components/presence/OnlineDot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
@@ -32,6 +35,31 @@ import { SignUpDialog } from "@/components/auth/SignUpDialog";
 import { AdvancedSearchDialog } from "@/components/search/AdvancedSearchDialog";
 import { BrowseCategoriesDialog } from "@/components/search/BrowseCategoriesDialog";
 import { PostRequestDialog } from "@/components/requests/PostRequestDialog";
+import {
+  HEADER_BADGES_MAY_HAVE_CHANGED,
+  INBOX_UNREAD_MAY_HAVE_CHANGED,
+} from "@/lib/messages/inbox-unread-events";
+import { bookingPaymentIsSettled, hasSessionEndedByWallClock } from "@/lib/sessionWallClock";
+
+function avatarInitialsFromProfile(p: Record<string, unknown> | null): string {
+  if (!p) return "U";
+  const first = typeof p.first_name === "string" ? p.first_name.trim() : "";
+  const last = typeof p.last_name === "string" ? p.last_name.trim() : "";
+  const a = first.slice(0, 1);
+  const b = last.slice(0, 1);
+  if (a || b) return `${a}${b}`.toUpperCase();
+  const full = typeof p.full_name === "string" ? p.full_name.trim() : "";
+  if (full) {
+    const parts = full.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+    }
+    return full.slice(0, 2).toUpperCase();
+  }
+  const email =
+    typeof p.email_address === "string" && p.email_address.trim() ? p.email_address.trim() : "";
+  return email.slice(0, 1).toUpperCase() || "U";
+}
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -40,7 +68,11 @@ export function SiteHeader() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchMenu, setShowSearchMenu] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [avatarInitials, setAvatarInitials] = useState("U");
   const [hasExpertProfile, setHasExpertProfile] = useState<boolean>(false);
+  const [displayName, setDisplayName] = useState<string>("");
+  const [emailAddress, setEmailAddress] = useState<string>("");
+  const [roleMode, setRoleMode] = useState<"learner" | "expert">("learner");
   const [nextSessionCountdown, setNextSessionCountdown] = useState<{
     hours: number;
     minutes: number;
@@ -51,9 +83,21 @@ export function SiteHeader() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [signUpOpen, setSignUpOpen] = useState(false);
   const [signInDescription, setSignInDescription] = useState<string | null>(null);
+  const [signInPostRedirect, setSignInPostRedirect] = useState<string | null>(null);
+  /** False while session is resolving; false then true after `/api/me` when signed in. */
+  const [meLoaded, setMeLoaded] = useState(false);
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [browseCategoriesOpen, setBrowseCategoriesOpen] = useState(false);
   const [postRequestOpen, setPostRequestOpen] = useState(false);
+
+  async function persistRoleMode(nextMode: "learner" | "expert"): Promise<boolean> {
+    const res = await fetch("/api/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ convene_role_mode: nextMode }),
+    });
+    return res.ok;
+  }
 
   useEffect(() => {
     try {
@@ -71,8 +115,32 @@ export function SiteHeader() {
     }
   }, []);
 
+  /** Keep the search input in sync after a full navigation to `/search?q=...`. */
   useEffect(() => {
-    if (!signedIn) return;
+    if (pathname !== "/search" || typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("q");
+    setSearchQuery(q ?? "");
+  }, [pathname]);
+
+  useEffect(() => {
+    if (signedIn === false) {
+      setProfilePhoto(null);
+      setAvatarInitials("U");
+      setHasExpertProfile(false);
+      setDisplayName("");
+      setEmailAddress("");
+      setRoleMode("learner");
+      setNextSessionCountdown(null);
+      setBookedSessionsCount(0);
+      setInboxUnreadCount(0);
+      setMeLoaded(true);
+      return;
+    }
+    if (!signedIn) {
+      setMeLoaded(false);
+      return;
+    }
+    setMeLoaded(false);
     void fetch("/api/me")
       .then(async (r) => {
         if (!r.ok) return null;
@@ -82,116 +150,174 @@ export function SiteHeader() {
         const p = (data?.profile ?? null) as Record<string, unknown> | null;
         const photo = p?.profile_photo;
         setProfilePhoto(typeof photo === "string" && photo.trim() ? photo : null);
+        setAvatarInitials(avatarInitialsFromProfile(p));
         setHasExpertProfile(Boolean(p?.has_expert_profile));
+        const full = typeof p?.full_name === "string" ? p.full_name.trim() : "";
+        const first = typeof p?.first_name === "string" ? p.first_name.trim() : "";
+        const last = typeof p?.last_name === "string" ? p.last_name.trim() : "";
+        const fallbackName = [first, last].filter(Boolean).join(" ").trim();
+        setDisplayName(full || fallbackName || "User");
+        const email =
+          typeof p?.email_address === "string" && p.email_address.trim()
+            ? p.email_address.trim()
+            : "";
+        setEmailAddress(email);
+        const dbMode = p?.convene_role_mode;
+        if (dbMode === "expert" || dbMode === "learner") {
+          setRoleMode(dbMode);
+        } else {
+          setRoleMode(Boolean(p?.has_expert_profile) ? "expert" : "learner");
+        }
       })
       .catch(() => {
         setProfilePhoto(null);
+        setAvatarInitials("U");
         setHasExpertProfile(false);
-      });
+        setDisplayName("");
+        setEmailAddress("");
+        setRoleMode("learner");
+      })
+      .finally(() => setMeLoaded(true));
   }, [signedIn]);
 
-  useEffect(() => {
-    // Bible-driven header badges:
-    // - Next session countdown
-    // - Booked sessions badge (expert actions)
-    // - Inbox unread badge
+  const badgeFetchGen = useRef(0);
+
+  const refreshHeaderBadges = useCallback(async () => {
     if (!signedIn) return;
+    const gen = ++badgeFetchGen.current;
 
-    let cancelled = false;
+    const [unreadRes, sessionsRes, summaryRes] = await Promise.allSettled([
+      fetch("/api/messages/unread/count", { cache: "no-store" }),
+      fetch("/api/sessions?type=upcoming", { cache: "no-store" }),
+      fetch("/api/me/dashboard-summary", { cache: "no-store" }),
+    ]);
 
-    async function loadBadges() {
-      setNextSessionCountdown(null);
-      setBookedSessionsCount(0);
-      setInboxUnreadCount(0);
+    if (gen !== badgeFetchGen.current) return;
 
-      const [unreadRes, sessionsRes] = await Promise.allSettled([
-        fetch("/api/messages/unread/count"),
-        fetch("/api/sessions?type=upcoming"),
-      ]);
-
-      if (cancelled) return;
-
-      if (unreadRes.status === "fulfilled" && unreadRes.value.ok) {
-        try {
-          const data = (await unreadRes.value.json()) as { count?: number };
-          setInboxUnreadCount(typeof data?.count === "number" ? data.count : 0);
-        } catch {
-          setInboxUnreadCount(0);
-        }
+    if (unreadRes.status === "fulfilled" && unreadRes.value.ok) {
+      try {
+        const data = (await unreadRes.value.json()) as { count?: number };
+        setInboxUnreadCount(typeof data?.count === "number" ? data.count : 0);
+      } catch {
+        setInboxUnreadCount(0);
       }
+    }
 
-      if (sessionsRes.status === "fulfilled" && sessionsRes.value.ok) {
-        try {
-          const data = (await sessionsRes.value.json()) as { sessions?: Array<Record<string, unknown>> };
-          const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+    let bookedFromSummary = false;
+    if (summaryRes.status === "fulfilled" && summaryRes.value.ok) {
+      try {
+        const data = (await summaryRes.value.json()) as {
+          counts?: {
+            expertNewBookings?: number;
+            learnerUnpaidCardBookings?: number;
+          };
+        };
+        const ex = typeof data.counts?.expertNewBookings === "number" ? data.counts.expertNewBookings : 0;
+        const lr =
+          typeof data.counts?.learnerUnpaidCardBookings === "number"
+            ? data.counts.learnerUnpaidCardBookings
+            : 0;
+        setBookedSessionsCount(Math.max(0, ex + lr));
+        bookedFromSummary = true;
+      } catch {
+        /* fall through */
+      }
+    }
 
-          const nowMs = Date.now();
-          let bestNext: { hours: number; minutes: number; totalMinutes: number } | null = null;
-          let bookedCount = 0;
+    if (sessionsRes.status === "fulfilled" && sessionsRes.value.ok) {
+      try {
+        const data = (await sessionsRes.value.json()) as { sessions?: Array<Record<string, unknown>> };
+        const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
 
+        if (!bookedFromSummary) {
+          let fallbackBooked = 0;
           for (const s of sessions) {
             const status = s.status as string | undefined;
             const paymentStatus = s.payment_status as string | undefined;
             const userRole = s.user_role as string | undefined;
-
+            const sessionDate = s.session_date as string | undefined;
+            const endTime = s.end_time as string | undefined;
             if (
-              hasExpertProfile &&
               userRole === "expert" &&
               status === "upcoming" &&
-              paymentStatus !== "paid"
+              !bookingPaymentIsSettled(paymentStatus) &&
+              String(paymentStatus ?? "").toLowerCase() !== "refunded" &&
+              !hasSessionEndedByWallClock(sessionDate, endTime)
             ) {
-              bookedCount += 1;
-            }
-
-            if (status !== "upcoming" || paymentStatus !== "paid") continue;
-
-            const sessionDate = s.session_date as string | undefined;
-            const startTime = s.start_time as string | undefined;
-            if (!sessionDate || !startTime) continue;
-
-            const startMs = new Date(`${sessionDate}T${startTime}`).getTime();
-            if (!Number.isFinite(startMs)) continue;
-
-            const diffMs = startMs - nowMs;
-            if (diffMs <= 0) continue;
-
-            const totalMinutes = Math.floor(diffMs / 60000);
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-
-            if (!bestNext || totalMinutes < bestNext.totalMinutes) {
-              bestNext = { hours, minutes, totalMinutes };
+              fallbackBooked += 1;
             }
           }
-
-          setBookedSessionsCount(bookedCount);
-          setNextSessionCountdown(bestNext);
-        } catch {
-          setBookedSessionsCount(0);
-          setNextSessionCountdown(null);
+          setBookedSessionsCount(fallbackBooked);
         }
+
+        const nowMs = Date.now();
+        let bestNext: { hours: number; minutes: number; totalMinutes: number } | null = null;
+
+        for (const s of sessions) {
+          const status = s.status as string | undefined;
+          const paymentStatus = s.payment_status as string | undefined;
+          const psLower = String(paymentStatus ?? "").toLowerCase();
+          if (status !== "upcoming" || (psLower !== "paid" && psLower !== "succeeded")) continue;
+
+          const sessionDate = s.session_date as string | undefined;
+          const startTime = s.start_time as string | undefined;
+          if (!sessionDate || !startTime) continue;
+
+          const startMs = new Date(`${sessionDate}T${startTime}`).getTime();
+          if (!Number.isFinite(startMs)) continue;
+
+          const diffMs = startMs - nowMs;
+          if (diffMs <= 0) continue;
+
+          const totalMinutes = Math.floor(diffMs / 60000);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+
+          if (!bestNext || totalMinutes < bestNext.totalMinutes) {
+            bestNext = { hours, minutes, totalMinutes };
+          }
+        }
+
+        setNextSessionCountdown(bestNext);
+      } catch {
+        if (!bookedFromSummary) setBookedSessionsCount(0);
+        setNextSessionCountdown(null);
       }
+    } else {
+      if (!bookedFromSummary) setBookedSessionsCount(0);
+      setNextSessionCountdown(null);
     }
+  }, [signedIn]);
 
-    void loadBadges();
+  /** Initial + when role/navigation changes; polling/events handle background updates. */
+  useEffect(() => {
+    if (!signedIn) return;
+    void refreshHeaderBadges();
+  }, [signedIn, pathname, refreshHeaderBadges]);
 
-    return () => {
-      cancelled = true;
+  /**
+   * Same `INBOX_UNREAD_MAY_HAVE_CHANGED` as dashboard sidebar; also session badges + tab refocus + poll.
+   */
+  useEffect(() => {
+    if (!signedIn) return;
+    const run = () => void refreshHeaderBadges();
+    const onVis = () => {
+      if (document.visibilityState === "visible") run();
     };
-  }, [signedIn, hasExpertProfile]);
+    window.addEventListener(INBOX_UNREAD_MAY_HAVE_CHANGED, run);
+    window.addEventListener(HEADER_BADGES_MAY_HAVE_CHANGED, run);
+    document.addEventListener("visibilitychange", onVis);
+    const intervalMs = 60_000;
+    const id = window.setInterval(run, intervalMs);
+    return () => {
+      window.removeEventListener(INBOX_UNREAD_MAY_HAVE_CHANGED, run);
+      window.removeEventListener(HEADER_BADGES_MAY_HAVE_CHANGED, run);
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearInterval(id);
+    };
+  }, [signedIn, refreshHeaderBadges]);
 
   if (pathname === "/login") return null;
-
-  function onSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    if (q) {
-      // Match v1 routing contract: /search?q=...
-      router.push(`/search?q=${encodeURIComponent(q)}`);
-    } else {
-      router.push("/search");
-    }
-  }
 
   async function signOut() {
     let sb: ReturnType<typeof createBrowserSupabase> | null = null;
@@ -201,15 +327,34 @@ export function SiteHeader() {
       sb = null;
     }
 
+    try {
+      await fetch("/api/me/offline", {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+      });
+    } catch {
+      // Best-effort: the sweep cron will reconcile within a couple minutes.
+    }
+
     if (sb) {
       await sb.auth.signOut();
     }
     window.location.href = "/";
   }
 
-  function openSignIn(description?: string | null) {
-    setSignInDescription(description ?? null);
+  function openSignIn(description: string | null = null, postRedirect: string | null = null) {
+    setSignInDescription(description);
+    setSignInPostRedirect(postRedirect);
+    setSignUpOpen(false);
     setSignInOpen(true);
+  }
+
+  function openSignUp() {
+    setSignInOpen(false);
+    setSignInDescription(null);
+    setSignInPostRedirect(null);
+    setSignUpOpen(true);
   }
 
   function openPostRequestFromMenu() {
@@ -223,6 +368,34 @@ export function SiteHeader() {
     setPostRequestOpen(true);
   }
 
+  /** Bible: show when not signed in, or signed in without an expert profile (after profile load). */
+  const showBecomeExpertBadge =
+    signedIn === false || (signedIn === true && meLoaded && !hasExpertProfile);
+
+  function onBecomeExpertBadgeClick() {
+    if (signedIn !== true) {
+      openSignIn(
+        "You must sign in or register to become an expert",
+        "/become-expert"
+      );
+      return;
+    }
+    router.push("/become-expert");
+  }
+
+  /**
+   * Use client navigation so Next App Router keeps the loaded CSS/JS shell. A raw GET form submit
+   * triggers a full document load, which in dev (and some proxies) can flash or omit `_next` assets.
+   */
+  function onHeaderSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const raw = searchQuery.trim();
+    if (raw) router.push(`/search?q=${encodeURIComponent(raw)}`);
+    else router.push("/search");
+  }
+
+  const isExpertMenu = signedIn && hasExpertProfile && roleMode === "expert";
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-screen-2xl items-center justify-between px-4 md:px-6">
@@ -233,11 +406,18 @@ export function SiteHeader() {
         </div>
 
         {/* Desktop search bar (v1/Bible): input + hamburger dropdown */}
-        <form onSubmit={onSearch} className="hidden max-w-2xl flex-1 px-4 md:flex">
+        <form
+          data-tour-target="header-search"
+          action="/search"
+          method="get"
+          onSubmit={onHeaderSearchSubmit}
+          className="hidden max-w-2xl flex-1 px-4 md:flex"
+        >
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
+              name="q"
               placeholder="Find an Expert or Ask a Question"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -274,7 +454,6 @@ export function SiteHeader() {
                   <LayoutGrid className="mr-2 h-4 w-4" />
                   Browse categories
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => {
                     openPostRequestFromMenu();
@@ -296,7 +475,7 @@ export function SiteHeader() {
               {/* Desktop version */}
               <div className="hidden lg:flex items-center">
                 <div
-                  className="bg-[#003049] text-white rounded-md px-2.5 py-1 leading-none font-medium text-center cursor-pointer hover:opacity-90"
+                  className="rounded-md bg-convene-primary px-2.5 py-1 text-center text-white leading-none font-medium cursor-pointer hover:opacity-90"
                   role="button"
                   aria-label="View booked sessions"
                   onClick={() => router.push("/dashboard?view=sessions")}
@@ -323,7 +502,7 @@ export function SiteHeader() {
               {/* Mobile version */}
               <div className="lg:hidden flex items-center">
                 <div
-                  className="bg-[#003049] text-white rounded-md px-2 py-0.5 leading-none font-medium text-center cursor-pointer hover:opacity-90"
+                  className="rounded-md bg-convene-primary px-2 py-0.5 text-center text-white leading-none font-medium cursor-pointer hover:opacity-90"
                   role="button"
                   aria-label="View booked sessions"
                   onClick={() => router.push("/dashboard?view=sessions")}
@@ -380,6 +559,16 @@ export function SiteHeader() {
             </Button>
           )}
 
+          {showBecomeExpertBadge ? (
+            <button
+              type="button"
+              onClick={() => onBecomeExpertBadgeClick()}
+              className="shrink-0 whitespace-nowrap rounded-md px-1 text-sm font-medium text-foreground/90 hover:text-foreground hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Become an Expert
+            </button>
+          ) : null}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -388,12 +577,24 @@ export function SiteHeader() {
                 className="relative h-10 rounded-full px-2 hover:bg-transparent"
               >
                 <div className="flex items-center gap-2">
-                  <Avatar className="h-9 w-9 border-2 border-primary/20">
-                    <AvatarImage src={profilePhoto ?? undefined} alt="User" />
-                    <AvatarFallback className="bg-[#F77F00] text-white">
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-9 w-9 border-2 border-primary/20">
+                      <AvatarImage
+                        src={profilePhoto ?? undefined}
+                        alt={signedIn && displayName ? displayName : "Account"}
+                      />
+                      <AvatarFallback
+                        className={
+                          signedIn
+                            ? "bg-[#FFF6EE] text-xs font-semibold text-[#003049]"
+                            : "bg-convene-hero text-white"
+                        }
+                      >
+                        {signedIn ? avatarInitials : <User className="h-4 w-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    <OnlineDot online={signedIn === true} />
+                  </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </div>
               </Button>
@@ -411,28 +612,13 @@ export function SiteHeader() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
-                      setSignUpOpen(true);
+                      openSignUp();
                     }}
                   >
                     <User className="mr-2 h-4 w-4" />
                     Sign up
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      router.push("/requests");
-                    }}
-                  >
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Community message board
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      openSignIn("You must sign in or register to become an expert.");
-                    }}
-                  >
-                    <User className="mr-2 h-4 w-4" />
-                    Become an Expert
-                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => {
                       router.push("/about");
@@ -441,41 +627,36 @@ export function SiteHeader() {
                     <MessageSquare className="mr-2 h-4 w-4" />
                     Learn More
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      router.push("/requests");
+                    }}
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Community
+                  </DropdownMenuItem>
                 </>
               ) : (
                 <>
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium text-foreground">{displayName || "User"}</p>
+                    <p className="text-xs text-muted-foreground">{emailAddress || "—"}</p>
+                  </div>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => {
                       router.push("/dashboard?view=sessions");
                     }}
                   >
-                    <Calendar className="mr-2 h-4 w-4" />
+                    <LayoutGrid className="mr-2 h-4 w-4" />
                     Dashboard
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      router.push("/dashboard?view=overview");
-                    }}
-                  >
-                    <GraduationCap className="mr-2 h-4 w-4" />
-                    Switch to Learning
-                  </DropdownMenuItem>
-                  {hasExpertProfile ? (
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        router.push("/dashboard?view=community-requests");
-                      }}
-                    >
-                      <Briefcase className="mr-2 h-4 w-4" />
-                      Switch to Coaching
-                    </DropdownMenuItem>
-                  ) : null}
                   <DropdownMenuItem
                     onSelect={() => {
                       router.push("/dashboard?view=inbox");
                     }}
                   >
-                    <Mail className="mr-2 h-4 w-4" />
+                    <MessageSquare className="mr-2 h-4 w-4" />
                     Inbox
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -483,36 +664,56 @@ export function SiteHeader() {
                       router.push("/dashboard?view=settings");
                     }}
                   >
-                    <User className="mr-2 h-4 w-4" />
-                    Settings
+                    <Settings className="mr-2 h-4 w-4" />
+                    Profile Settings
                   </DropdownMenuItem>
-
-                  {!hasExpertProfile ? (
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        router.push("/become-expert");
-                      }}
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      Become an Expert
-                    </DropdownMenuItem>
-                  ) : null}
-
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => {
                       router.push("/requests");
                     }}
                   >
                     <MessageSquare className="mr-2 h-4 w-4" />
-                    Community message board
+                    Community
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  {isExpertMenu ? (
+                    <DropdownMenuItem
+                      onSelect={async () => {
+                        const ok = await persistRoleMode("learner");
+                        if (ok) setRoleMode("learner");
+                        router.push("/dashboard?view=overview");
+                      }}
+                    >
+                      <GraduationCap className="mr-2 h-4 w-4" />
+                      Switch to Learning
+                    </DropdownMenuItem>
+                  ) : hasExpertProfile ? (
+                    <DropdownMenuItem
+                      onSelect={async () => {
+                        const ok = await persistRoleMode("expert");
+                        if (ok) setRoleMode("expert");
+                        router.push("/dashboard?view=community-requests");
+                      }}
+                    >
+                      <Briefcase className="mr-2 h-4 w-4" />
+                      Switch to Coaching
+                    </DropdownMenuItem>
+                  ) : (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      onBecomeExpertBadgeClick();
+                    }}
+                  >
+                    <Briefcase className="mr-2 h-4 w-4" />
+                    Become an Expert
+                  </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onSelect={() => {
                       void signOut();
                     }}
                   >
+                    <LogOut className="mr-2 h-4 w-4" />
                     Sign out
                   </DropdownMenuItem>
                 </>
@@ -526,10 +727,14 @@ export function SiteHeader() {
         open={signInOpen}
         onOpenChange={(o) => {
           setSignInOpen(o);
-          if (!o) setSignInDescription(null);
+          if (!o) {
+            setSignInDescription(null);
+            setSignInPostRedirect(null);
+          }
         }}
         description={signInDescription}
-        onRequestSignUp={() => setSignUpOpen(true)}
+        postSignInRedirect={signInPostRedirect}
+        onRequestSignUp={openSignUp}
       />
       <SignUpDialog
         open={signUpOpen}
@@ -545,14 +750,22 @@ export function SiteHeader() {
       <PostRequestDialog open={postRequestOpen} onOpenChange={setPostRequestOpen} />
 
       <div className="border-t border-border px-4 py-2 md:hidden">
-        <form onSubmit={onSearch} className="relative w-full">
+        <form
+          data-tour-target="header-search"
+          action="/search"
+          method="get"
+          onSubmit={onHeaderSearchSubmit}
+          className="relative w-full"
+        >
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
+            name="q"
             placeholder="Find an Expert or Ask a Question"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-full border-border pl-10 pr-12"
+            aria-label="Search experts"
           />
         </form>
       </div>

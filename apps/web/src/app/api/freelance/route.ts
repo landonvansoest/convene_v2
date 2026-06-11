@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { expertGraceEndAt } from "@/lib/freelance/transitions";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,24 @@ const createSchema = z
     descriptionOfWork: z.string().min(1).max(8000),
     totalPrice: z.number().nonnegative(),
     rate: z.number().nonnegative().optional().nullable(),
+    /** ISO 8601 timestamp, e.g. "2026-06-30T17:00:00Z". Becomes work_deadline. */
     deadline: z.string().max(40).nullable().optional(),
     durationMinutes: z.number().int().positive().optional().nullable(),
+    /** Bible FK requirement: tie offer to its message thread. */
+    conversationId: z.string().uuid().optional().nullable(),
+    originatingMessageId: z.string().uuid().optional().nullable(),
+    /** If this is a revised offer after decline, link back to the previous row. */
+    supersedesFreelanceId: z.string().uuid().optional().nullable(),
   })
   .strict();
 
-/** Expert creates a freelance offer for a learner (`status` = offered). */
+/**
+ * Expert creates a freelance offer for a learner.
+ *
+ * Status starts at `offered` per Bible. We populate `work_deadline` from
+ * `deadline` and pre-compute `expert_grace_end_at` so the missed-deadline
+ * cron has the data it needs immediately — no second update required.
+ */
 export async function POST(request: Request) {
   const expertUserId = await getAuthedUserId();
   if (!expertUserId) {
@@ -39,15 +52,25 @@ export async function POST(request: Request) {
 
   const { data: profile } = await admin
     .from("expert_profiles")
-    .select("expert_status")
+    .select("expert_visibility_state")
     .eq("user_id", expertUserId)
     .maybeSingle();
 
-  if (!profile || profile.expert_status !== "active") {
+  if (!profile || profile.expert_visibility_state !== "visible_active") {
     return Response.json({ error: "Active expert profile required" }, { status: 403 });
   }
 
-  const { learnerUserId, descriptionOfWork, totalPrice, rate, deadline, durationMinutes } = parsed.data;
+  const {
+    learnerUserId,
+    descriptionOfWork,
+    totalPrice,
+    rate,
+    deadline,
+    durationMinutes,
+    conversationId,
+    originatingMessageId,
+    supersedesFreelanceId,
+  } = parsed.data;
   if (learnerUserId === expertUserId) {
     return Response.json({ error: "Learner must be a different user" }, { status: 400 });
   }
@@ -61,6 +84,13 @@ export async function POST(request: Request) {
   const duration =
     durationMinutes != null && durationMinutes > 0 ? `${durationMinutes} minutes` : null;
 
+  // Normalize the deadline. We accept any parsable timestamp-ish string and
+  // store it on both the legacy `deadline` column (display) and the new
+  // `work_deadline` (SLA / cron). Bible §"missed work deadline" needs the
+  // grace window pre-computed so we don't have to chase the row later.
+  const workDeadlineIso = deadline ? normalizeIsoTimestamp(deadline) : null;
+  const expertGraceEndAtIso = expertGraceEndAt(workDeadlineIso);
+
   const { data: row, error: insErr } = await admin
     .from("freelance_work")
     .insert({
@@ -73,6 +103,11 @@ export async function POST(request: Request) {
       duration,
       status: "offered",
       payment_status: "pending",
+      work_deadline: workDeadlineIso,
+      expert_grace_end_at: expertGraceEndAtIso,
+      conversation_id: conversationId ?? null,
+      originating_message_id: originatingMessageId ?? null,
+      supersedes_freelance_id: supersedesFreelanceId ?? null,
       created_at: now,
       updated_at: now,
     })
@@ -110,4 +145,10 @@ export async function GET() {
   }));
 
   return Response.json({ items });
+}
+
+function normalizeIsoTimestamp(input: string): string | null {
+  const t = Date.parse(input);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toISOString();
 }

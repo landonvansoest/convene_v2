@@ -13,7 +13,10 @@ export function resolveCategoryIdForSearch(
   const raw = param.trim();
   if (!raw) return "";
   if (isUuid(raw)) return raw;
-  const decoded = decodeURIComponent(raw).replace(/\+/g, " ").trim();
+  // URLSearchParams already decodes query values in the browser.
+  // Treat '+' as a literal plus in category names.
+  const decoded = raw.trim();
   const hit = categories.find((c) => c.name.toLowerCase() === decoded.toLowerCase());
-  return hit?.category_id ?? raw;
+  // If name lookup fails, return empty so callers do not over-filter to zero.
+  return hit?.category_id ?? "";
 }

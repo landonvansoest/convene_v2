@@ -1,7 +1,7 @@
 -- Convene v2 — core tables (Bible rev3)
 -- Requires 001_extensions_and_enums.sql
 -- - Auth: use Supabase Auth; no password column in public.users.
--- - Derived display names: omit from physical tables; join to users in queries or add SQL views later.
+-- - full_name exists on users (generated) and expert_profiles (synced mirror for Bible parity).
 -- - Authorization per Bible: application layer (no RLS reliance).
 
 DO $$ BEGIN
@@ -22,12 +22,24 @@ CREATE TABLE public.users (
   user_id uuid PRIMARY KEY,
   first_name text NOT NULL DEFAULT '',
   last_name text NOT NULL DEFAULT '',
+  full_name text GENERATED ALWAYS AS (
+    NULLIF(
+      btrim(
+        CASE
+          WHEN first_name IS NULL OR first_name = '' THEN coalesce(last_name, '')
+          WHEN last_name IS NULL OR last_name = '' THEN first_name
+          ELSE first_name || ' ' || last_name
+        END
+      ),
+      ''
+    )
+  ) STORED,
   email_address text NOT NULL,
   email_verified boolean NOT NULL DEFAULT false,
   profile_photo text,
   phone_number text,
   hometown text,
-  time_zone text,
+  time_zone text NOT NULL DEFAULT 'UTC',
   language text,
   profession text,
   introduction text,
@@ -39,11 +51,49 @@ CREATE TABLE public.users (
   sessions_booked integer NOT NULL DEFAULT 0,
   sessions_completed integer NOT NULL DEFAULT 0,
   learner_dependability_rating integer,
-  online boolean NOT NULL DEFAULT false,
-  profile_visibility_state profile_visibility_state NOT NULL DEFAULT 'learner_hidden_incomplete_fields'
+  online boolean NOT NULL DEFAULT false
 );
 
 CREATE UNIQUE INDEX users_email_lower_idx ON public.users ((lower(email_address)));
+
+CREATE OR REPLACE FUNCTION public.derive_timezone_from_hometown(h text)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  v text := lower(coalesce(h, ''));
+BEGIN
+  IF v = '' THEN RETURN 'UTC'; END IF;
+  IF v LIKE '%new york%' OR v LIKE '%boston%' OR v LIKE '%miami%' THEN RETURN 'America/New_York'; END IF;
+  IF v LIKE '%chicago%' OR v LIKE '%dallas%' OR v LIKE '%houston%' THEN RETURN 'America/Chicago'; END IF;
+  IF v LIKE '%denver%' OR v LIKE '%phoenix%' THEN RETURN 'America/Denver'; END IF;
+  IF v LIKE '%los angeles%' OR v LIKE '%san francisco%' OR v LIKE '%seattle%' THEN RETURN 'America/Los_Angeles'; END IF;
+  IF v LIKE '%london%' THEN RETURN 'Europe/London'; END IF;
+  IF v LIKE '%paris%' OR v LIKE '%berlin%' OR v LIKE '%madrid%' THEN RETURN 'Europe/Paris'; END IF;
+  IF v LIKE '%tokyo%' THEN RETURN 'Asia/Tokyo'; END IF;
+  IF v LIKE '%sydney%' OR v LIKE '%melbourne%' THEN RETURN 'Australia/Sydney'; END IF;
+  RETURN 'UTC';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.users_set_timezone_from_hometown()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.time_zone IS NULL OR btrim(NEW.time_zone) = '' THEN
+    NEW.time_zone := public.derive_timezone_from_hometown(NEW.hometown);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER users_set_timezone_from_hometown_trg
+BEFORE INSERT OR UPDATE OF hometown, time_zone
+ON public.users
+FOR EACH ROW
+EXECUTE FUNCTION public.users_set_timezone_from_hometown();
 
 CREATE TABLE public.categories (
   category_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -57,6 +107,7 @@ CREATE TABLE public.categories (
 CREATE TABLE public.expert_profiles (
   user_id uuid PRIMARY KEY REFERENCES public.users (user_id) ON DELETE CASCADE,
   expert_profile_id uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  full_name text,
   expert_status expert_status NOT NULL DEFAULT 'temp',
   experience_level text,
   category_id uuid REFERENCES public.categories (category_id),
@@ -64,7 +115,8 @@ CREATE TABLE public.expert_profiles (
   expert_bio text,
   about_services text,
   skills_specializations text[] NOT NULL DEFAULT '{}',
-  is_verified boolean NOT NULL DEFAULT false,
+  membership_tier text NOT NULL DEFAULT 'free',
+  profile_visibility_state profile_visibility_state NOT NULL DEFAULT 'expert_hidden_incomplete_fields',
   expert_dependability_rating integer,
   complete_sessions integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),

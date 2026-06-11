@@ -8,7 +8,10 @@
  * Run from repo root:
  *   npm run migrate:v1-v2
  *
- * Owner override: ALL imported expert_profiles get expert_status = 'temp' (and is_verified = false).
+ * DRY_RUN=true still paginates all v1 tables (PostgREST egress); it only skips v2 writes.
+ * In CI, set ALLOW_V1_ETL_IN_CI=true or the script exits immediately.
+ *
+ * Owner override: ALL imported expert_profiles get expert_visibility_state = 'visible_temp' (and is_verified = false).
  *
  * Skipped per mapping: requests*, transactions, freelance_work, expert_packages, credits,
  * discount_redemptions, offers content, v1 online_available → users.online (users.online = false).
@@ -99,6 +102,16 @@ function clampRating(n, fallback = 5) {
 }
 
 async function main() {
+  if (
+    process.env.CI === "true" &&
+    String(process.env.ALLOW_V1_ETL_IN_CI || "").toLowerCase() !== "true"
+  ) {
+    console.error(
+      "[migrate] Refusing to run in CI: this job reads all v1 tables over PostgREST (high egress). Set ALLOW_V1_ETL_IN_CI=true if intentional."
+    );
+    process.exit(1);
+  }
+
   const v1Url = process.env.V1_SUPABASE_URL;
   const v1Key = process.env.V1_SUPABASE_SERVICE_ROLE_KEY;
   const v2Url = process.env.V2_SUPABASE_URL;
@@ -256,9 +269,6 @@ async function main() {
         sessions_completed: Number(pick(u, ["sessions_completed"], 0)) || 0,
         learner_dependability_rating: pick(u, ["learner_dependability_rating"]),
         has_expert_profile: userIdToProfileId.has(String(id)),
-        profile_visibility_state: userIdToProfileId.has(String(id))
-          ? "expert_pending_admin_review"
-          : "visible",
         updated_at: new Date().toISOString(),
       };
       const { error } = await v2.from("users").upsert(payload, { onConflict: "user_id" });
@@ -291,7 +301,7 @@ async function main() {
       const row = {
         user_id: String(user_id),
         ...(expert_profile_id ? { expert_profile_id: String(expert_profile_id) } : {}),
-        expert_status: "temp",
+        expert_visibility_state: "visible_temp",
         experience_level: pick(e, ["experience_level"]),
         category_id: category_id || null,
         qualifications: pick(e, ["qualifications", "education", "certifications"]),
@@ -307,7 +317,7 @@ async function main() {
       const { error } = await v2.from("expert_profiles").upsert(row, { onConflict: "user_id" });
       if (error) log("expert_profiles error:", user_id, error.message);
     }
-    log("expert_profiles: upserted", v1Experts.length, "(all expert_status=temp)");
+    log("expert_profiles: upserted", v1Experts.length, "(all expert_visibility_state=visible_temp)");
   }
 
   // Refresh v2 expert_profile_id map for bookings

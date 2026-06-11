@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ExpertCoachCard } from "@/components/home/ExpertCoachCard";
+import { ExpertsGrid } from "@/components/home/ExpertsGrid";
 import { Input } from "@/components/ui/input";
 
 type Expert = {
@@ -14,6 +14,8 @@ type Expert = {
   rate_per_15_min?: number;
   is_verified?: boolean;
   rating?: number | null;
+  available_now?: boolean;
+  online?: boolean;
 };
 
 export function ExpertsBrowseContent() {
@@ -77,18 +79,8 @@ export function ExpertsBrowseContent() {
         ) : experts.length === 0 ? (
           <p className="mt-8 text-sm text-muted-foreground">No experts match.</p>
         ) : (
-          <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {experts.map((e) => (
-              <ExpertCoachCard
-                key={e.id}
-                id={e.id}
-                name={e.name}
-                title={e.professional_title ?? e.bio ?? e.name}
-                image={e.profile_photo ?? null}
-                rating={e.rating}
-                isVerified={!!e.is_verified}
-              />
-            ))}
+          <div className="mt-10">
+            <ExpertsGrid experts={experts} animate={false} />
           </div>
         )}
       </div>

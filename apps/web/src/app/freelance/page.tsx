@@ -2,17 +2,45 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  FREELANCE_STATUS_LABEL,
+  type FreelanceStatus,
+} from "@/lib/freelance/transitions";
 
 type Item = Record<string, unknown> & {
   freelance_id: string;
-  status: string;
+  status: FreelanceStatus;
   expert_user_id: string;
   learner_user_id: string;
   total_price: number;
   description_of_work: string | null;
   payment_status?: string;
+  work_deadline?: string | null;
+  expert_grace_end_at?: string | null;
+  completion_submitted_at?: string | null;
+  learner_completion_deadline_at?: string | null;
+  rectification_deadline_at?: string | null;
+  admin_review_reason?: string | null;
+  completion_message?: string | null;
   user_role: "learner" | "expert";
 };
+
+type ActionKey =
+  | "accept"
+  | "decline"
+  | "reoffer"
+  | "submit_completion"
+  | "accept_completion"
+  | "decline_completion";
+
+function fmtDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
 
 export default function FreelancePage() {
   const [items, setItems] = useState<Item[]>([]);
@@ -21,6 +49,7 @@ export default function FreelancePage() {
   const [learnerId, setLearnerId] = useState("");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("500");
+  const [deadline, setDeadline] = useState("");
   const [saving, setSaving] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -57,6 +86,7 @@ export default function FreelancePage() {
         learnerUserId: learnerId.trim(),
         descriptionOfWork: desc.trim(),
         totalPrice: Number(price),
+        deadline: deadline.trim() || null,
       }),
     });
     const data = await res.json();
@@ -66,14 +96,19 @@ export default function FreelancePage() {
       return;
     }
     setDesc("");
+    setDeadline("");
     await refresh();
   }
 
-  async function patchStatus(fid: string, status: "approved" | "complete") {
+  async function callAction(
+    fid: string,
+    action: ActionKey,
+    extra: Record<string, unknown> = {},
+  ) {
     const res = await fetch(`/api/freelance/${encodeURIComponent(fid)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ action, ...extra }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -89,8 +124,9 @@ export default function FreelancePage() {
         <p className="text-sm uppercase tracking-widest text-[var(--convene-hero)] mb-2">Work</p>
         <h1 className="text-2xl font-semibold">Freelance</h1>
         <p className="mt-2 text-sm text-white/75">
-          Experts offer work to a learner: offered → learner approves → learner pays (when total is not zero) →
-          expert marks complete.
+          Lifecycle: offered → learner accepts & pays → in&nbsp;progress → expert submits completion →
+          learner accepts (or 3-day silence auto-releases payout). Missed deadlines and declined
+          completions escalate to admin review.
         </p>
         {err ? (
           <p className="mt-4 text-sm text-red-300">
@@ -135,6 +171,15 @@ export default function FreelancePage() {
                 onChange={(e) => setPrice(e.target.value)}
               />
             </label>
+            <label className="block">
+              <span className="text-xs text-white/80">Work deadline (when you&apos;ll deliver)</span>
+              <input
+                type="datetime-local"
+                className="mt-1 w-full rounded-md border border-white/25 bg-black/25 px-3 py-2 outline-none focus:border-[var(--convene-hero)]"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </label>
             <button
               type="submit"
               disabled={saving}
@@ -154,53 +199,129 @@ export default function FreelancePage() {
           ) : (
             <ul className="mt-4 space-y-3">
               {items.map((f) => (
-                <li key={f.freelance_id} className="rounded-lg border border-white/15 bg-black/20 px-4 py-3 text-sm">
-                  <div className="font-medium capitalize">{f.status}</div>
+                <li
+                  key={f.freelance_id}
+                  className="rounded-lg border border-white/15 bg-black/20 px-4 py-3 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-[var(--convene-hero)]/20 px-2 py-0.5 text-xs font-medium text-[var(--convene-hero)]">
+                      {FREELANCE_STATUS_LABEL[f.status] ?? f.status}
+                    </span>
+                    <span className="text-xs text-white/45">
+                      you are the {f.user_role} · ${Number(f.total_price).toFixed(2)}
+                    </span>
+                  </div>
                   <p className="mt-1 text-white/65">{f.description_of_work}</p>
                   <p className="mt-1 text-xs text-white/45">
-                    You are the <span className="text-white/70">{f.user_role}</span> · $
-                    {Number(f.total_price).toFixed(2)} · payment:{" "}
-                    {String(f.payment_status ?? "pending")}
+                    payment: {String(f.payment_status ?? "pending")}
+                    {f.work_deadline ? ` · deadline ${fmtDate(f.work_deadline)}` : ""}
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  {f.status === "completion_submitted" && f.learner_completion_deadline_at ? (
+                    <p className="mt-1 text-xs text-white/55">
+                      Auto-releases on {fmtDate(f.learner_completion_deadline_at)} if no learner
+                      response.
+                    </p>
+                  ) : null}
+                  {f.status === "admin_review" ? (
+                    <p className="mt-1 text-xs text-white/55">
+                      {f.admin_review_reason ?? "Under admin review"}
+                      {f.rectification_deadline_at
+                        ? ` · rectification due ${fmtDate(f.rectification_deadline_at)}`
+                        : ""}
+                    </p>
+                  ) : null}
+                  {f.completion_message ? (
+                    <p className="mt-1 text-xs text-white/55">
+                      Expert note: {f.completion_message}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                    {/* learner: offered → accept (then pay) or decline */}
                     {f.status === "offered" && f.user_role === "learner" ? (
-                      <button
-                        type="button"
-                        className="text-[var(--convene-hero)] underline"
-                        onClick={() => void patchStatus(f.freelance_id, "approved")}
-                      >
-                        Approve (learner)
-                      </button>
+                      <>
+                        <Link
+                          href={`/freelance/${encodeURIComponent(f.freelance_id)}/pay`}
+                          className="text-[var(--convene-hero)] underline"
+                        >
+                          Accept & pay
+                        </Link>
+                        <button
+                          type="button"
+                          className="text-white/60 underline"
+                          onClick={() => {
+                            const reason = window.prompt("Optional reason for declining:");
+                            if (reason === null) return;
+                            void callAction(f.freelance_id, "decline", { reason: reason || null });
+                          }}
+                        >
+                          Decline
+                        </button>
+                      </>
                     ) : null}
-                    {f.status === "approved" &&
-                    f.user_role === "learner" &&
-                    Number(f.total_price) > 0 &&
-                    !["paid", "succeeded"].includes(String(f.payment_status ?? "").toLowerCase()) ? (
+
+                    {/* learner: accepted_pending_payment → finish payment */}
+                    {f.status === "accepted_pending_payment" && f.user_role === "learner" ? (
                       <Link
                         href={`/freelance/${encodeURIComponent(f.freelance_id)}/pay`}
                         className="text-[var(--convene-hero)] underline"
                       >
-                        Pay now
+                        Complete payment
                       </Link>
                     ) : null}
-                    {f.status === "approved" && f.user_role === "expert" ? (
-                      Number(f.total_price) > 0 &&
-                      !["paid", "succeeded"].includes(String(f.payment_status ?? "").toLowerCase()) ? (
-                        <span className="text-white/45">Waiting for learner payment.</span>
-                      ) : (
+
+                    {/* expert: declined → reoffer (revise) */}
+                    {f.status === "declined" && f.user_role === "expert" ? (
+                      <button
+                        type="button"
+                        className="text-[var(--convene-hero)] underline"
+                        onClick={() => void callAction(f.freelance_id, "reoffer")}
+                      >
+                        Re-send offer
+                      </button>
+                    ) : null}
+
+                    {/* expert: paid_in_progress → submit completion */}
+                    {f.status === "paid_in_progress" && f.user_role === "expert" ? (
+                      <button
+                        type="button"
+                        className="text-[var(--convene-hero)] underline"
+                        onClick={() => {
+                          const msg = window.prompt("Optional note to the learner:");
+                          if (msg === null) return;
+                          void callAction(f.freelance_id, "submit_completion", {
+                            completionMessage: msg || null,
+                          });
+                        }}
+                      >
+                        Submit completion
+                      </button>
+                    ) : null}
+
+                    {/* learner: completion_submitted → accept | decline */}
+                    {f.status === "completion_submitted" && f.user_role === "learner" ? (
+                      <>
                         <button
                           type="button"
                           className="text-[var(--convene-hero)] underline"
-                          onClick={() => void patchStatus(f.freelance_id, "complete")}
+                          onClick={() => void callAction(f.freelance_id, "accept_completion")}
                         >
-                          Mark complete (expert)
+                          Accept completion
                         </button>
-                      )
-                    ) : null}
-                    {f.status === "approved" &&
-                    f.user_role === "learner" &&
-                    Number(f.total_price) <= 0 ? (
-                      <span className="text-white/45">No payment required — expert can complete.</span>
+                        <button
+                          type="button"
+                          className="text-white/60 underline"
+                          onClick={() => {
+                            const reason = window.prompt("What's the problem? (sent to admin)");
+                            if (reason === null) return;
+                            void callAction(f.freelance_id, "decline_completion", {
+                              reason: reason || null,
+                            });
+                          }}
+                        >
+                          Decline completion
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 </li>

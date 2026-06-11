@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   let q = admin
     .from("requests")
     .select(
-      "request_id, user_id, title, description, category_id, skills, response_count, created_at, expires_at, is_public, is_active"
+      "request_id, user_id, title, description, category_id, skills, response_count, upvote_count, created_at, expires_at, is_public, is_active"
     )
     .eq("is_active", true)
     .eq("is_public", true)
@@ -42,7 +42,26 @@ export async function GET(request: Request) {
     return Response.json({ error: publicApiError(error) }, { status: 500 });
   }
 
-  return Response.json({ requests: data ?? [] });
+  const rows = data ?? [];
+
+  // Annotate with whether the signed-in user has already upvoted each row,
+  // so the UI can render the heart/arrow as toggled without a per-card
+  // round trip. Anonymous callers see `i_upvoted: false` everywhere.
+  const callerId = await getAuthedUserId();
+  let upvotedIds = new Set<string>();
+  if (callerId && rows.length > 0) {
+    const ids = rows.map((r) => r.request_id);
+    const { data: mine } = await admin
+      .from("request_upvotes")
+      .select("request_id")
+      .eq("user_id", callerId)
+      .in("request_id", ids);
+    upvotedIds = new Set((mine ?? []).map((r) => String(r.request_id)));
+  }
+
+  return Response.json({
+    requests: rows.map((r) => ({ ...r, i_upvoted: upvotedIds.has(String(r.request_id)) })),
+  });
 }
 
 export async function POST(request: Request) {

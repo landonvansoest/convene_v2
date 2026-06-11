@@ -15,7 +15,7 @@ SQL in this folder is a **net-new** PostgreSQL schema aligned with `docs/bible/c
    - `007_package_credit_checkout_id.sql` (idempotent package checkout → credits)
    - `008_transactions_checkout_session.sql` (ledger idempotency for package Checkout)
    - `009_stripe_webhook_idempotency.sql` (Stripe webhook event dedupe table for subscription + Checkout completion)
-   - `010_featured_experts_settings.sql` (singleton row: which `expert_status` values appear on public expert list / featured grid, plus optional filters)
+   - `010_featured_experts_settings.sql` (singleton row: browse-grid toggles such as whether `visible_temp` experts appear alongside `visible_active`, plus optional filters)
 3. Point the v2 Next app at the new project URL and keys: `apps/web` (see `apps/web/.env.example` and `apps/web/README.md`).
 4. Operator-facing setup (env, Stripe, cron, reminders): expanded notes in **`V2_REMAINING_WORK.md`**; open items only in **`V2_OPERATOR_CHECKLIST.md`** at the repo root.
 

@@ -2,31 +2,18 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { UserPlus } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DevEmailConfirmationButton } from "@/components/auth/DevEmailConfirmationButton";
+import { OAuthDivider, OAuthProviderRow } from "@/components/auth/oauth-social";
+import { SignupIssueFeedbackDialog } from "@/components/auth/SignupIssueFeedbackDialog";
+import { AlertTriangle, Eye, EyeOff, Lock, Mail, User, UserPlus } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { authCallbackWithSignupWizard } from "@/lib/auth/post-signup-redirect";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
-
-const languages = ["English", "Spanish", "French", "German", "Other"];
-const genders = ["Male", "Female", "Non-binary", "Prefer not to say"];
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -34,292 +21,459 @@ type Props = {
   onRequestSignIn?: () => void;
 };
 
-export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
-  const router = useRouter();
-  const supabase = useMemo(() => createBrowserSupabase(), []);
-  const [step, setStep] = useState(0);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [profession, setProfession] = useState("");
-  const [introduction, setIntroduction] = useState("");
-  const [hometown, setHometown] = useState("");
-  const [birthday, setBirthday] = useState("");
-  const [gender, setGender] = useState("");
-  const [language, setLanguage] = useState("English");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+/** Shape captured from a failing `supabase.auth.signUp()` call so we can show
+ * the visitor a friendly message and hand details to the admin feedback form. */
+type SignupErrorInfo = {
+  /** Friendly, visitor-facing copy shown inside the dialog. */
+  friendly: string;
+  /** Raw Supabase message (kept visible as small secondary text for debuggability). */
+  raw: string;
+  status?: number;
+  code?: string;
+};
 
-  const progress = ((step + 1) / 3) * 100;
+/** Map a Supabase AuthError into a visitor-facing message. We intentionally avoid
+ * displaying Supabase's raw strings as primary copy because they're written for
+ * developers ("over_email_send_rate_limit"), not end users. */
+function toSignupErrorInfo(err: {
+  message?: string;
+  status?: number;
+  code?: string;
+  name?: string;
+}): SignupErrorInfo {
+  const raw = err.message ?? "Unknown error";
+  const status = err.status;
+  const code = err.code;
+  const haystack = `${raw} ${code ?? ""}`.toLowerCase();
 
-  function reset() {
-    setMessage(null);
-    setStep(0);
-    setEmail("");
-    setPassword("");
-    setFirstName("");
-    setLastName("");
-    setPhoneNumber("");
-    setProfession("");
-    setIntroduction("");
-    setHometown("");
-    setBirthday("");
-    setGender("");
-    setLanguage("English");
+  // Supabase rate-limit family (429 or explicit "for security purposes…" copy).
+  if (
+    status === 429 ||
+    haystack.includes("rate limit") ||
+    haystack.includes("for security purposes") ||
+    haystack.includes("over_email_send_rate_limit") ||
+    haystack.includes("over_request_rate_limit")
+  ) {
+    return {
+      friendly:
+        "We're experiencing higher than normal traffic. Please try again in a few minutes, or alert the admin if you continue to experience problems.",
+      raw,
+      status,
+      code,
+    };
   }
 
-  async function submitAll(e: FormEvent) {
+  if (
+    haystack.includes("user already registered") ||
+    haystack.includes("already registered") ||
+    haystack.includes("user_already_exists")
+  ) {
+    return {
+      friendly:
+        "An account with that email already exists. Try signing in instead, or alert the admin if you think this is a mistake.",
+      raw,
+      status,
+      code,
+    };
+  }
+
+  if (haystack.includes("signup") && haystack.includes("disabled")) {
+    return {
+      friendly:
+        "Signups are temporarily disabled. Please try again later, or alert the admin if you need access.",
+      raw,
+      status,
+      code,
+    };
+  }
+
+  if (haystack.includes("password") && (haystack.includes("weak") || haystack.includes("least"))) {
+    return {
+      friendly: raw,
+      raw,
+      status,
+      code,
+    };
+  }
+
+  if (haystack.includes("invalid") && haystack.includes("email")) {
+    return {
+      friendly: "That email address doesn't look valid. Please check it and try again.",
+      raw,
+      status,
+      code,
+    };
+  }
+
+  return {
+    friendly:
+      "Something went wrong creating your account. Please try again, or alert the admin if you continue to experience problems.",
+    raw,
+    status,
+    code,
+  };
+}
+
+export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
+  const supabase = useMemo(() => createBrowserSupabase(), []);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  /** Populated when `supabase.auth.signUp()` returns a non-null error. Drives the
+   * friendly error panel (replaces the form) with an "alert the admin" link. */
+  const [signupError, setSignupError] = useState<SignupErrorInfo | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  /** True after signUp API succeeds — success dialogue. */
+  const [postSignupSuccess, setPostSignupSuccess] = useState(false);
+  function reset() {
+    setMessage(null);
+    setPostSignupSuccess(false);
+    setSignupError(null);
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  }
+
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!gender) {
-      setMessage("Please select gender.");
+    setMessage(null);
+    setSignupError(null);
+    if (!firstName.trim() || !lastName.trim()) {
+      setMessage("Please enter your first and last name.");
+      return;
+    }
+    if (!email.includes("@")) {
+      setMessage("Please enter a valid email address.");
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setMessage(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
       return;
     }
     setBusy(true);
-    setMessage(null);
     const origin = window.location.origin;
+    console.debug("[SignUpDialog] calling supabase.auth.signUp", { email: email.trim() });
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback`,
+        emailRedirectTo: authCallbackWithSignupWizard(origin),
         data: { first_name: firstName.trim(), last_name: lastName.trim() },
       },
     });
+    console.debug("[SignUpDialog] signUp returned", {
+      hasError: !!error,
+      errorMessage: error?.message,
+      hasSession: !!data?.session,
+      hasUser: !!data?.user,
+      identities: data?.user?.identities?.length ?? null,
+    });
     if (error) {
       setBusy(false);
-      setMessage(error.message);
+      setSignupError(
+        toSignupErrorInfo({
+          message: error.message,
+          status: (error as { status?: number }).status,
+          code: (error as { code?: string }).code,
+          name: error.name,
+        }),
+      );
       return;
     }
-    if (!data.session) {
-      setBusy(false);
-      setMessage("Check your email to confirm your account, then sign in.");
-      return;
+    if (data.session) {
+      // Session returned (email confirmation off). Save name now so the wizard
+      // step pre-fills correctly when the user proceeds.
+      await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+        }),
+      }).catch(() => null);
     }
-    const patch = {
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      phone_number: phoneNumber.trim() || null,
-      profession: profession.trim() || null,
-      introduction: introduction.trim() || null,
-      hometown: hometown.trim() || null,
-      birthday: birthday.trim() || null,
-      gender: gender || null,
-      language: language || null,
-    };
-    const me = await fetch("/api/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+    // Always show the post-signup success dialog so the verification notice
+    // and DEV bypass button remain visible regardless of whether Supabase
+    // email confirmation is on or off.
+    setBusy(false);
+    setPostSignupSuccess(true);
+    console.debug("[SignUpDialog] postSignupSuccess set to true");
+  }
+
+  async function oauthSignUp(provider: "google" | "facebook" | "apple") {
+    setBusy(true);
+    setMessage(null);
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo },
     });
     setBusy(false);
-    if (!me.ok) {
-      const j = (await me.json()) as { error?: string };
-      setMessage(typeof j.error === "string" ? j.error : "Profile save failed");
-      return;
-    }
-    onOpenChange(false);
-    reset();
-    router.replace("/dashboard");
-    router.refresh();
+    if (error) setMessage(error.message);
   }
+
+  const inputIconClass = "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#F77F00]";
+  const inputPadLeft = "pl-10";
+  const inputClass = cn(
+    inputPadLeft,
+    "h-11 rounded-lg border-[#003049]/25 bg-background focus-visible:border-[#F77F00] focus-visible:ring-[#F77F00]/30",
+  );
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        console.debug("[SignUpDialog] onOpenChange", {
+          next,
+          busy,
+          postSignupSuccess,
+        });
+        if (!next && (busy || postSignupSuccess || signupError)) {
+          // Guard: a stray outside-click / focus-loss / re-render must not close the
+          // dialog while we're in the middle of calling signUp, while the success
+          // view is mounted, or while an error panel with the "alert the admin" link
+          // is shown. The user can still close via the explicit ✕ button.
+          return;
+        }
         onOpenChange(next);
         if (!next) reset();
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-[#003049]">
-            <UserPlus className="h-5 w-5 text-primary" />
-            Create your account
-          </DialogTitle>
-          <DialogDescription>
-            v1-style 3-step wizard (same fields as <Link href="/signup">/signup</Link>). Step {step + 1} of 3.
-          </DialogDescription>
+      <DialogContent
+        className="max-h-[90vh] gap-0 overflow-y-auto border border-border/80 p-0 sm:max-w-[420px] sm:rounded-xl"
+        onPointerDownOutside={(e) => {
+          if (busy || postSignupSuccess || signupError) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (busy || postSignupSuccess || signupError) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (busy || postSignupSuccess || signupError) e.preventDefault();
+        }}
+      >
+        <DialogHeader className="px-6 pb-2 pt-6">
+          {postSignupSuccess ? (
+            <>
+              <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-[#F77F00]">
+                <span className="text-4xl leading-none" aria-hidden="true">
+                  🎉
+                </span>
+                Account created
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Thank you for joining convene. We sent a confirmation link to your email to activate your account and
+                start booking experts.
+              </DialogDescription>
+            </>
+          ) : signupError ? (
+            <>
+              <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-[#003049]">
+                <AlertTriangle className="h-6 w-6 shrink-0 text-[#F77F00]" />
+                We couldn&apos;t create your account
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Something went wrong while creating your account. You can try again or send a message to the admin.
+              </DialogDescription>
+            </>
+          ) : (
+            <>
+              <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-[#003049]">
+                <UserPlus className="h-6 w-6 shrink-0 text-[#F77F00]" />
+                Create Your Account
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Create a new account with your name, email, and password.
+              </DialogDescription>
+            </>
+          )}
         </DialogHeader>
 
-        <Progress value={progress} className="h-1.5" />
-
-        {step === 0 ? (
-          <div className="space-y-3 pt-1">
-            <div className="space-y-2">
-              <Label htmlFor="su-d-email">Email</Label>
-              <Input
-                id="su-d-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
+        {postSignupSuccess ? (
+          <div className="space-y-5 px-6 pb-8 pt-2 text-left">
+            <div className="space-y-4 text-sm leading-relaxed text-[#003049]/90">
+              <p>Thank you for joining convene! We&apos;re thrilled to have you in our community.</p>
+              <p>
+                We sent a confirmation link to{" "}
+                <span className="break-all font-medium text-[#003049]">{email.trim()}</span>. Follow the link in the email
+                to activate your account and start booking experts.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="su-d-password">Password (min 8)</Label>
-              <Input
-                id="su-d-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-            </div>
-            <Button
-              type="button"
-              className="w-full bg-[#F77F00] text-white"
-              onClick={() => {
-                if (!email.includes("@") || password.length < 8) {
-                  setMessage("Valid email and 8+ character password required.");
-                  return;
-                }
-                setMessage(null);
-                setStep(1);
-              }}
-            >
-              Continue
-            </Button>
+            <DevEmailConfirmationButton email={email} password={password} />
           </div>
-        ) : null}
-
-        {step === 1 ? (
-          <div className="space-y-3 pt-1">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label htmlFor="su-d-first">First name</Label>
+        ) : signupError ? (
+          <div className="space-y-5 px-6 pb-8 pt-2 text-left">
+            <div className="space-y-4 text-sm leading-relaxed text-[#003049]/90">
+              <p>{signupError.friendly}</p>
+              <p className="text-xs text-[#003049]/60">
+                Technical details:{" "}
+                <span className="font-mono">
+                  {signupError.status ? `${signupError.status} ` : ""}
+                  {signupError.code ?? signupError.raw}
+                </span>
+              </p>
+              <p>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackOpen(true)}
+                  className="font-semibold text-[#F77F00] underline underline-offset-2 hover:text-[#F77F00]/90"
+                >
+                  Alert the admin
+                </button>{" "}
+                if you continue to experience problems.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                onClick={() => setSignupError(null)}
+                className="h-11 w-full rounded-lg bg-convene-primary text-base font-semibold text-white hover:bg-convene-primary/90"
+              >
+                Try again
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  reset();
+                  onRequestSignIn?.();
+                }}
+                className="h-11 w-full rounded-lg border-[#003049]/25 text-base font-semibold"
+              >
+                Sign in instead
+              </Button>
+            </div>
+          </div>
+        ) : (
+        <div className="px-6 pb-6 pt-2">
+          <form onSubmit={(e) => void onSubmit(e)} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="su-first" className="sr-only">
+                First Name
+              </Label>
+              <div className="relative">
+                <User className={inputIconClass} />
                 <Input
-                  id="su-d-first"
+                  id="su-first"
+                  placeholder="First Name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   required
                   autoComplete="given-name"
+                  className={inputClass}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="su-d-last">Last name</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="su-last" className="sr-only">
+                Last Name
+              </Label>
+              <div className="relative">
+                <User className={inputIconClass} />
                 <Input
-                  id="su-d-last"
+                  id="su-last"
+                  placeholder="Last Name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   required
                   autoComplete="family-name"
+                  className={inputClass}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="su-d-prof">Professional title</Label>
-              <Input
-                id="su-d-prof"
-                value={profession}
-                onChange={(e) => setProfession(e.target.value)}
-                required
-              />
+              <Label htmlFor="su-email" className="sr-only">
+                Email Address
+              </Label>
+              <div className="relative">
+                <Mail className={inputIconClass} />
+                <Input
+                  id="su-email"
+                  type="email"
+                  placeholder="Email Address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className={inputClass}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="su-d-intro">About you</Label>
-              <Textarea
-                id="su-d-intro"
-                rows={3}
-                value={introduction}
-                onChange={(e) => setIntroduction(e.target.value)}
-                required
-                minLength={10}
-              />
+              <Label htmlFor="su-password" className="sr-only">
+                Create a Password
+              </Label>
+              <div className="relative">
+                <Lock className={inputIconClass} />
+                <Input
+                  id="su-password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder={`Create a Password (${MIN_PASSWORD_LENGTH} characters minimum)`}
+                  value={password}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setPassword(v);
+                    if (v.length < MIN_PASSWORD_LENGTH) setConfirmPassword("");
+                  }}
+                  required
+                  minLength={MIN_PASSWORD_LENGTH}
+                  autoComplete="new-password"
+                  className={cn(inputClass, "pr-10")}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(0)}>
-                Back
-              </Button>
-              <Button
-                type="button"
-                className="flex-1 bg-[#003049] text-white"
-                onClick={() => {
-                  if (
-                    !firstName.trim() ||
-                    !lastName.trim() ||
-                    !profession.trim() ||
-                    introduction.trim().length < 10
-                  ) {
-                    setMessage("Fill all fields; about must be at least 10 characters.");
-                    return;
-                  }
-                  setMessage(null);
-                  setStep(2);
-                }}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
-          <form onSubmit={(e) => void submitAll(e)} className="space-y-3 pt-1">
-            <div className="space-y-2">
-              <Label htmlFor="su-d-phone">Phone (optional)</Label>
-              <Input
-                id="su-d-phone"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                autoComplete="tel"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="su-d-town">Hometown</Label>
-              <Input
-                id="su-d-town"
-                value={hometown}
-                onChange={(e) => setHometown(e.target.value)}
-                placeholder="City, State, Country"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="su-d-bday">Birthday</Label>
-              <Input
-                id="su-d-bday"
-                type="date"
-                value={birthday}
-                onChange={(e) => setBirthday(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Gender</Label>
-              <Select value={gender} onValueChange={setGender}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {genders.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Language</Label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {languages.map((l) => (
-                    <SelectItem key={l} value={l}>
-                      {l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {password.length >= MIN_PASSWORD_LENGTH ? (
+              <div className="space-y-2">
+                <Label htmlFor="su-confirm" className="sr-only">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Lock className={inputIconClass} />
+                  <Input
+                    id="su-confirm"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    className={cn(inputClass, "pr-10")}
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {message ? (
               <p
                 className={
@@ -329,23 +483,28 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
                 {message}
               </p>
             ) : null}
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <Button type="submit" className="flex-1 bg-[#F77F00] text-white" disabled={busy}>
-                {busy ? "Creating…" : "Create account"}
-              </Button>
-            </div>
+            <Button
+              type="submit"
+              className="h-11 w-full rounded-lg bg-convene-primary text-base font-semibold text-white hover:bg-convene-primary/90"
+              disabled={busy}
+            >
+              {busy ? "Creating account…" : "Sign Up"}
+            </Button>
           </form>
-        ) : null}
 
-        {step === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
+          <OAuthDivider />
+          <OAuthProviderRow
+            disabled={busy}
+            onGoogle={() => void oauthSignUp("google")}
+            onFacebook={() => void oauthSignUp("facebook")}
+            onApple={() => void oauthSignUp("apple")}
+          />
+
+          <p className="mt-3 text-center text-sm text-[#003049]">
             Already have an account?{" "}
             <button
               type="button"
-              className="font-medium text-primary underline underline-offset-2"
+              className="font-semibold text-[#F77F00] underline underline-offset-2 hover:text-[#F77F00]/90"
               onClick={() => {
                 onOpenChange(false);
                 reset();
@@ -355,8 +514,35 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
               Sign in
             </button>
           </p>
-        ) : null}
+
+          <p className="mt-4 whitespace-nowrap text-center text-[10px] leading-snug tracking-tight text-[#003049]">
+            By signing up, you agree to our{" "}
+            <Link href="/terms" className="font-medium text-[#F77F00] underline underline-offset-2 hover:text-[#F77F00]/90">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="font-medium text-[#F77F00] underline underline-offset-2 hover:text-[#F77F00]/90">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
+        )}
       </DialogContent>
+      <SignupIssueFeedbackDialog
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        initialEmail={email}
+        errorContext={
+          signupError
+            ? {
+                status: signupError.status,
+                code: signupError.code,
+                message: signupError.raw,
+              }
+            : undefined
+        }
+      />
     </Dialog>
   );
 }

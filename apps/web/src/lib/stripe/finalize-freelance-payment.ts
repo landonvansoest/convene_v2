@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
+import { expertGraceEndAt } from "@/lib/freelance/transitions";
 
 const TYPE = "freelance_work";
 
@@ -24,7 +25,7 @@ export async function finalizeFreelanceFromPaymentIntent(
   const { data: row, error: rowErr } = await admin
     .from("freelance_work")
     .select(
-      "freelance_id, expert_user_id, learner_user_id, total_price, status, payment_status"
+      "freelance_id, expert_user_id, learner_user_id, total_price, status, payment_status, work_deadline, expert_grace_end_at"
     )
     .eq("freelance_id", freelanceId)
     .maybeSingle();
@@ -63,9 +64,25 @@ export async function finalizeFreelanceFromPaymentIntent(
   const expertEarnings = Math.max(0, (amountCents - feeCents) / 100);
   const now = new Date().toISOString();
 
+  // Bible §"After successful payment: status → paid_in_progress, escrow held".
+  // Also stamp the Stripe PI id on the row for ledger cross-reference and
+  // (re-)compute expert_grace_end_at in case the row was created before
+  // migration 046 backfilled SLA columns.
+  const freelanceUpdate: Record<string, unknown> = {
+    payment_status: "paid",
+    status: "paid_in_progress",
+    stripe_payment_intent_id: pi.id,
+    updated_at: now,
+  };
+  if (!row.expert_grace_end_at) {
+    freelanceUpdate.expert_grace_end_at = expertGraceEndAt(
+      row.work_deadline ? new Date(row.work_deadline).toISOString() : null,
+    );
+  }
+
   const { error: updErr } = await admin
     .from("freelance_work")
-    .update({ payment_status: "paid", updated_at: now })
+    .update(freelanceUpdate)
     .eq("freelance_id", freelanceId);
 
   if (updErr) {
