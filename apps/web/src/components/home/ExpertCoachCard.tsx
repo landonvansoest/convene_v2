@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Star, Zap } from "lucide-react";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 export type ExpertCoachCardProps = {
   id: string;
@@ -12,6 +13,7 @@ export type ExpertCoachCardProps = {
   availableNow?: boolean;
   isVerified?: boolean;
   online?: boolean;
+  expertVisibilityState?: string | null;
 };
 
 export function ExpertCoachCard({
@@ -23,6 +25,7 @@ export function ExpertCoachCard({
   availableNow = false,
   isVerified = false,
   online = false,
+  expertVisibilityState = null,
 }: ExpertCoachCardProps) {
   const initials = name
     .split(/\s+/)
@@ -63,6 +66,7 @@ export function ExpertCoachCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <h3 className="truncate text-base font-bold transition-colors group-hover:text-primary">{name}</h3>
+            <VisibleTempDot expertVisibilityState={expertVisibilityState} variant="inline" />
             {isVerified ? (
               <Image
                 src="/verification-badge.png"

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Calendar, ClipboardList, DollarSign, LayoutDashboard, Mail, MessageSquare, TrendingUp } from "lucide-react";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DashboardViewHeader,
@@ -28,6 +29,7 @@ export type DashboardSummaryJson = {
     completeSessions: number;
     expertDependabilityRating: number | null;
     categoryId: string | null;
+    expertVisibilityState: string | null;
   } | null;
   ratings: {
     asLearnerAvg: number | null;
@@ -54,6 +56,7 @@ export type DashboardSummaryJson = {
       bookingId: string;
       partnerName: string;
       partnerPhoto: string | null;
+      partnerExpertVisibilityState?: string | null;
       startTimeLabel: string;
     } | null;
     /** Today's paid sessions (chronological), for overview rows with partner metadata. */
@@ -61,6 +64,7 @@ export type DashboardSummaryJson = {
       bookingId: string;
       partnerName: string;
       partnerPhoto: string | null;
+      partnerExpertVisibilityState?: string | null;
       startTimeLabel: string;
       rangeLabel: string;
     }>;
@@ -74,6 +78,7 @@ type OverviewListRow =
       href: string;
       partnerName: string;
       partnerPhoto: string | null;
+      partnerExpertVisibilityState?: string | null;
       startTimeLabel: string;
     }
   | {
@@ -213,6 +218,7 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
           href: `/sessions/${encodeURIComponent(s.bookingId)}/join`,
           partnerName: s.partnerName,
           partnerPhoto: s.partnerPhoto,
+          partnerExpertVisibilityState: s.partnerExpertVisibilityState,
           startTimeLabel: s.startTimeLabel,
         });
       }
@@ -260,7 +266,6 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
       <DashboardViewHeader
         Icon={LayoutDashboard}
         title={`Welcome back${greet ? `, ${greet}` : ""}`}
-        subtitle="Your learning journey at a glance."
       />
 
       <div
@@ -420,16 +425,19 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                             href={row.href}
                             className="flex w-full items-center gap-3 rounded-lg border border-[#003049]/10 bg-[#F8FAFC] px-4 py-3 text-left transition hover:border-[#003049]/20 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#F77F00]"
                           >
-                            <Avatar className="h-10 w-10 shrink-0 border border-[#003049]/10 shadow-sm">
-                              <AvatarImage
-                                src={row.partnerPhoto ?? undefined}
-                                alt=""
-                                className="object-cover"
-                              />
-                              <AvatarFallback className="bg-[#003049]/10 text-xs font-semibold text-[#003049]">
-                                {initialsFromDisplayName(row.partnerName)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <div className="relative h-10 w-10 shrink-0">
+                              <Avatar className="h-full w-full border border-[#003049]/10 shadow-sm">
+                                <AvatarImage
+                                  src={row.partnerPhoto ?? undefined}
+                                  alt=""
+                                  className="object-cover"
+                                />
+                                <AvatarFallback className="bg-[#003049]/10 text-xs font-semibold text-[#003049]">
+                                  {initialsFromDisplayName(row.partnerName)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <VisibleTempDot expertVisibilityState={row.partnerExpertVisibilityState} />
+                            </div>
                             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#003049]">
                               {row.partnerName}
                             </span>

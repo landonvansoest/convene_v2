@@ -17,12 +17,14 @@ import { cn } from "@/lib/utils";
 import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Conv = {
   partner_id: string;
   partner_name?: string | null;
   partner_photo?: string | null;
   partner_online?: boolean | null;
+  partner_expert_visibility_state?: string | null;
   last_message?: string | null;
   last_message_time?: string | null;
   unread_count?: number;
@@ -334,6 +336,7 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                           )}
                         </div>
                         <OnlineDot online={!!c.partner_online} />
+                        <VisibleTempDot expertVisibilityState={c.partner_expert_visibility_state} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">

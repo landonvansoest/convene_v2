@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ClipboardList, Gift, Ban, CalendarRange } from "lucide-react";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
 import { RescheduleSessionDialog } from "@/components/dashboard/RescheduleSessionDialog";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { sessionWallClockInstant } from "@/lib/sessionWallClock";
 
 export type ManagedSessionRow = Record<string, unknown> & {
@@ -21,6 +22,7 @@ export type ManagedSessionRow = Record<string, unknown> & {
   total_amount?: number;
   partner_name?: string | null;
   partner_photo?: string | null;
+  partner_expert_visibility_state?: string | null;
   learner_id?: string;
   expert_id?: string;
   user_role?: string;
@@ -200,6 +202,7 @@ export function SessionManageDialog({
                   {(session.partner_name || "?").slice(0, 1).toUpperCase()}
                 </div>
               )}
+              <VisibleTempDot expertVisibilityState={session.partner_expert_visibility_state} />
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-[#003049]">{counterpartName}</p>

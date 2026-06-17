@@ -4,6 +4,7 @@ import { Elements, useElements, useStripe } from "@stripe/react-stripe-js";
 import Image from "next/image";
 import { Calendar, Clock, DollarSign, Loader2, Timer } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Button } from "@/components/ui/button";
 import { syncSessionPaymentWithServer } from "@/lib/stripe/syncSessionPaymentClient";
 import {
@@ -178,6 +179,7 @@ type BookingPreview = {
   partner_name: string;
   partner_photo: string | null;
   partner_profession: string | null;
+  partner_expert_visibility_state: string | null;
   session_date: string;
   start_time: string;
   end_time: string;
@@ -238,6 +240,10 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
         partner_name: String(b.partner_name ?? "Expert"),
         partner_photo: typeof b.partner_photo === "string" ? b.partner_photo : null,
         partner_profession: typeof b.partner_profession === "string" ? b.partner_profession : null,
+        partner_expert_visibility_state:
+          typeof b.partner_expert_visibility_state === "string" ?
+            b.partner_expert_visibility_state
+          : null,
         session_date: sessionDate,
         start_time: String(b.start_time ?? ""),
         end_time: String(b.end_time ?? ""),
@@ -333,6 +339,9 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
                         {initials}
                       </div>
                     )}
+                    <VisibleTempDot
+                      expertVisibilityState={bookingPreview.partner_expert_visibility_state}
+                    />
                   </div>
                   <div className="min-w-0 pt-0.5">
                     <p className="text-lg font-bold text-[#003049]">{bookingPreview.partner_name}</p>

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { dispatchInboxUnreadMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Msg = {
   id: string;
@@ -28,6 +29,7 @@ type Conv = {
   partner_id: string;
   partner_name?: string | null;
   partner_photo?: string | null;
+  partner_expert_visibility_state?: string | null;
 };
 
 export default function MessageThreadPage() {
@@ -40,7 +42,11 @@ export default function MessageThreadPage() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
-  const [partnerMeta, setPartnerMeta] = useState<{ name: string | null; photo: string | null } | null>(null);
+  const [partnerMeta, setPartnerMeta] = useState<{
+    name: string | null;
+    photo: string | null;
+    expertVisibilityState: string | null;
+  } | null>(null);
   const [hasExpertProfile, setHasExpertProfile] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const pageComposerRef = useRef<HTMLInputElement>(null);
@@ -67,7 +73,11 @@ export default function MessageThreadPage() {
     const list = (data.conversations as Conv[]) ?? [];
     const hit = list.find((c) => c.partner_id === partnerId);
     if (hit) {
-      setPartnerMeta({ name: hit.partner_name ?? null, photo: hit.partner_photo ?? null });
+      setPartnerMeta({
+        name: hit.partner_name ?? null,
+        photo: hit.partner_photo ?? null,
+        expertVisibilityState: hit.partner_expert_visibility_state ?? null,
+      });
     }
   }, [partnerId]);
 
@@ -170,6 +180,7 @@ export default function MessageThreadPage() {
                   {displayName.slice(0, 1).toUpperCase()}
                 </div>
               )}
+              <VisibleTempDot expertVisibilityState={partnerMeta?.expertVisibilityState} />
             </div>
             <div className="min-w-0">
               <h1 className="truncate font-semibold text-[#003049]">{displayName}</h1>

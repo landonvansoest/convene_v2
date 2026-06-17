@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
@@ -39,6 +40,8 @@ import {
   HEADER_BADGES_MAY_HAVE_CHANGED,
   INBOX_UNREAD_MAY_HAVE_CHANGED,
 } from "@/lib/messages/inbox-unread-events";
+import { verifyFailedDescription, stripVerifyFailedSearchParams } from "@/lib/auth/verify-failed-message";
+import { LEARNER_REGISTRATION_WIZARD_PATH } from "@/lib/auth/learner-registration";
 import { bookingPaymentIsSettled, hasSessionEndedByWallClock } from "@/lib/sessionWallClock";
 
 function avatarInitialsFromProfile(p: Record<string, unknown> | null): string {
@@ -70,6 +73,7 @@ export function SiteHeader() {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [avatarInitials, setAvatarInitials] = useState("U");
   const [hasExpertProfile, setHasExpertProfile] = useState<boolean>(false);
+  const [expertVisibilityState, setExpertVisibilityState] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [emailAddress, setEmailAddress] = useState<string>("");
   const [roleMode, setRoleMode] = useState<"learner" | "expert">("learner");
@@ -115,6 +119,23 @@ export function SiteHeader() {
     }
   }, []);
 
+  /**
+   * Surface email-verification failures on the homepage (legacy `/?auth=verify_failed`
+   * links). New failures land on `/auth/callback/signup?auth=verify_failed` instead.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auth") !== "verify_failed") return;
+    setSignInDescription(verifyFailedDescription(params.get("reason")));
+    setSignInPostRedirect(LEARNER_REGISTRATION_WIZARD_PATH);
+    setSignUpOpen(false);
+    setSignInOpen(true);
+    const cleaned = new URL(window.location.href);
+    stripVerifyFailedSearchParams(cleaned);
+    window.history.replaceState({}, "", cleaned.toString());
+  }, []);
+
   /** Keep the search input in sync after a full navigation to `/search?q=...`. */
   useEffect(() => {
     if (pathname !== "/search" || typeof window === "undefined") return;
@@ -127,6 +148,7 @@ export function SiteHeader() {
       setProfilePhoto(null);
       setAvatarInitials("U");
       setHasExpertProfile(false);
+      setExpertVisibilityState(null);
       setDisplayName("");
       setEmailAddress("");
       setRoleMode("learner");
@@ -152,6 +174,8 @@ export function SiteHeader() {
         setProfilePhoto(typeof photo === "string" && photo.trim() ? photo : null);
         setAvatarInitials(avatarInitialsFromProfile(p));
         setHasExpertProfile(Boolean(p?.has_expert_profile));
+        const vis = p?.expert_visibility_state;
+        setExpertVisibilityState(typeof vis === "string" ? vis : null);
         const full = typeof p?.full_name === "string" ? p.full_name.trim() : "";
         const first = typeof p?.first_name === "string" ? p.first_name.trim() : "";
         const last = typeof p?.last_name === "string" ? p.last_name.trim() : "";
@@ -173,6 +197,7 @@ export function SiteHeader() {
         setProfilePhoto(null);
         setAvatarInitials("U");
         setHasExpertProfile(false);
+        setExpertVisibilityState(null);
         setDisplayName("");
         setEmailAddress("");
         setRoleMode("learner");
@@ -594,6 +619,7 @@ export function SiteHeader() {
                       </AvatarFallback>
                     </Avatar>
                     <OnlineDot online={signedIn === true} />
+                    <VisibleTempDot expertVisibilityState={expertVisibilityState} />
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </div>

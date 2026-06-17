@@ -25,6 +25,7 @@ import {
 } from "@/app/dashboard/DashboardViewShell";
 import { MediaDeviceTestDialog } from "@/components/dashboard/MediaDeviceTestDialog";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { PartnerConversationDialog } from "@/components/dashboard/PartnerConversationDialog";
 import { SessionDependabilityDetailsDialog } from "@/components/dashboard/SessionDependabilityDetailsDialog";
 import { SessionManageDialog, type ManagedSessionRow } from "@/components/dashboard/SessionManageDialog";
@@ -50,6 +51,7 @@ type SessionRow = ManagedSessionRow & {
   partner_name?: string | null;
   partner_photo?: string | null;
   partner_online?: boolean | null;
+  partner_expert_visibility_state?: string | null;
   partner_profession?: string | null;
   duration_minutes?: number | null;
   learner_id?: string;
@@ -170,6 +172,9 @@ export default function DashboardBookedSessionsView({
   const [messagePartnerId, setMessagePartnerId] = useState<string | null>(null);
   const [messagePartnerName, setMessagePartnerName] = useState<string | null>(null);
   const [messagePartnerPhoto, setMessagePartnerPhoto] = useState<string | null>(null);
+  const [messagePartnerExpertVisibilityState, setMessagePartnerExpertVisibilityState] = useState<
+    string | null
+  >(null);
   const [messageTourDemo, setMessageTourDemo] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [payBookingId, setPayBookingId] = useState<string | null>(null);
@@ -277,6 +282,7 @@ export default function DashboardBookedSessionsView({
     setMessagePartnerId(pid);
     setMessagePartnerName(s.partner_name ?? null);
     setMessagePartnerPhoto(s.partner_photo ?? null);
+    setMessagePartnerExpertVisibilityState(s.partner_expert_visibility_state ?? null);
     setMessageTourDemo(Boolean(s.tour_demo));
     setMessageOpen(true);
   }
@@ -335,6 +341,7 @@ export default function DashboardBookedSessionsView({
         partnerId={messagePartnerId}
         partnerName={messagePartnerName}
         partnerPhoto={messagePartnerPhoto}
+        partnerExpertVisibilityState={messagePartnerExpertVisibilityState}
         tourDemo={messageTourDemo}
       />
       <DashboardViewHeader
@@ -512,6 +519,7 @@ export default function DashboardBookedSessionsView({
                             </div>
                           )}
                           <OnlineDot online={!!s.partner_online} />
+                          <VisibleTempDot expertVisibilityState={s.partner_expert_visibility_state} />
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col gap-2">
                           {partnerHref ? (

@@ -4,6 +4,7 @@ import { bookingRowVisibleInSessionList } from "@/lib/booking-dashboard-visibili
 import { evaluateFirstSessionDiscount } from "@/lib/pricing/first-session-discount";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
 import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
@@ -277,6 +278,8 @@ export async function GET(request: Request) {
   }
   const partners = await getUsersByIds(Array.from(partnerIds));
   const byId = new Map(partners.map((u) => [u.user_id, u]));
+  const expertPartnerIds = partners.filter((u) => u.has_expert_profile).map((u) => u.user_id);
+  const expertVisibilityById = await fetchExpertVisibilityByUserIds(admin, expertPartnerIds);
 
   let sessions = (bookings ?? []).map((b) => {
     const partnerId = b.learner_user_id === userId ? b.expert_user_id : b.learner_user_id;
@@ -290,6 +293,11 @@ export async function GET(request: Request) {
       partner_name: partner ? displayName(partner) : null,
       partner_photo: partner?.profile_photo ?? null,
       partner_online: isUserOnlineFresh(partner?.online, partner?.last_seen_at),
+      partner_expert_visibility_state: partnerExpertVisibilityState(
+        partnerId,
+        partner?.has_expert_profile,
+        expertVisibilityById,
+      ),
       duration_minutes: null,
       total_price: b.total_amount,
       cancellation_reason: b.cancellation_reason,

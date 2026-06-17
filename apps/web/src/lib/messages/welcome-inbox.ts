@@ -17,6 +17,26 @@ async function welcomeLearnerInAppBody(admin: ReturnType<typeof createAdminClien
   return resolved.enabled ? resolved.body : fb.in_app_body;
 }
 
+async function resolveUserIdByEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  email: string,
+): Promise<string | null> {
+  const { data: exact } = await admin
+    .from("users")
+    .select("user_id")
+    .eq("email_address", email)
+    .maybeSingle();
+  if (exact?.user_id) return exact.user_id as string;
+
+  const { data: ci, error } = await admin
+    .from("users")
+    .select("user_id")
+    .ilike("email_address", email)
+    .maybeSingle();
+  if (!error && ci?.user_id) return ci.user_id as string;
+  return null;
+}
+
 export async function resolveConveneTeamUserId(admin: ReturnType<typeof createAdminClient>): Promise<string | null> {
   try {
     ensureAppsWebEnvLoaded();
@@ -29,15 +49,8 @@ export async function resolveConveneTeamUserId(admin: ReturnType<typeof createAd
 
   const email = process.env.CONVENE_TEAM_EMAIL?.trim();
   if (email) {
-    const { data: exact } = await admin.from("users").select("user_id").eq("email_address", email).maybeSingle();
-    if (exact?.user_id) return exact.user_id as string;
-
-    const { data: ci, error } = await admin
-      .from("users")
-      .select("user_id")
-      .ilike("email_address", email)
-      .maybeSingle();
-    if (!error && ci?.user_id) return ci.user_id as string;
+    const found = await resolveUserIdByEmail(admin, email);
+    if (found) return found;
   }
 
   // Fallback: resolve a dedicated "Team Convene" profile if env vars are unset.
@@ -52,15 +65,52 @@ export async function resolveConveneTeamUserId(admin: ReturnType<typeof createAd
   // Last-resort fallback for local/dev setups.
   const adminEmail = process.env.ADMIN_EMAIL?.trim();
   if (adminEmail) {
-    const byAdminEmail = await admin
-      .from("users")
-      .select("user_id")
-      .ilike("email_address", adminEmail)
-      .maybeSingle();
-    if (!byAdminEmail.error && byAdminEmail.data?.user_id) return byAdminEmail.data.user_id as string;
+    const byAdminEmail = await resolveUserIdByEmail(admin, adminEmail);
+    if (byAdminEmail) return byAdminEmail;
   }
 
   return null;
+}
+
+/**
+ * Resolves the public.users row that posts as "Convene Support" on help-ticket
+ * conversations. Distinct from `resolveConveneTeamUserId` (the welcome-inbox
+ * sender) so the two personas can be configured to different accounts.
+ *
+ * Resolution order:
+ *   1. CONVENE_SUPPORT_USER_ID  (explicit UUID)
+ *   2. CONVENE_SUPPORT_EMAIL    (email lookup against public.users)
+ *   3. Profile named "Convene Support"
+ *   4. Fallback to resolveConveneTeamUserId so existing single-account
+ *      installs keep working.
+ */
+export async function resolveConveneSupportUserId(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<string | null> {
+  try {
+    ensureAppsWebEnvLoaded();
+  } catch {
+    /* fs / edge */
+  }
+
+  const envId = process.env.CONVENE_SUPPORT_USER_ID?.trim();
+  if (envId) return envId;
+
+  const email = process.env.CONVENE_SUPPORT_EMAIL?.trim();
+  if (email) {
+    const found = await resolveUserIdByEmail(admin, email);
+    if (found) return found;
+  }
+
+  const byName = await admin
+    .from("users")
+    .select("user_id")
+    .ilike("first_name", "Convene")
+    .ilike("last_name", "Support")
+    .maybeSingle();
+  if (!byName.error && byName.data?.user_id) return byName.data.user_id as string;
+
+  return resolveConveneTeamUserId(admin);
 }
 
 /**

@@ -7,11 +7,13 @@ import { ChevronLeft, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dispatchInboxUnreadMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { Input } from "@/components/ui/input";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Conv = {
   partner_id: string;
   partner_name?: string | null;
   partner_photo?: string | null;
+  partner_expert_visibility_state?: string | null;
   last_message?: string | null;
   last_message_time?: string | null;
   unread_count?: number;
@@ -152,6 +154,7 @@ export default function MessagesInboxPage() {
                             {(c.partner_name || c.partner_id).slice(0, 1).toUpperCase()}
                           </div>
                         )}
+                        <VisibleTempDot expertVisibilityState={c.partner_expert_visibility_state} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">

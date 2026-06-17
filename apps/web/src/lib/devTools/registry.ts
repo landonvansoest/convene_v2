@@ -41,8 +41,8 @@ export const DEV_TOOLS: DevToolDef[] = [
     label: "Signup email verification bypass",
     description:
       "Shows the ‘DEV Bypass Email Verification Link’ button on the signup page so new accounts can skip the magic-link step. " +
-      "Has no effect in production builds.",
-    defaultEnabled: true,
+      "Has no effect in production builds. Keep off unless you're debugging email delivery — the real Supabase confirmation flow should be exercised.",
+    defaultEnabled: false,
   },
 ];
 

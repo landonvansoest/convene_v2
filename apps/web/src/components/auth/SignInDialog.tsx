@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 import { OAuthDivider, OAuthProviderRow } from "@/components/auth/oauth-social";
 import { Eye, EyeOff, Lock, LogIn, Mail } from "lucide-react";
@@ -11,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
+import { resolvePostSignInPath } from "@/lib/auth/learner-registration";
+import { authCallbackWithSignupWizard } from "@/lib/auth/post-signup-redirect";
+import { isEmailNotConfirmedAuthError } from "@/lib/auth/email-not-confirmed";
 
 type Props = {
   open: boolean;
@@ -21,19 +23,45 @@ type Props = {
 };
 
 export function SignInDialog({ open, onOpenChange, description, onRequestSignUp, postSignInRedirect }: Props) {
-  const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabase(), []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [forgotOpen, setForgotOpen] = useState(false);
+
+  const emailNotConfirmed = isEmailNotConfirmedAuthError(message);
 
   function resetFields() {
     setMessage(null);
+    setResendStatus("idle");
     setForgotOpen(false);
     setShowPassword(false);
+  }
+
+  async function resendConfirmationEmail() {
+    const trimmed = email.trim();
+    if (!trimmed.includes("@")) {
+      setMessage("Enter your email address above, then resend the confirmation email.");
+      return;
+    }
+    setResendStatus("sending");
+    setMessage(null);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: trimmed,
+      options: {
+        emailRedirectTo: authCallbackWithSignupWizard(window.location.origin),
+      },
+    });
+    if (error) {
+      setResendStatus("error");
+      setMessage(error.message);
+      return;
+    }
+    setResendStatus("sent");
   }
 
   async function onPassword(event: FormEvent) {
@@ -51,8 +79,9 @@ export function SignInDialog({ open, onOpenChange, description, onRequestSignUp,
     }
     onOpenChange(false);
     resetFields();
-    router.replace(postSignInRedirect?.trim() || "/dashboard");
-    router.refresh();
+    const destination = await resolvePostSignInPath(postSignInRedirect);
+    // Full navigation ensures auth cookies are synced before the registration wizard loads.
+    window.location.assign(destination);
   }
 
   async function oauthSignIn(provider: "google" | "facebook" | "apple") {
@@ -154,7 +183,29 @@ export function SignInDialog({ open, onOpenChange, description, onRequestSignUp,
               {message ? (
                 <div className="space-y-1.5">
                   <p className="text-sm text-destructive">{message}</p>
-                  {/invalid login credentials|invalid email or password/i.test(message) ? (
+                  {emailNotConfirmed ? (
+                    <div className="space-y-2 rounded-lg border border-[#F77F00]/30 bg-[#FFF6EE]/60 px-3 py-2.5">
+                      <p className="text-xs leading-snug text-[#003049]/85">
+                        Your account exists but your email isn&apos;t verified yet. Open the confirmation link
+                        from your inbox in the <strong>same browser</strong> where you signed up (not your
+                        phone&apos;s in-app mail viewer if you signed up on desktop). Then sign in again.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-full border-[#F77F00]/50 text-xs font-semibold text-[#003049]"
+                        disabled={busy || resendStatus === "sending"}
+                        onClick={() => void resendConfirmationEmail()}
+                      >
+                        {resendStatus === "sending"
+                          ? "Sending…"
+                          : resendStatus === "sent"
+                            ? "Confirmation email sent — check your inbox"
+                            : "Resend confirmation email"}
+                      </Button>
+                    </div>
+                  ) : /invalid login credentials|invalid email or password/i.test(message) ? (
                     <p className="text-xs leading-snug text-muted-foreground">
                       If you first signed up with Google or another social button, use that below—email/password
                       won&apos;t work until you add a password. Otherwise use &quot;Forgot your password?&quot; to
@@ -162,6 +213,10 @@ export function SignInDialog({ open, onOpenChange, description, onRequestSignUp,
                     </p>
                   ) : null}
                 </div>
+              ) : resendStatus === "sent" ? (
+                <p className="text-sm text-emerald-700">
+                  Confirmation email sent. Open the link in the same browser where you signed up, then sign in.
+                </p>
               ) : null}
               <div className="space-y-1">
                 <Button

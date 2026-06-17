@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
-import { getAuthedUserId } from "@/lib/messages/service";
+import { findOrCreateConversationForPair, getAuthedUserId } from "@/lib/messages/service";
+import { dispatchHelpTicketAlert } from "@/lib/notifications/admin-alerts";
+import { resolveConveneSupportUserId } from "@/lib/messages/welcome-inbox";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +90,63 @@ export async function POST(request: Request) {
     );
   }
 
-  // Append the opening message; the parent trigger refreshes last_message_*.
+  // Mirror the ticket into the conversations/messages inbox for authenticated
+  // submitters. The thread between the user and the Convene Support team
+  // becomes the source of truth — the admin Help Tickets view reads from it,
+  // and the submitter sees + replies to it from their dashboard inbox.
+  //
+  // Guests have no user_id and therefore can't be in a conversation; they
+  // continue to use the legacy help_ticket_messages append-only thread.
+  let conversationId: string | null = null;
+  if (userId) {
+    try {
+      const supportUserId = await resolveConveneSupportUserId(admin);
+      if (supportUserId && supportUserId !== userId) {
+        const convo = await findOrCreateConversationForPair(userId, supportUserId);
+        const { data: openingMsg, error: openingErr } = await admin
+          .from("messages")
+          .insert({
+            conversation_id: convo.conversation_id,
+            sender_id: userId,
+            message: body,
+            is_read: false,
+            metadata: {
+              help_ticket_id: ticket.ticket_id,
+              help_ticket_subject: subject,
+              help_ticket_initial: true,
+            },
+          })
+          .select("message_id, created_at")
+          .single();
+        if (openingErr) throw new Error(openingErr.message);
+
+        await admin
+          .from("conversations")
+          .update({
+            updated_at: openingMsg.created_at,
+            last_message_at: openingMsg.created_at,
+          })
+          .eq("conversation_id", convo.conversation_id);
+
+        await admin
+          .from("help_tickets")
+          .update({ conversation_id: convo.conversation_id })
+          .eq("ticket_id", ticket.ticket_id);
+
+        conversationId = convo.conversation_id;
+      } else {
+        console.warn(
+          "[help-tickets] No Convene Support user resolved; ticket stored in legacy help_ticket_messages only. Set CONVENE_SUPPORT_USER_ID or CONVENE_SUPPORT_EMAIL (or CONVENE_TEAM_USER_ID as a fallback) in apps/web env.",
+        );
+      }
+    } catch (e) {
+      console.error("[help-tickets] conversation mirror failed", e);
+    }
+  }
+
+  // Always record the opening message on the legacy thread. For conversation-
+  // backed tickets it serves as an immutable audit trail; for guests it is the
+  // source of truth that the admin inbox renders directly.
   const { error: msgErr } = await admin.from("help_ticket_messages").insert({
     ticket_id: ticket.ticket_id,
     author: "user",
@@ -101,7 +159,24 @@ export async function POST(request: Request) {
     return Response.json({ error: publicApiError(msgErr) }, { status: 500 });
   }
 
-  return Response.json({ ok: true, ticket_id: ticket.ticket_id });
+  try {
+    await dispatchHelpTicketAlert({
+      ticketId: ticket.ticket_id,
+      subject,
+      body,
+      submitterEmail,
+      submitterName: submitterName || null,
+      isAuthenticated: Boolean(authedUserId),
+    });
+  } catch (e) {
+    console.error("[help-tickets] admin alert", e);
+  }
+
+  return Response.json({
+    ok: true,
+    ticket_id: ticket.ticket_id,
+    conversation_id: conversationId,
+  });
 }
 
 /**

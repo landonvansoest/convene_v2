@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { ChevronDown, ChevronUp, MessageSquare, Triangle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { cn } from "@/lib/utils";
 
 const HERO = "var(--convene-hero)";
@@ -34,6 +35,7 @@ type RequestResponseRow = {
     last_name: string | null;
     profile_photo: string | null;
     online: boolean | null;
+    expert_visibility_state?: string | null;
   } | null;
 };
 
@@ -225,6 +227,7 @@ export function RequestCard({
                         </AvatarFallback>
                       </Avatar>
                       {resp.expert?.online ? <OnlineDot online={true} /> : null}
+                      <VisibleTempDot expertVisibilityState={resp.expert?.expert_visibility_state} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">

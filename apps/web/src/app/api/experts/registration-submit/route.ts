@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { ensureExpertRegistrationWelcomeInbox } from "@/lib/messages/welcome-inbox";
+import { dispatchExpertRegistrationAlert } from "@/lib/notifications/admin-alerts";
 import { publicApiError } from "@/lib/api/public-error";
 import { requiredFieldErrors } from "@/lib/expert-registration";
 
@@ -15,7 +16,9 @@ export async function POST() {
 
   const { data: user, error: userErr } = await admin
     .from("users")
-    .select("first_name, last_name, phone_number, hometown, time_zone, profession")
+    .select(
+      "first_name, last_name, phone_number, hometown, time_zone, profession, email_address",
+    )
     .eq("user_id", userId)
     .maybeSingle();
   if (userErr) return Response.json({ error: publicApiError(userErr) }, { status: 500 });
@@ -76,6 +79,18 @@ export async function POST() {
     await ensureExpertRegistrationWelcomeInbox(userId);
   } catch (e) {
     console.error("[registration-submit] expert welcome inbox", e);
+  }
+
+  try {
+    const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
+    await dispatchExpertRegistrationAlert({
+      userId,
+      name: fullName || null,
+      email: (user?.email_address ?? null) || null,
+      profession: user?.profession ?? null,
+    });
+  } catch (e) {
+    console.error("[registration-submit] admin alert", e);
   }
 
   return Response.json({

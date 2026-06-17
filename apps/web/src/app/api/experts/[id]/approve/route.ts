@@ -22,7 +22,6 @@ function resultForAction(action: "approve" | "reject" | "waitlist"): ActionResul
   if (action === "approve") {
     return {
       expert_visibility_state: "visible_active",
-      membership_tier: "verified",
       verbMessage: "approved",
     };
   }

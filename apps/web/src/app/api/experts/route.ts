@@ -3,6 +3,7 @@ import { publicApiError } from "@/lib/api/public-error";
 import { getFeaturedExpertsSettings } from "@/lib/featuredExpertsSettings";
 import {
   EXPERT_VISIBILITY_STATE,
+  expertVisibilityFeaturedSortRank,
   expertVisibilityStatesForBrowseGrid,
 } from "@/lib/expertVisibilityState";
 import {
@@ -75,7 +76,11 @@ export async function GET(request: Request) {
   const browseVisibilityStates = expertVisibilityStatesForBrowseGrid(featured);
   const needsRatingFilter = featured.min_avg_rating != null;
 
-  async function fetchExpertsRows(opts: { visibleOnly: boolean }): Promise<ExpertRow[]> {
+  async function fetchExpertsRows(opts: {
+    visibleOnly: boolean;
+    /** Homepage featured grid: load full candidate pool before visibility sort + limit. */
+    skipRange?: boolean;
+  }): Promise<ExpertRow[]> {
     let q = admin
       .from("expert_profiles")
       .select(
@@ -114,6 +119,12 @@ export async function GET(request: Request) {
       return rows;
     }
 
+    if (opts.skipRange) {
+      const { data, error } = await q.limit(LIST_CAP);
+      if (error) throw error;
+      return (data ?? []) as ExpertRow[];
+    }
+
     const { data, error } = await q.range(offset, offset + Math.max(limit - 1, 0));
     if (error) throw error;
     return (data ?? []) as ExpertRow[];
@@ -121,7 +132,7 @@ export async function GET(request: Request) {
 
   let experts: ExpertRow[];
   try {
-    experts = await fetchExpertsRows({ visibleOnly: true });
+    experts = await fetchExpertsRows({ visibleOnly: true, skipRange: compact });
   } catch (error) {
     return Response.json({ error: publicApiError(error) }, { status: 500 });
   }
@@ -284,7 +295,14 @@ export async function GET(request: Request) {
     })
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
-  if (needsRatingFilter) {
+  if (compact) {
+    mapped.sort(
+      (a, b) =>
+        expertVisibilityFeaturedSortRank(a.expert_visibility_state) -
+        expertVisibilityFeaturedSortRank(b.expert_visibility_state),
+    );
+    mapped = mapped.slice(offset, offset + limit);
+  } else if (needsRatingFilter) {
     mapped = mapped.slice(offset, offset + limit);
   }
 

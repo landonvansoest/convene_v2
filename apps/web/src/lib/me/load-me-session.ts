@@ -86,5 +86,16 @@ async function loadMeProfileForAuthUser(
     console.error("[welcome-inbox]", err);
   }
 
-  return { kind: "ok", user: sessionUser, profile: profile ?? null };
+  let enrichedProfile: Record<string, unknown> | null = profile ? { ...profile } : null;
+  if (enrichedProfile?.has_expert_profile) {
+    const { data: expertProfile } = await admin
+      .from("expert_profiles")
+      .select("expert_visibility_state")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    enrichedProfile.expert_visibility_state =
+      (expertProfile?.expert_visibility_state as string | null) ?? null;
+  }
+
+  return { kind: "ok", user: sessionUser, profile: enrichedProfile };
 }

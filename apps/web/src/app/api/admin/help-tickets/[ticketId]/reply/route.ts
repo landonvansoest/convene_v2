@@ -3,6 +3,7 @@ import { assertAdmin } from "@/lib/admin/assert-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
 import { dispatchHelpTicketReply } from "@/lib/notifications/dispatch";
+import { resolveConveneSupportUserId } from "@/lib/messages/welcome-inbox";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,9 @@ export async function POST(request: Request, { params }: Params) {
   const admin = createAdminClient();
   const { data: ticket, error: tErr } = await admin
     .from("help_tickets")
-    .select("ticket_id, submitter_email, submitter_name, subject, status")
+    .select(
+      "ticket_id, submitter_email, submitter_name, subject, status, conversation_id, user_id",
+    )
     .eq("ticket_id", ticketId)
     .maybeSingle();
   if (tErr) return Response.json({ error: publicApiError(tErr) }, { status: 500 });
@@ -52,29 +55,79 @@ export async function POST(request: Request, { params }: Params) {
 
   const adminLabel = parsed.data.admin_label?.trim() || null;
 
-  const { data: inserted, error: insertErr } = await admin
-    .from("help_ticket_messages")
-    .insert({
-      ticket_id: ticketId,
-      author: "admin",
-      admin_label: adminLabel,
-      body: parsed.data.body,
-    })
-    .select("message_id, created_at")
-    .single();
-  if (insertErr || !inserted) {
-    return Response.json(
-      { error: publicApiError(insertErr ?? "Failed to record reply") },
-      { status: 500 },
-    );
-  }
-
   // Build absolute URL for the in-app reply CTA. Falls back to convene.io
   // when NEXT_PUBLIC_APP_URL is unset (matches welcome-inbox convention).
   const base =
     (process.env.NEXT_PUBLIC_APP_URL && process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")) ||
     "https://convene.io";
-  const threadUrl = `${base}/help/${ticketId}`;
+  const threadUrl = `${base}/dashboard?view=inbox`;
+
+  // Conversation-backed tickets: store the admin's reply in public.messages so
+  // the submitter sees it in their dashboard inbox. Legacy guest tickets fall
+  // back to help_ticket_messages.
+  let messageId: string | null = null;
+  let messageCreatedAt: string | null = null;
+  const useConversation = !!ticket.conversation_id;
+  let supportUserId: string | null = null;
+
+  if (useConversation) {
+    supportUserId = await resolveConveneSupportUserId(admin);
+    if (!supportUserId) {
+      return Response.json(
+        {
+          error:
+            "Convene Support user not configured. Set CONVENE_SUPPORT_USER_ID or CONVENE_SUPPORT_EMAIL (or CONVENE_TEAM_USER_ID as a fallback) in apps/web env so admin replies can be attributed to a sender.",
+        },
+        { status: 500 },
+      );
+    }
+    const { data: inserted, error: insertErr } = await admin
+      .from("messages")
+      .insert({
+        conversation_id: ticket.conversation_id,
+        sender_id: supportUserId,
+        message: parsed.data.body,
+        is_read: false,
+        metadata: {
+          help_ticket_id: ticket.ticket_id,
+          admin_label: adminLabel ?? undefined,
+        },
+      })
+      .select("message_id, created_at")
+      .single();
+    if (insertErr || !inserted) {
+      return Response.json(
+        { error: publicApiError(insertErr ?? "Failed to record reply") },
+        { status: 500 },
+      );
+    }
+    messageId = inserted.message_id;
+    messageCreatedAt = inserted.created_at;
+
+    await admin
+      .from("conversations")
+      .update({ updated_at: inserted.created_at, last_message_at: inserted.created_at })
+      .eq("conversation_id", ticket.conversation_id);
+  } else {
+    const { data: inserted, error: insertErr } = await admin
+      .from("help_ticket_messages")
+      .insert({
+        ticket_id: ticketId,
+        author: "admin",
+        admin_label: adminLabel,
+        body: parsed.data.body,
+      })
+      .select("message_id, created_at")
+      .single();
+    if (insertErr || !inserted) {
+      return Response.json(
+        { error: publicApiError(insertErr ?? "Failed to record reply") },
+        { status: 500 },
+      );
+    }
+    messageId = inserted.message_id;
+    messageCreatedAt = inserted.created_at;
+  }
 
   // SendGrid dispatch is best-effort — the reply is durably recorded above
   // either way. If email succeeds, stamp email_sent_at for audit.
@@ -91,11 +144,24 @@ export async function POST(request: Request, { params }: Params) {
   } catch {
     emailed = false;
   }
-  if (emailed) {
-    await admin
-      .from("help_ticket_messages")
-      .update({ email_sent_at: new Date().toISOString() })
-      .eq("message_id", inserted.message_id);
+  if (emailed && messageId) {
+    if (useConversation) {
+      await admin
+        .from("messages")
+        .update({
+          metadata: {
+            help_ticket_id: ticket.ticket_id,
+            admin_label: adminLabel ?? undefined,
+            email_sent_at: new Date().toISOString(),
+          },
+        })
+        .eq("message_id", messageId);
+    } else {
+      await admin
+        .from("help_ticket_messages")
+        .update({ email_sent_at: new Date().toISOString() })
+        .eq("message_id", messageId);
+    }
   }
 
   if (parsed.data.resolve) {
@@ -105,5 +171,5 @@ export async function POST(request: Request, { params }: Params) {
       .eq("ticket_id", ticketId);
   }
 
-  return Response.json({ ok: true, emailed });
+  return Response.json({ ok: true, emailed, message_id: messageId, created_at: messageCreatedAt });
 }

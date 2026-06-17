@@ -2,6 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
 import { buildSessionLiveTimingPayload } from "@/lib/sessionRoomLiveTiming";
+import {
+  fetchExpertVisibilityByUserIds,
+  partnerExpertVisibilityState,
+} from "@/lib/experts/fetchExpertVisibilityByUserIds";
 import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +37,8 @@ export async function GET(_request: Request, { params }: Params) {
   const partner = bothUsers.find((u) => u.user_id === partnerId);
   const expertUser = bothUsers.find((u) => u.user_id === b.expert_user_id);
   const learnerUser = bothUsers.find((u) => u.user_id === b.learner_user_id);
+  const expertVisibilityById = await fetchExpertVisibilityByUserIds(admin, [b.expert_user_id]);
+  const expertVisibilityState = expertVisibilityById.get(b.expert_user_id) ?? null;
 
   const isLearner = b.learner_user_id === userId;
   const live_timing = await buildSessionLiveTimingPayload(
@@ -71,13 +77,21 @@ export async function GET(_request: Request, { params }: Params) {
 
   function party(
     u: NonNullable<typeof expertUser> | undefined,
-  ): { user_id: string; display_name: string; profile_photo: string | null; profession: string | null } | null {
+    visibilityState: string | null = null,
+  ): {
+    user_id: string;
+    display_name: string;
+    profile_photo: string | null;
+    profession: string | null;
+    expert_visibility_state?: string | null;
+  } | null {
     if (!u) return null;
     return {
       user_id: u.user_id,
       display_name: displayName(u),
       profile_photo: u.profile_photo ?? null,
       profession: u.profession?.trim() || null,
+      ...(visibilityState != null ? { expert_visibility_state: visibilityState } : {}),
     };
   }
 
@@ -90,9 +104,14 @@ export async function GET(_request: Request, { params }: Params) {
       partner_photo: partner?.profile_photo ?? null,
       partner_online: isUserOnlineFresh(partner?.online, partner?.last_seen_at),
       partner_profession: partner?.profession?.trim() || null,
+      partner_expert_visibility_state: partnerExpertVisibilityState(
+        partnerId,
+        partner?.has_expert_profile,
+        expertVisibilityById,
+      ),
       partner_id: partnerId,
     },
-    expert: party(expertUser),
+    expert: party(expertUser, expertVisibilityState),
     learner: party(learnerUser),
     viewer_review_submitted,
     live_timing,

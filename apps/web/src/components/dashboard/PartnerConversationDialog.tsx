@@ -13,6 +13,7 @@ import { dashboardInputClass } from "@/app/dashboard/DashboardViewShell";
 import { formatChatMessageDate } from "@/lib/messages/formatMessageDate";
 import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Msg = {
   id: string;
@@ -30,6 +31,7 @@ export type PartnerConversationDialogProps = {
   partnerId: string | null;
   partnerName: string | null;
   partnerPhoto?: string | null;
+  partnerExpertVisibilityState?: string | null;
   /** When true, show a static demo thread (dashboard tour) and do not call APIs. */
   tourDemo?: boolean;
 };
@@ -40,6 +42,7 @@ export function PartnerConversationDialog({
   partnerId,
   partnerName,
   partnerPhoto,
+  partnerExpertVisibilityState = null,
   tourDemo = false,
 }: PartnerConversationDialogProps) {
   const [meId, setMeId] = useState<string | null>(null);
@@ -156,6 +159,7 @@ export function PartnerConversationDialog({
                   {title.slice(0, 1).toUpperCase()}
                 </div>
               )}
+              <VisibleTempDot expertVisibilityState={partnerExpertVisibilityState} />
             </div>
             <div className="min-w-0">
               <DialogTitle className="text-base text-[#003049]">{title}</DialogTitle>

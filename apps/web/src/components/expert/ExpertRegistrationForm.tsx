@@ -369,8 +369,10 @@ function buildFormStateFromDraftProfile(p: Record<string, unknown>): FormState {
     package_discount_value: String((p as { package_discount_value?: number | null }).package_discount_value ?? ""),
     package_require_purchase: Boolean((p as { package_require_purchase?: boolean }).package_require_purchase),
     weekly_schedule: normalizeWeeklySchedule(p.weekly_schedule),
-    /** Default to free on load; user chooses Verified / Enterprise on the Plan step. */
-    membership_tier: "free",
+    membership_tier: (() => {
+      const t = String(p.membership_tier ?? "free");
+      return t === "verified" || t === "enterprise" || t === "free" ? t : "free";
+    })() as FormState["membership_tier"],
     stripe_connect_account_id: String(
       (p as { stripe_connect_account_id?: string | null }).stripe_connect_account_id ?? "",
     ).trim(),
@@ -2234,11 +2236,12 @@ export function ExpertRegistrationForm({
               const selected = state.membership_tier === t.id;
               function selectTier() {
                 clearFieldInvalid("membership_tier");
-                setState({ ...state, membership_tier: t.id });
                 if (t.id === "verified") {
                   setError(null);
                   setVerifiedConsentOpen(true);
+                  return;
                 }
+                setState({ ...state, membership_tier: t.id });
                 if (t.id === "enterprise") {
                   setEnterpriseForm((f) => ({ ...f, email: state.email, phone: state.phone_number }));
                   setEnterpriseInquiryOpen(true);
@@ -2834,7 +2837,8 @@ export function ExpertRegistrationForm({
         onOpenChange={setVerifiedSubscriptionOpen}
         onSuccess={() => {
           setError(null);
-          void saveDraft(step);
+          setState((s) => ({ ...s, membership_tier: "verified" }));
+          void saveDraft(step, { mergedSnapshot: { ...stateRef.current, membership_tier: "verified" } });
         }}
       />
 

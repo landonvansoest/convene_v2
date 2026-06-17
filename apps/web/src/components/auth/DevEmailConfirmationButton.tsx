@@ -37,17 +37,22 @@ export function DevEmailConfirmationButton({ email, password }: Props) {
       )
       .then((data) => {
         if (cancelled) return;
-        setToolEnabled(Boolean(data?.enabled?.email_verification_bypass ?? true));
+        // Default to OFF while the toggle preference is unknown — previously this
+        // defaulted to ON which made the button briefly render on every signup before
+        // the admin setting loaded, even when the admin had disabled it.
+        setToolEnabled(Boolean(data?.enabled?.email_verification_bypass ?? false));
       })
       .catch(() => {
-        if (!cancelled) setToolEnabled(true);
+        if (!cancelled) setToolEnabled(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (!isDev || toolEnabled === false) return null;
+  // Render only after the toggle resolves — prevents the brief "flash" where the
+  // button appears for ~half a second before the disabled state hydrates.
+  if (!isDev || toolEnabled !== true) return null;
 
   return (
     <div className="space-y-1.5 rounded-lg border border-dashed border-amber-500/60 bg-amber-50/80 px-3 py-3 text-amber-950">

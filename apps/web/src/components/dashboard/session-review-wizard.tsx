@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SessionIssueFeedbackDialog } from "@/components/dashboard/SessionIssueFeedbackDialog";
 import { PARTY_POPPER_RASTER_MASK_STYLE } from "@/lib/convenePartyPopperRaster";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { cn } from "@/lib/utils";
 
 type Party = {
@@ -14,6 +15,7 @@ type Party = {
   display_name: string;
   profile_photo: string | null;
   profession: string | null;
+  expert_visibility_state?: string | null;
 };
 
 function firstName(displayName: string): string {
@@ -260,6 +262,9 @@ export function SessionReviewWizard({
               {full.slice(0, 1).toUpperCase()}
             </div>
           )}
+          {role === "learner" ? (
+            <VisibleTempDot expertVisibilityState={reviewParty.expert_visibility_state} />
+          ) : null}
         </div>
         <div className="min-w-0">
           <h2 className="text-xl font-semibold text-[#003049]">Leave a Review</h2>

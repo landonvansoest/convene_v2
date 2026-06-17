@@ -31,6 +31,7 @@ import {
 import { DashboardViewHeader } from "@/app/dashboard/DashboardViewShell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnlineNowPill } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import type { HydratedExpert } from "@/lib/experts/hydrate";
 import { resolveCategoryIdForSearch, isUuid } from "@/lib/searchCategory";
 import { AdvancedSearchDialog } from "@/components/search/AdvancedSearchDialog";
@@ -523,17 +524,20 @@ function SearchInner() {
                   >
                     <div className="grid gap-4 sm:grid-cols-[120px_1fr] sm:items-center lg:pr-2">
                       <div className="flex flex-col items-center gap-2">
-                        <Avatar className="h-28 w-28">
-                          <AvatarImage src={e.profile_photo ?? undefined} alt={e.name} className="object-cover" />
-                          <AvatarFallback className="bg-muted text-2xl font-semibold text-primary">
-                            {initials || "EX"}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative h-28 w-28">
+                          <Avatar className="h-full w-full">
+                            <AvatarImage src={e.profile_photo ?? undefined} alt={e.name} className="object-cover" />
+                            <AvatarFallback className="bg-muted text-2xl font-semibold text-primary">
+                              {initials || "EX"}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
                         <OnlineNowPill online={e.online} />
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-2xl font-semibold text-convene-primary">{e.name}</h3>
+                          <VisibleTempDot expertVisibilityState={e.expert_visibility_state} variant="inline" />
                           {e.is_verified ? (
                             <span className="rounded-full bg-amber-500 px-2 py-1 text-xs font-semibold text-white">
                               Verified Expert

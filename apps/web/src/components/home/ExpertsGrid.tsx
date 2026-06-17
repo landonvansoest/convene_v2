@@ -12,6 +12,7 @@ export type ExpertsGridExpert = {
   rating?: number | null;
   online?: boolean | null;
   available_now?: boolean | null;
+  expert_visibility_state?: string | null;
 };
 
 export function ExpertsGrid({
@@ -39,6 +40,7 @@ export function ExpertsGrid({
           availableNow={!!e.available_now}
           isVerified={!!e.is_verified}
           online={!!e.online}
+          expertVisibilityState={e.expert_visibility_state}
         />
       ))}
     </div>

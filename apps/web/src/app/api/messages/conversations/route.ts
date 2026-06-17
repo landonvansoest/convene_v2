@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
 import { isUserOnlineFresh } from "@/lib/presence/online";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,8 @@ export async function GET() {
   );
   const users = await getUsersByIds(Array.from(new Set(partnerIds)));
   const byId = new Map(users.map((u) => [u.user_id, u]));
+  const expertPartnerIds = users.filter((u) => u.has_expert_profile).map((u) => u.user_id);
+  const expertVisibilityById = await fetchExpertVisibilityByUserIds(admin, expertPartnerIds);
 
   const convoIds = conversations.map((c) => c.conversation_id);
 
@@ -107,6 +110,11 @@ export async function GET() {
       partner_name: partner ? displayName(partner) : null,
       partner_photo: partner?.profile_photo ?? null,
       partner_online: isUserOnlineFresh(partner?.online, partner?.last_seen_at),
+      partner_expert_visibility_state: partnerExpertVisibilityState(
+        partnerId,
+        partner?.has_expert_profile,
+        expertVisibilityById,
+      ),
       partner_type: partner?.has_expert_profile ? "expert" : "learner",
       last_message: latest?.message ?? null,
       last_message_time: latest?.created_at ?? c.last_message_at ?? c.updated_at,

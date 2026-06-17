@@ -15,6 +15,7 @@ type PendingProfileRow = {
   about_services: string | null;
   skills_specializations: string[] | null;
   expert_visibility_state: string | null;
+  membership_tier: string | null;
   registration_submitted_at: string | null;
   created_at: string | null;
 };
@@ -25,7 +26,7 @@ async function runCheck(request: Request) {
 
   const admin = createAdminClient();
   const selectColumns =
-    "expert_profile_id, user_id, full_name, experience_level, category_id, qualifications, expert_bio, about_services, skills_specializations, expert_visibility_state, registration_submitted_at, created_at";
+    "expert_profile_id, user_id, full_name, experience_level, category_id, qualifications, expert_bio, about_services, skills_specializations, expert_visibility_state, membership_tier, registration_submitted_at, created_at";
 
   // The `waitlisted` enum value is introduced by migration 027. To keep this
   // endpoint working both before and after that migration is applied, we query
@@ -107,6 +108,7 @@ async function runCheck(request: Request) {
       about_services: ep.about_services,
       skills_specializations: ep.skills_specializations ?? [],
       expert_visibility_state: ep.expert_visibility_state ?? null,
+      membership_tier: ep.membership_tier ?? "free",
       registration_submitted_at: ep.registration_submitted_at,
       created_at: ep.created_at,
     };

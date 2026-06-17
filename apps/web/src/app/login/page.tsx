@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { resolvePostSignInPath } from "@/lib/auth/learner-registration";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,8 +17,10 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/dashboard");
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        window.location.assign(await resolvePostSignInPath(null));
+      }
     });
   }, [router, supabase]);
 
@@ -62,7 +65,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/dashboard");
+    window.location.assign(await resolvePostSignInPath(null));
   }
 
   return (

@@ -110,25 +110,27 @@ export function ContactSupportDialog({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Contact Convene Support</DialogTitle>
+          <DialogTitle>
+            {submitted ? "Thank you for contacting Convene Support" : "Contact Convene Support"}
+          </DialogTitle>
         </DialogHeader>
 
         {submitted ? (
           <div className="space-y-3 py-2 text-sm">
-            <div className="flex items-center gap-2 text-emerald-700">
+            <div className="flex items-center gap-2 text-[#F77F00]">
               <CheckCircle2 className="h-5 w-5" />
-              <p className="font-medium">Ticket received.</p>
+              <p className="font-medium">Your message has been received.</p>
             </div>
             <p className="text-muted-foreground">
-              Thanks — we&apos;ll reply by email to{" "}
+              We will respond as soon as possible to{" "}
               <span className="font-medium text-foreground">
                 {signedIn ? signedInEmail : guestEmail.trim()}
               </span>
-              . You can also follow the conversation in Convene.
+              . You can also follow the conversation through the inbox on your dashboard.
             </p>
             <div className="flex gap-2 pt-1">
               <Button asChild className="bg-convene-primary text-white hover:bg-convene-primary/90">
-                <Link href={`/help/${submitted.ticket_id}`}>Open your ticket</Link>
+                <Link href="/dashboard?view=inbox">Go to dashboard</Link>
               </Button>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Close

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Camera,
@@ -34,6 +34,9 @@ import {
   maskUsDateDigitsFromInput,
   parseUsDateToIso,
 } from "@/lib/profile/registration-profile";
+import { isLearnerRegistrationComplete, LEARNER_REGISTRATION_WIZARD_PATH } from "@/lib/auth/learner-registration";
+import { verifyFailedDescription, stripVerifyFailedSearchParams } from "@/lib/auth/verify-failed-message";
+import { SignInDialog } from "@/components/auth/SignInDialog";
 
 const languages = ["English", "Spanish", "French", "German", "Mandarin", "Arabic", "Hindi", "Portuguese", "Japanese"];
 /** Select value for optional language (sent as `null` in API patch). */
@@ -121,6 +124,7 @@ type ProfilePatch = {
   gender?: string | null;
   profile_photo?: string | null;
   convene_role_mode?: "learner" | "expert";
+  complete_learner_registration?: true;
 };
 
 function initials(firstName: string, lastName: string, email: string) {
@@ -160,6 +164,10 @@ export function SignUpPageClient() {
   const [draftSaveStatus, setDraftSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [wizardOpen, setWizardOpen] = useState(true);
   const [wizardStep, setWizardStep] = useState(1); // 1 intro, 2..6 flow (success overlay on /dashboard)
+  /** True when the page needs a session before the wizard can load (e.g. after email-link PKCE mismatch). */
+  const [awaitingSignIn, setAwaitingSignIn] = useState(false);
+  const [signInPromptDescription, setSignInPromptDescription] = useState<string | null>(null);
+  const [signInDialogOpen, setSignInDialogOpen] = useState(false);
 
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -187,21 +195,20 @@ export function SignUpPageClient() {
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const bootstrapRegistration = useCallback(async () => {
+    setLoading(true);
+    setRegistrationSessionReady(false);
+    setError(null);
 
     async function resolveAuthedUser() {
-      // Prefer getUser(); after dev bypass redirect, getSession() can briefly be null until
-      // @supabase/ssr finishes syncing cookie storage (race with full-page navigation).
       const u = await supabase.auth.getUser();
-      if (!cancelled && u.data.user) return u.data.user;
+      if (u.data.user) return u.data.user;
 
       const s = await supabase.auth.getSession();
-      if (!cancelled && s.data.session?.user) return s.data.session.user;
+      if (s.data.session?.user) return s.data.session.user;
 
-      for (let i = 0; i < 6; i++) {
-        await new Promise((r) => setTimeout(r, 75));
-        if (cancelled) return null;
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 100));
         const retry = await supabase.auth.getUser();
         if (retry.data.user) return retry.data.user;
         const s2 = await supabase.auth.getSession();
@@ -210,59 +217,84 @@ export function SignUpPageClient() {
       return null;
     }
 
-    void (async () => {
-      setLoading(true);
-      setRegistrationSessionReady(false);
-      const user = await resolveAuthedUser();
+    const user = await resolveAuthedUser();
 
-      if (!user) {
-        setWizardOpen(false);
-        setError("Please sign in first, then complete registration.");
-        setLoading(false);
-        return;
-      }
-
-      const me = await fetch("/api/me", { cache: "no-store" });
-      const body = await me.json().catch(() => null);
-      if (cancelled) return;
-      const profile = body?.profile as Record<string, unknown> | null;
-      const meUser = body?.user as { email?: string } | null;
-
-      setEmail(String(meUser?.email ?? user.email ?? ""));
-      setFirstName(String(profile?.first_name ?? user.user_metadata?.first_name ?? ""));
-      setLastName(String(profile?.last_name ?? user.user_metadata?.last_name ?? ""));
-      setPhoneNumber(String(profile?.phone_number ?? ""));
-      setHometown(String(profile?.hometown ?? ""));
-      setTimeZone(String(profile?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC"));
-      const persistedLang = profile?.language;
-      setLanguage(
-        persistedLang && String(persistedLang).trim() ? String(persistedLang) : "English",
-      );
-      const hzLoaded = String(profile?.hometown ?? "").trim();
-      const tzLoaded = String(profile?.time_zone ?? "").trim();
-      persistedBookingPairRef.current =
-        hzLoaded && tzLoaded && isValidIanaTimeZone(tzLoaded)
-          ? { hometown: hzLoaded, time_zone: tzLoaded }
-          : null;
-      setBookingTzStepOk(
-        !mapsConfigured || (Boolean(hzLoaded) && Boolean(tzLoaded) && isValidIanaTimeZone(tzLoaded)),
-      );
-      setProfession(String(profile?.profession ?? ""));
-      setIntroduction(String(profile?.introduction ?? ""));
-      setBirthday(String(profile?.birthday ?? ""));
-      setGender(String(profile?.gender ?? ""));
-      const photoUrl = profile?.profile_photo ? String(profile.profile_photo) : null;
-      setProfilePhotoRemote(photoUrl);
-      setProfilePhotoPreview(photoUrl);
-
-      setRegistrationSessionReady(true);
+    if (!user) {
+      setAwaitingSignIn(true);
+      setSignInDialogOpen(true);
+      setWizardOpen(false);
       setLoading(false);
-    })();
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
+    setAwaitingSignIn(false);
+    setSignInDialogOpen(false);
+
+    const me = await fetch("/api/me", { cache: "no-store" });
+    const body = await me.json().catch(() => null);
+    const profile = body?.profile as Record<string, unknown> | null;
+    const meUser = body?.user as { email?: string } | null;
+
+    if (isLearnerRegistrationComplete(profile)) {
+      router.replace("/dashboard");
+      return;
+    }
+
+    setEmail(String(meUser?.email ?? user.email ?? ""));
+    setFirstName(String(profile?.first_name ?? user.user_metadata?.first_name ?? ""));
+    setLastName(String(profile?.last_name ?? user.user_metadata?.last_name ?? ""));
+    setPhoneNumber(String(profile?.phone_number ?? ""));
+    setHometown(String(profile?.hometown ?? ""));
+    setTimeZone(String(profile?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC"));
+    const persistedLang = profile?.language;
+    setLanguage(
+      persistedLang && String(persistedLang).trim() ? String(persistedLang) : "English",
+    );
+    const hzLoaded = String(profile?.hometown ?? "").trim();
+    const tzLoaded = String(profile?.time_zone ?? "").trim();
+    persistedBookingPairRef.current =
+      hzLoaded && tzLoaded && isValidIanaTimeZone(tzLoaded)
+        ? { hometown: hzLoaded, time_zone: tzLoaded }
+        : null;
+    setBookingTzStepOk(
+      !mapsConfigured || (Boolean(hzLoaded) && Boolean(tzLoaded) && isValidIanaTimeZone(tzLoaded)),
+    );
+    setProfession(String(profile?.profession ?? ""));
+    setIntroduction(String(profile?.introduction ?? ""));
+    setBirthday(String(profile?.birthday ?? ""));
+    setGender(String(profile?.gender ?? ""));
+    const photoUrl = profile?.profile_photo ? String(profile.profile_photo) : null;
+    setProfilePhotoRemote(photoUrl);
+    setProfilePhotoPreview(photoUrl);
+
+    setWizardOpen(true);
+    setRegistrationSessionReady(true);
+    setLoading(false);
+  }, [mapsConfigured, router, supabase]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("auth") === "verify_failed") {
+        setSignInPromptDescription(verifyFailedDescription(params.get("reason")));
+        setAwaitingSignIn(true);
+        setSignInDialogOpen(true);
+        const cleaned = new URL(window.location.href);
+        stripVerifyFailedSearchParams(cleaned);
+        window.history.replaceState({}, "", cleaned.toString());
+      }
+    }
+
+    void bootstrapRegistration();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
+        void bootstrapRegistration();
+      }
+    });
+
+    return () => sub.subscription.unsubscribe();
+  }, [bootstrapRegistration, supabase]);
 
   /** Defer autosave until after hydration paint so we don’t fight initial state sync. */
   useEffect(() => {
@@ -645,6 +677,7 @@ export function SignUpPageClient() {
       await patchProfile({
         ...buildDraftRegistrationPatch(),
         convene_role_mode: "learner",
+        complete_learner_registration: true,
       });
       persistedBookingPairRef.current = {
         hometown: hometown.trim(),
@@ -781,6 +814,31 @@ export function SignUpPageClient() {
       <div className="min-h-screen bg-[#F8FAFC] px-6 py-14">
         <div className="mx-auto max-w-2xl text-sm text-[#003049]/70">Loading registration…</div>
       </div>
+    );
+  }
+
+  if (awaitingSignIn && !registrationSessionReady) {
+    return (
+      <>
+        <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-6 py-14">
+          <div className="mx-auto w-full max-w-md text-center">
+            <h1 className="text-2xl font-extrabold text-[#F77F00]">Complete your registration</h1>
+            <p className="mt-3 text-sm leading-relaxed text-[#003049]/80">
+              {signInPromptDescription ??
+                "Sign in with the email and password you used when creating your account to continue the setup wizard."}
+            </p>
+          </div>
+        </div>
+        <SignInDialog
+          open={signInDialogOpen}
+          onOpenChange={(open) => {
+            setSignInDialogOpen(open);
+            if (!open && !registrationSessionReady) setAwaitingSignIn(true);
+          }}
+          description={signInPromptDescription}
+          postSignInRedirect={LEARNER_REGISTRATION_WIZARD_PATH}
+        />
+      </>
     );
   }
 

@@ -8,6 +8,7 @@ import type { ExpertAvailabilityForPreview } from "@/lib/expertBookingPreview";
 import { buildBookingSlotRowFromAnchor } from "@/lib/expertBookingPreview";
 import { computeSessionCheckoutPricing, roundUsd2 } from "@/lib/sessionCheckoutPricing";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,6 +104,7 @@ type Props = {
   expertName: string;
   expertTitle: string;
   expertPhoto: string | null;
+  expertVisibilityState?: string | null;
   ratePer15Min: number;
   autoAccept: boolean;
   minBookingMinutes: number;
@@ -125,6 +127,7 @@ export function SessionBookingDialog({
   expertName,
   expertTitle,
   expertPhoto,
+  expertVisibilityState = null,
   ratePer15Min,
   autoAccept,
   minBookingMinutes,
@@ -600,14 +603,17 @@ export function SessionBookingDialog({
               </DialogHeader>
 
               <div className="flex items-start gap-3 border-b border-border pb-4">
-                <Avatar className="h-16 w-16 shrink-0 border border-border">
-                  {expertPhoto ? (
-                    <AvatarImage src={expertPhoto} alt="" className="object-cover" />
-                  ) : null}
-                  <AvatarFallback className="bg-muted text-lg font-semibold text-convene-primary">
-                    {initials || "EX"}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative h-16 w-16 shrink-0">
+                  <Avatar className="h-full w-full border border-border">
+                    {expertPhoto ? (
+                      <AvatarImage src={expertPhoto} alt="" className="object-cover" />
+                    ) : null}
+                    <AvatarFallback className="bg-muted text-lg font-semibold text-convene-primary">
+                      {initials || "EX"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <VisibleTempDot expertVisibilityState={expertVisibilityState} />
+                </div>
                 <div className="min-w-0 pt-0.5">
                   <p className="text-lg font-semibold text-foreground">{expertName}</p>
                   <p className="text-sm text-muted-foreground">{expertTitle}</p>

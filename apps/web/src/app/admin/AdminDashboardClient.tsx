@@ -124,6 +124,7 @@ type Pending = {
   about_services: string | null;
   skills_specializations: string[];
   expert_visibility_state: string | null;
+  membership_tier: "free" | "verified" | "enterprise";
   registration_submitted_at: string | null;
 };
 
@@ -1306,6 +1307,7 @@ export function AdminDashboardClient({ adminEmail }: Props) {
                     <th className="px-3 py-2 font-medium">Email</th>
                     <th className="px-3 py-2 font-medium">Category</th>
                     <th className="px-3 py-2 font-medium">Experience</th>
+                    <th className="px-3 py-2 font-medium">Plan</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium">Actions</th>
                   </tr>
@@ -1313,7 +1315,7 @@ export function AdminDashboardClient({ adminEmail }: Props) {
                 <tbody>
                   {pending.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
                         {loading ? "Loading…" : "No expert registrations awaiting review. Click Load pending to refresh."}
                       </td>
                     </tr>
@@ -1357,6 +1359,7 @@ export function AdminDashboardClient({ adminEmail }: Props) {
                             <td className="px-3 py-3 text-xs">{p.email ?? "—"}</td>
                             <td className="px-3 py-3 text-xs">{p.category ?? "—"}</td>
                             <td className="px-3 py-3 text-xs">{p.experience_level ?? "—"}</td>
+                            <td className="px-3 py-3 text-xs capitalize">{p.membership_tier ?? "free"}</td>
                             <td className="px-3 py-3 text-xs">
                               <span
                                 className={

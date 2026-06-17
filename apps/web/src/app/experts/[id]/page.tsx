@@ -16,6 +16,7 @@ import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { formatRatePer15Min } from "@/lib/rates";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnlineNowPill } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -459,6 +460,7 @@ export default function ExpertProfilePage() {
         expertName={name}
         expertTitle={title}
         expertPhoto={photo}
+        expertVisibilityState={visibility}
         ratePer15Min={rate}
         autoAccept={autoBook}
         minBookingMinutes={minBookingMinutesNum}
@@ -529,10 +531,12 @@ export default function ExpertProfilePage() {
               <CardContent className="p-6 md:p-8">
                 <div className="grid gap-6 lg:grid-cols-[180px_1fr_320px] lg:items-center">
                   <div className="flex flex-col items-center justify-center">
-                    <Avatar className="h-36 w-36 border-4 border-border shadow-lg">
-                      <AvatarImage src={photo ?? undefined} alt={name} className="object-cover" />
-                      <AvatarFallback className="bg-convene-hero text-3xl text-white">{initials}</AvatarFallback>
-                    </Avatar>
+                    <div className="relative h-36 w-36">
+                      <Avatar className="h-full w-full border-4 border-border shadow-lg">
+                        <AvatarImage src={photo ?? undefined} alt={name} className="object-cover" />
+                        <AvatarFallback className="bg-convene-hero text-3xl text-white">{initials}</AvatarFallback>
+                      </Avatar>
+                    </div>
                     <div className="mt-3 flex w-full max-w-[180px] flex-col items-center space-y-2">
                       <OnlineNowPill online={online} />
                       {availableNow ? <Badge className="bg-convene-hero text-white">Available now</Badge> : null}
@@ -545,6 +549,7 @@ export default function ExpertProfilePage() {
                         <h1 className="break-words text-3xl font-bold leading-tight text-convene-primary md:text-4xl">
                           {name}
                         </h1>
+                        <VisibleTempDot expertVisibilityState={visibility} variant="inline" className="h-2.5 w-2.5" />
                         {verified ? (
                           <Badge className="shrink-0 gap-1 bg-convene-hero text-white hover:bg-convene-hero">
                             <BadgeCheck className="h-3.5 w-3.5" />

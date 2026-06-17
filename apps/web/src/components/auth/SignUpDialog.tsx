@@ -205,6 +205,19 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
           last_name: lastName.trim(),
         }),
       }).catch(() => null);
+      // Dev safety net: the visible dialog tells the user "check your email" but a
+      // truthy `data.session` means Supabase signed them in instantly without sending
+      // any verification email. That only happens when "Confirm email" is OFF in
+      // Authentication → Sign In / Up → Email. Surface this loudly in dev so it
+      // can't masquerade as a working confirmation flow.
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          "[SignUpDialog] Supabase returned an active session immediately after signUp(). " +
+            "This means 'Confirm email' is currently OFF in your Supabase project — no verification " +
+            "email was sent and the user is already signed in. Toggle it ON at " +
+            "Supabase Dashboard → Authentication → Sign In / Up → Email → Confirm email.",
+        );
+      }
     }
     // Always show the post-signup success dialog so the verification notice
     // and DEV bypass button remain visible regardless of whether Supabase
@@ -242,11 +255,12 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
           busy,
           postSignupSuccess,
         });
-        if (!next && (busy || postSignupSuccess || signupError)) {
-          // Guard: a stray outside-click / focus-loss / re-render must not close the
-          // dialog while we're in the middle of calling signUp, while the success
-          // view is mounted, or while an error panel with the "alert the admin" link
-          // is shown. The user can still close via the explicit ✕ button.
+        // Only guard against close while we're mid-request. Once we're showing the
+        // success or error panel the user must be able to dismiss the dialog —
+        // previously this guard also blocked the explicit ✕ button, leaving users
+        // unable to close the "account created" view (especially now that the DEV
+        // bypass button is hidden by default and there's nothing else to click).
+        if (!next && busy) {
           return;
         }
         onOpenChange(next);
@@ -256,10 +270,14 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
       <DialogContent
         className="max-h-[90vh] gap-0 overflow-y-auto border border-border/80 p-0 sm:max-w-[420px] sm:rounded-xl"
         onPointerDownOutside={(e) => {
+          // Stray outside clicks still shouldn't dismiss while submitting, while
+          // the success notice is mounted (so users actually read "check your
+          // email"), or while the error panel is up. The ✕ button + the explicit
+          // close action on the success panel are still allowed via onOpenChange.
           if (busy || postSignupSuccess || signupError) e.preventDefault();
         }}
         onEscapeKeyDown={(e) => {
-          if (busy || postSignupSuccess || signupError) e.preventDefault();
+          if (busy) e.preventDefault();
         }}
         onInteractOutside={(e) => {
           if (busy || postSignupSuccess || signupError) e.preventDefault();
@@ -313,6 +331,16 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
               </p>
             </div>
             <DevEmailConfirmationButton email={email} password={password} />
+            <Button
+              type="button"
+              className="h-11 w-full rounded-lg bg-convene-primary text-base font-semibold text-white hover:bg-convene-primary/90"
+              onClick={() => {
+                onOpenChange(false);
+                reset();
+              }}
+            >
+              Got it
+            </Button>
           </div>
         ) : signupError ? (
           <div className="space-y-5 px-6 pb-8 pt-2 text-left">

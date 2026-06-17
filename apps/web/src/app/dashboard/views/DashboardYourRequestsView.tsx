@@ -11,6 +11,7 @@ import {
 } from "@/app/dashboard/DashboardViewShell";
 import { PostRequestDialog } from "@/components/requests/PostRequestDialog";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ type ExpertSnippet = {
   last_name: string | null;
   profile_photo: string | null;
   online?: boolean | null;
+  expert_visibility_state?: string | null;
 };
 
 type ResponseRow = {
@@ -51,6 +53,7 @@ type RecExpert = {
   profile_photo: string | null;
   rating: number | null;
   professional_title: string;
+  expert_visibility_state?: string | null;
 };
 
 function formatPostedAt(iso: string) {
@@ -342,6 +345,9 @@ export function DashboardYourRequestsView() {
                                               </AvatarFallback>
                                             </Avatar>
                                             <OnlineDot online={!!resp.expert?.online} />
+                                            <VisibleTempDot
+                                              expertVisibilityState={resp.expert?.expert_visibility_state}
+                                            />
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <Link
@@ -379,14 +385,17 @@ export function DashboardYourRequestsView() {
                                         href={`/experts/${encodeURIComponent(ex.id)}`}
                                         className="flex items-center gap-3 rounded-lg border border-[#003049]/10 bg-[#F8FAFC] p-3 transition-colors hover:border-[#F77F00]/40"
                                       >
-                                        <Avatar className="h-10 w-10 shrink-0">
-                                          {ex.profile_photo ? (
-                                            <AvatarImage src={ex.profile_photo} alt="" />
-                                          ) : null}
-                                          <AvatarFallback className="bg-[#003049]/10 text-xs font-semibold text-[#003049]">
-                                            {initials(ex.name)}
-                                          </AvatarFallback>
-                                        </Avatar>
+                                        <div className="relative h-10 w-10 shrink-0">
+                                          <Avatar className="h-full w-full">
+                                            {ex.profile_photo ? (
+                                              <AvatarImage src={ex.profile_photo} alt="" />
+                                            ) : null}
+                                            <AvatarFallback className="bg-[#003049]/10 text-xs font-semibold text-[#003049]">
+                                              {initials(ex.name)}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                          <VisibleTempDot expertVisibilityState={ex.expert_visibility_state} />
+                                        </div>
                                         <div className="min-w-0 flex-1">
                                           <p className="truncate text-sm font-semibold text-[#003049]">{ex.name}</p>
                                           {ex.professional_title ? (

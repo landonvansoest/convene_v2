@@ -138,16 +138,32 @@ export async function GET(_request: Request, { params }: Params) {
     last_seen_at: string | null;
   };
   let expertById = new Map<string, ExpertSnippetRow>();
+  let expertVisibilityById = new Map<string, string | null>();
   if (expertIds.length > 0) {
-    const { data: users, error: uErr } = await admin
-      .from("users")
-      .select("user_id, first_name, last_name, profile_photo, online, last_seen_at")
-      .in("user_id", expertIds);
+    const [{ data: users, error: uErr }, { data: profiles, error: pErr }] = await Promise.all([
+      admin
+        .from("users")
+        .select("user_id, first_name, last_name, profile_photo, online, last_seen_at")
+        .in("user_id", expertIds),
+      admin
+        .from("expert_profiles")
+        .select("user_id, expert_visibility_state")
+        .in("user_id", expertIds),
+    ]);
     if (uErr) {
       return Response.json({ error: publicApiError(uErr) }, { status: 500 });
     }
+    if (pErr) {
+      return Response.json({ error: publicApiError(pErr) }, { status: 500 });
+    }
     expertById = new Map(
       (users ?? []).map((u) => [u.user_id, u as ExpertSnippetRow]),
+    );
+    expertVisibilityById = new Map(
+      (profiles ?? []).map((p) => [
+        p.user_id,
+        (p.expert_visibility_state as string | null) ?? null,
+      ]),
     );
   }
 
@@ -162,6 +178,7 @@ export async function GET(_request: Request, { params }: Params) {
             last_name: u.last_name,
             profile_photo: u.profile_photo,
             online: isUserOnlineFresh(u.online, u.last_seen_at),
+            expert_visibility_state: expertVisibilityById.get(u.user_id) ?? null,
           }
         : null,
     };

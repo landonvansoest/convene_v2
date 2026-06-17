@@ -22,6 +22,8 @@ const profilePatchSchema = z
     gender: z.string().max(80).nullable().optional(),
     profile_photo: z.string().max(2000).nullable().optional(),
     convene_role_mode: z.enum(["learner", "expert"]).optional(),
+    /** Set only on wizard step 6 — stamps learner_registration_completed_at server-side. */
+    complete_learner_registration: z.literal(true).optional(),
   })
   .strict();
 
@@ -138,6 +140,9 @@ export async function PATCH(request: Request) {
   if (patch.gender !== undefined) updatePayload.gender = patch.gender;
   if (patch.profile_photo !== undefined) updatePayload.profile_photo = patch.profile_photo;
   if (patch.convene_role_mode !== undefined) updatePayload.convene_role_mode = patch.convene_role_mode;
+  if (patch.complete_learner_registration === true) {
+    updatePayload.learner_registration_completed_at = new Date().toISOString();
+  }
 
   const { error: updErr } = await admin
     .from("users")

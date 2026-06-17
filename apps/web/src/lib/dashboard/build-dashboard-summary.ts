@@ -12,6 +12,7 @@ import {
 } from "@/lib/bookingMetrics";
 import { publicApiError } from "@/lib/api/public-error";
 import { displayName, getUsersByIds } from "@/lib/messages/service";
+import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
 import { isUserOnlineFresh } from "@/lib/presence/online";
 import type { DashboardSummaryJson } from "@/app/dashboard/DashboardOverview";
 
@@ -71,7 +72,9 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
     admin.from("users").select("*").eq("user_id", userId).maybeSingle(),
     admin
       .from("expert_profiles")
-      .select("expert_profile_id, category_id, complete_sessions, expert_dependability_rating")
+      .select(
+        "expert_profile_id, category_id, complete_sessions, expert_dependability_rating, expert_visibility_state",
+      )
       .eq("user_id", userId)
       .maybeSingle(),
     admin
@@ -224,6 +227,8 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
 
   const partnerUsers = uniqPartnerIds.length > 0 ? await getUsersByIds(uniqPartnerIds) : [];
   const partnerById = new Map(partnerUsers.map((u) => [u.user_id, u]));
+  const expertPartnerIds = partnerUsers.filter((u) => u.has_expert_profile).map((u) => u.user_id);
+  const expertVisibilityById = await fetchExpertVisibilityByUserIds(admin, expertPartnerIds);
 
   const todayPaidSessionRows = todayPaidSessions.map((row) => {
     const partnerId = row.learnerUserId === userId ? row.expertUserId : row.learnerUserId;
@@ -232,6 +237,11 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
       bookingId: row.bookingId,
       partnerName: p ? displayName(p) : "Session partner",
       partnerPhoto: p?.profile_photo ?? null,
+      partnerExpertVisibilityState: partnerExpertVisibilityState(
+        partnerId,
+        p?.has_expert_profile,
+        expertVisibilityById,
+      ),
       startTimeLabel: formatSessionTimeLabel(row.sessionDate, row.startTime),
       rangeLabel: `${formatSessionTimeLabel(row.sessionDate, row.startTime)} – ${formatSessionTimeLabel(row.sessionDate, row.endTime)}`,
     };
@@ -415,6 +425,8 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
             expertBookingMetrics.avgExpertDependability ??
             null,
           categoryId: expertProfile.category_id ?? null,
+          expertVisibilityState:
+            (expertProfile.expert_visibility_state as string | null) ?? null,
         }
       : null,
     ratings: {

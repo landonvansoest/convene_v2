@@ -5,6 +5,7 @@ import { CircleCheck, Star, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { cn } from "@/lib/utils";
 import type { DashboardSummaryJson } from "./DashboardOverview";
 
@@ -178,7 +179,7 @@ export function DashboardSidebar({
               </AvatarFallback>
             </Avatar>
             <OnlineDot online={profile.online} />
-
+            <VisibleTempDot expertVisibilityState={expert?.expertVisibilityState} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate font-bold text-[#003049]">{displayName}</p>

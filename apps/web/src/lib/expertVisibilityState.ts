@@ -24,6 +24,19 @@ export function isExpertEligibleForCommerce(state: string | null | undefined): b
   return state === EXPERT_VISIBILITY_STATE.VISIBLE_ACTIVE;
 }
 
+/** Imported / provisional experts shown with a profile-photo indicator. */
+export function isExpertVisibleTemp(state: string | null | undefined): boolean {
+  return state === EXPERT_VISIBILITY_STATE.VISIBLE_TEMP;
+}
+
+/** Lower rank = earlier in featured/homepage grids (`visible_active` first). */
+export function expertVisibilityFeaturedSortRank(state: string | null | undefined): number {
+  if (state === EXPERT_VISIBILITY_STATE.VISIBLE_ACTIVE) return 0;
+  if (state === EXPERT_VISIBILITY_STATE.VISIBLE_TEMP) return 1;
+  if (state === EXPERT_VISIBILITY_STATE.PENDING_ADMIN_REVIEW) return 2;
+  return 3;
+}
+
 /** Experts included in homepage grid / GET /api/experts (before rating/session filters). */
 export function expertVisibilityStatesForBrowseGrid(s: {
   include_temp: boolean;

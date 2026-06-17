@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MediaTroubleshootCollapsible } from "@/components/dashboard/MediaTroubleshootCollapsible";
+import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { SessionReviewDialog } from "@/components/dashboard/SessionReviewDialog";
 import { SessionExtensionPaymentPanel } from "@/components/session/SessionExtensionPaymentDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,6 +48,7 @@ type Party = {
   display_name: string;
   profile_photo: string | null;
   profession: string | null;
+  expert_visibility_state?: string | null;
 };
 
 type BookingPayload = {
@@ -619,6 +621,7 @@ export function SessionRoomClient({ bookingId }: Props) {
                           {waitingRoomParties.expert.display_name.slice(0, 1).toUpperCase()}
                         </div>
                       )}
+                      <VisibleTempDot expertVisibilityState={waitingRoomParties.expert.expert_visibility_state} />
                     </div>
                     <div className="min-w-0 text-left">
                       <p className="text-[10px] font-bold uppercase tracking-wide text-[#003049]/55">Expert</p>

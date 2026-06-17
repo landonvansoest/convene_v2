@@ -1,4 +1,9 @@
+import { redirect } from "next/navigation";
 import { loadDashboardBootstrap } from "@/lib/dashboard/load-dashboard-bootstrap";
+import {
+  isLearnerRegistrationComplete,
+  LEARNER_REGISTRATION_WIZARD_PATH,
+} from "@/lib/auth/learner-registration";
 import DashboardClient from "./DashboardClient";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +20,13 @@ export default async function DashboardPage({
   const showExpertRegistrationSuccess = sp.expertRegistrationComplete === "1";
 
   const bootstrap = await loadDashboardBootstrap();
+
+  if (
+    bootstrap.kind === "authed" &&
+    !isLearnerRegistrationComplete(bootstrap.profile)
+  ) {
+    redirect(LEARNER_REGISTRATION_WIZARD_PATH);
+  }
 
   return (
     <DashboardClient
