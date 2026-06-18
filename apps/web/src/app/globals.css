@@ -24,7 +24,7 @@
   --convene-taupe: #bba89b;
   --convene-grey: #dfe0df;
   --convene-star: #fcbf49;
-  --convene-online: #4e9553;
+  --convene-online: var(--convene-hero);
 }
 
 /* v1 “Warm Autumn Glow” / shadcn HSL tokens (cloned from no-code-clone-studio/src/index.css) */

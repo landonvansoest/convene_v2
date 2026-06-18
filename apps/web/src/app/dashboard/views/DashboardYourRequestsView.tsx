@@ -36,6 +36,7 @@ type ExpertSnippet = {
   last_name: string | null;
   profile_photo: string | null;
   online?: boolean | null;
+  available_now?: boolean | null;
   expert_visibility_state?: string | null;
 };
 
@@ -67,7 +68,7 @@ function formatPostedAt(iso: string) {
   }
 }
 
-function expertName(expert: ExpertSnippet | null, fallbackId: string) {
+function expertName(expert: ExpertSnippet | null) {
   if (!expert) return "Expert";
   const n = `${expert.first_name ?? ""} ${expert.last_name ?? ""}`.trim();
   return n || "Expert";
@@ -328,7 +329,7 @@ export function DashboardYourRequestsView() {
                               ) : (
                                 <ul className="mt-3 space-y-4">
                                   {responses.map((resp) => {
-                                    const name = expertName(resp.expert, resp.expert_user_id);
+                                    const name = expertName(resp.expert);
                                     return (
                                       <li
                                         key={resp.response_id}
@@ -344,7 +345,10 @@ export function DashboardYourRequestsView() {
                                                 {initials(name)}
                                               </AvatarFallback>
                                             </Avatar>
-                                            <OnlineDot online={!!resp.expert?.online} />
+                                            <OnlineDot
+                                              online={resp.expert?.online}
+                                              availableNow={resp.expert?.available_now}
+                                            />
                                             <VisibleTempDot
                                               expertVisibilityState={resp.expert?.expert_visibility_state}
                                             />

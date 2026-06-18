@@ -11,8 +11,8 @@ type RegistrationSuccessOverlayProps = {
   /** Called when the user dismisses the overlay (X, Skip, or primary CTA after navigation intent). */
   onDismiss: () => void;
   /**
-   * Skip / close without taking the tour: mark the dashboard tour as “done” so auto-start does not run.
-   * Invoked before `onDismiss` when the user taps Skip.
+   * Skip / close without taking the tour.
+   * Invoked before `onDismiss` when the user taps Skip or the close button.
    */
   onSkipWithoutTour?: () => void;
   /** Starts the dashboard tour; invoked before `onDismiss` when user taps “Take a Quick Tour”. */

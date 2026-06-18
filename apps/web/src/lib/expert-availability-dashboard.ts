@@ -1,4 +1,4 @@
-import { intervalStringToMinutes, parseIntervalFromMinutes } from "@/lib/expert-registration";
+import { intervalStringToMinutes } from "@/lib/expert-registration";
 import {
   normalizeWeeklySchedule,
   type WeeklyScheduleState,

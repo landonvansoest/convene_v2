@@ -252,7 +252,7 @@ export function ProfileDashboardSettings({ dashboardMode = "learner" }: { dashbo
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [mapsConfigured]);
 
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;

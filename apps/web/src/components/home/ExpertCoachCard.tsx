@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Star, Zap } from "lucide-react";
+import { Star } from "lucide-react";
 import { OnlineDot } from "@/components/presence/OnlineDot";
+import { VerifiedExpertPhotoBadge } from "@/components/expert/VerifiedExpertBadge";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 export type ExpertCoachCardProps = {
@@ -54,28 +55,14 @@ export function ExpertCoachCard({
             {initials}
           </div>
         )}
-        {availableNow ? (
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1 bg-[var(--convene-teal)] px-2 py-1 text-center text-xs font-medium text-white">
-            <Zap className="h-3 w-3 fill-white" />
-            Available Now
-          </div>
-        ) : null}
-        <OnlineDot online={online} />
+        {isVerified ? <VerifiedExpertPhotoBadge /> : null}
+        <OnlineDot online={online} availableNow={availableNow} />
       </div>
       <div className="space-y-1 p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <h3 className="truncate text-base font-bold transition-colors group-hover:text-primary">{name}</h3>
             <VisibleTempDot expertVisibilityState={expertVisibilityState} variant="inline" />
-            {isVerified ? (
-              <Image
-                src="/verification-badge.png"
-                alt="Verified"
-                width={16}
-                height={16}
-                className="h-4 w-4 shrink-0"
-              />
-            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <Star

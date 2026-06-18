@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { DependabilityBreakdownResult } from "@/lib/dependability-breakdown";
+import { formatDependabilityRating } from "@/lib/formatDependabilityRating";
 
 type Grid = {
   expertName: string;
@@ -118,7 +119,9 @@ export function SessionDependabilityDetailsDialog({ open, onOpenChange, bookingI
               label="Dependability Rating*"
               value={
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold leading-none tabular-nums text-[#003049]">{b.viewerSessionScore}</p>
+                  <p className="text-sm font-semibold leading-none tabular-nums text-[#003049]">
+                    {formatDependabilityRating(b.viewerSessionScore)}
+                  </p>
                   {b.lineItems.length > 0 ? (
                     <ul className="list-none space-y-0 pl-0 text-[#003049]/90">
                       {b.lineItems.map((item) => (

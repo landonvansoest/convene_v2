@@ -254,7 +254,8 @@ export async function PATCH(request: Request) {
     expertUpdate.payout_details !== undefined &&
     (expertErrMsg.includes("payout_details") || expertErrMsg.includes("schema cache"))
   ) {
-    const { payout_details: _omit, ...expertSansPayout } = expertUpdate;
+    const expertSansPayout = { ...expertUpdate };
+    delete expertSansPayout.payout_details;
     const retry = await admin
       .from("expert_profiles")
       .upsert({ user_id: userId, ...expertSansPayout }, { onConflict: "user_id" });

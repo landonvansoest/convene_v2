@@ -86,7 +86,7 @@ async function loadMeProfileForAuthUser(
     console.error("[welcome-inbox]", err);
   }
 
-  let enrichedProfile: Record<string, unknown> | null = profile ? { ...profile } : null;
+  const enrichedProfile: Record<string, unknown> | null = profile ? { ...profile } : null;
   if (enrichedProfile?.has_expert_profile) {
     const { data: expertProfile } = await admin
       .from("expert_profiles")

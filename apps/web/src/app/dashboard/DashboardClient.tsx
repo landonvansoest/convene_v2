@@ -283,29 +283,6 @@ export default function DashboardClient({
     }
   }, [expertTourActive, expertTourStep, pathname, router, roleMode, view]);
 
-  useEffect(() => {
-    if (tourActive) return;
-    if (showRegistrationSuccess) return;
-    if (showExpertRegistrationSuccess) return;
-    if (bootstrap.kind !== "authed" || !meUserId) return;
-    if (roleMode !== "learner") return;
-    try {
-      const key = learnerTourStorageKeyForUser(meUserId);
-      const seen = localStorage.getItem(key) === "1";
-      if (!seen) startTour(meUserId);
-    } catch {
-      startTour(meUserId);
-    }
-  }, [
-    tourActive,
-    showRegistrationSuccess,
-    showExpertRegistrationSuccess,
-    bootstrap.kind,
-    meUserId,
-    roleMode,
-    startTour,
-  ]);
-
   const sidebar = useMemo((): SidebarEntry[] => {
     const baseCommon: SidebarEntry[] = [
       { kind: "view", key: "overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4 shrink-0" /> },

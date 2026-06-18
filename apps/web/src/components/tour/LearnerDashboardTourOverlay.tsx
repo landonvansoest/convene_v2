@@ -9,6 +9,7 @@ import {
   LEARNER_TOUR_TARGETS,
   useLearnerDashboardTour,
 } from "@/components/tour/learner-dashboard-tour-context";
+import { TourSkipLink } from "@/components/tour/TourSkipLink";
 
 const PADDING = 8;
 const POPUP_OFFSET = 20;
@@ -170,6 +171,8 @@ export function LearnerDashboardTourOverlay() {
           </Button>
         </div>
       </div>
+
+      <TourSkipLink onSkip={dismissTour} />
     </div>,
     document.body
   );

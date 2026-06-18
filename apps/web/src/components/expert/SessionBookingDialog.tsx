@@ -129,7 +129,6 @@ export function SessionBookingDialog({
   expertPhoto,
   expertVisibilityState = null,
   ratePer15Min,
-  autoAccept,
   minBookingMinutes,
   maxBookingMinutes,
   availability,

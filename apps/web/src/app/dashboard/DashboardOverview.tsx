@@ -140,6 +140,7 @@ function useLiveMinutesUntilStart(
   }, [startMs]);
 
   return useMemo(() => {
+    void tick;
     if (startMs != null) {
       const diff = startMs - Date.now();
       if (diff <= 0) return { minutes: null, phase: "now" as const };
@@ -150,7 +151,7 @@ function useLiveMinutesUntilStart(
     }
     if (fallbackMinutes == null) return { minutes: null, phase: "upcoming" as const };
     return { minutes: fallbackMinutes, phase: "upcoming" as const };
-  }, [startMs, fallbackMinutes, tick]);
+  }, [startMs, fallbackMinutes, tick]); // tick forces recalc on interval
 }
 
 function greetingFirstName(profile: DashboardSummaryJson["profile"]): string {

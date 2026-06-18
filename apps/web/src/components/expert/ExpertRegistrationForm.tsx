@@ -595,7 +595,6 @@ export function ExpertRegistrationForm({
   const [skillsInput, setSkillsInput] = useState("");
   const [qualInput, setQualInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   /** True after "Submit Expert Profile" through final draft save, API submit, and client navigation (avoids closing the wizard before the dashboard loads). */
@@ -2611,7 +2610,6 @@ export function ExpertRegistrationForm({
       {missing.length ? (
         <p className="mt-2 text-sm text-destructive">Missing required fields: {missing.join(", ")}</p>
       ) : null}
-      {ok ? <p className="mt-2 text-sm text-emerald-600">{ok}</p> : null}
       <div className="mt-6 flex justify-center px-5 sm:px-6">
         <Button
           type="button"
@@ -2752,7 +2750,6 @@ export function ExpertRegistrationForm({
                   {missing.length ? (
                     <p className="mt-3 text-sm text-destructive">Missing required fields: {missing.join(", ")}</p>
                   ) : null}
-                  {ok ? <p className="mt-3 text-sm text-emerald-600">{ok}</p> : null}
 
                   <div
                     className={cn(

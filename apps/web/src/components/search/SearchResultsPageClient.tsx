@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,6 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
-  MessageSquare,
   Plus,
   Search,
   Settings2,
@@ -30,7 +29,8 @@ import {
 } from "lucide-react";
 import { DashboardViewHeader } from "@/app/dashboard/DashboardViewShell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { OnlineNowPill } from "@/components/presence/OnlineDot";
+import { OnlineNowPill, OnlineDot, AvailableNowPill } from "@/components/presence/OnlineDot";
+import { VerifiedExpertBadge } from "@/components/expert/VerifiedExpertBadge";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import type { HydratedExpert } from "@/lib/experts/hydrate";
 import { resolveCategoryIdForSearch, isUuid } from "@/lib/searchCategory";
@@ -48,7 +48,6 @@ type ApiExpert = HydratedExpert;
 
 function SearchInner() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const qParam = searchParams.get("q") ?? searchParams.get("search") ?? "";
   const categoryParam = searchParams.get("category") ?? "";
@@ -213,13 +212,6 @@ function SearchInner() {
     skillTokens,
   ]);
 
-  function setCategoryFilter(catId: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (catId && catId !== "all") params.set("category", catId);
-    else params.delete("category");
-    router.push(params.toString() ? `/search?${params}` : "/search");
-  }
-
   function openPostRequest() {
     if (signedIn !== true) {
       setPostSignInMessage(
@@ -262,13 +254,6 @@ function SearchInner() {
     }
     return list;
   }, [experts, appliedLanguage, appliedTimeZone, appliedMinRate, sortBy]);
-
-  const selectCategoryValue = useMemo(() => {
-    if (!categoryParam.trim()) return "all";
-    const r = resolvedCategoryId;
-    if (r && isUuid(r) && categories.some((c) => c.category_id === r)) return r;
-    return "all";
-  }, [categoryParam, resolvedCategoryId, categories]);
 
   const searchDisplayName = useMemo(() => {
     if (qParam.trim()) return qParam.trim();
@@ -531,18 +516,16 @@ function SearchInner() {
                               {initials || "EX"}
                             </AvatarFallback>
                           </Avatar>
+                          <OnlineDot online={e.online} availableNow={e.available_now} />
                         </div>
-                        <OnlineNowPill online={e.online} />
+                        <OnlineNowPill online={e.online && !e.available_now} />
+                        <AvailableNowPill availableNow={e.available_now} />
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-2xl font-semibold text-convene-primary">{e.name}</h3>
                           <VisibleTempDot expertVisibilityState={e.expert_visibility_state} variant="inline" />
-                          {e.is_verified ? (
-                            <span className="rounded-full bg-amber-500 px-2 py-1 text-xs font-semibold text-white">
-                              Verified Expert
-                            </span>
-                          ) : null}
+                          {e.is_verified ? <VerifiedExpertBadge /> : null}
                         </div>
                         <p className="text-sm font-semibold text-foreground">{title}</p>
                         {bioLine ? <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">{bioLine}</p> : null}

@@ -40,7 +40,6 @@ async function clientSecretFromInvoiceId(stripe: Stripe, invoiceId: string): Pro
     return (pi as Stripe.PaymentIntent).client_secret;
   }
   if (process.env.NODE_ENV === "development") {
-    // eslint-disable-next-line no-console
     console.warn("[create-subscription-payment-intent] no client secret", {
       invoiceId,
       amount_due: inv.amount_due,

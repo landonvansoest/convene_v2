@@ -86,7 +86,6 @@ export async function ensureLearnerStripeCustomer(
     if (upErr) {
       if (missingUsersStripeCustomerColumn(upErr)) {
         if (process.env.NODE_ENV === "development") {
-          // eslint-disable-next-line no-console
           console.warn(
             "[stripe] users.stripe_customer_id not in DB; skipping persist (apply supabase/v2/037_users_stripe_customer_id.sql)",
           );

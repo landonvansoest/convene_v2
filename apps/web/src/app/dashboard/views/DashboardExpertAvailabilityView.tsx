@@ -65,22 +65,6 @@ function weekdayKeyFromDate(d: Date): WeekdayKey {
   return keys[d.getDay()] ?? "monday";
 }
 
-function parseMinutesBooking(v: unknown): number | undefined {
-  if (v == null || v === "") return undefined;
-  const s = String(v);
-  const m1 = s.match(/^(\d+)\s*minutes?$/i);
-  if (m1) return Number(m1[1]);
-  const m2 = s.match(/^(\d+):(\d{2}):(\d{2})/);
-  if (m2) return Number(m2[1]) * 60 + Number(m2[2]);
-  return undefined;
-}
-
-function isoDateOnly(v: unknown): string {
-  if (!v) return "";
-  const s = String(v);
-  return s.length >= 10 ? s.slice(0, 10) : "";
-}
-
 function parseOverrides(raw: unknown): Record<string, WeeklySlot[]> {
   const out: Record<string, WeeklySlot[]> = {};
   if (!Array.isArray(raw)) return out;

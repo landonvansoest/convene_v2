@@ -11,11 +11,13 @@ import { computeBookingWeekPreview, parseMinBookingMinutes } from "@/lib/expertB
 import { intervalStringToMinutes } from "@/lib/expert-registration";
 import { ExpertsGrid, type ExpertsGridExpert } from "@/components/home/ExpertsGrid";
 import { formatHometownForDisplay } from "@/lib/formatHometownDisplay";
+import { formatDependabilityRating } from "@/lib/formatDependabilityRating";
 import { isExpertProfilePubliclyViewable } from "@/lib/expertVisibilityState";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { formatRatePer15Min } from "@/lib/rates";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { OnlineNowPill } from "@/components/presence/OnlineDot";
+import { OnlineNowPill, OnlineDot, AvailableNowPill } from "@/components/presence/OnlineDot";
+import { VerifiedExpertBadge } from "@/components/expert/VerifiedExpertBadge";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +29,6 @@ import {
   MessageSquare,
   Calendar,
   DollarSign,
-  BadgeCheck,
   ChevronLeft,
   Clock3,
   ShieldCheck,
@@ -227,7 +228,10 @@ export default function ExpertProfilePage() {
   const categoryId = expert ? String(expert.category_id ?? "") : "";
   const bio = expert ? String(expert.expert_bio ?? "") : "";
   const about = expert ? String(expert.about_services ?? "") : "";
-  const skills = (expert?.skills_specializations as string[] | undefined) ?? [];
+  const skills = useMemo(
+    () => (expert?.skills_specializations as string[] | undefined) ?? [],
+    [expert?.skills_specializations],
+  );
   const rate = expert != null ? Number(expert.rate ?? 0) : 0;
   const verified = Boolean(expert?.is_verified);
   const sessions = expert != null ? Number(expert.complete_sessions ?? 0) : 0;
@@ -363,18 +367,6 @@ export default function ExpertProfilePage() {
   const rateSuffix = rateMatch?.[2] ?? "";
   const rateAmountDigits = rateMain.startsWith("$") ? rateMain.slice(1) : rateMain;
   const performance = (expert?.performance_highlights as Record<string, unknown> | undefined) ?? {};
-  const impactAvg =
-    performance.impact_rating_avg != null && Number.isFinite(Number(performance.impact_rating_avg))
-      ? Number(performance.impact_rating_avg)
-      : null;
-  const knowledgeAvg =
-    performance.knowledgeable_rating_avg != null && Number.isFinite(Number(performance.knowledgeable_rating_avg))
-      ? Number(performance.knowledgeable_rating_avg)
-      : null;
-  const personableAvg =
-    performance.personable_rating_avg != null && Number.isFinite(Number(performance.personable_rating_avg))
-      ? Number(performance.personable_rating_avg)
-      : null;
   const sessionsComplete =
     performance.sessions_complete != null && Number.isFinite(Number(performance.sessions_complete))
       ? Number(performance.sessions_complete)
@@ -408,7 +400,7 @@ export default function ExpertProfilePage() {
       key: "reliability",
       active: Boolean(performance.is_most_reliable),
       title: "Dependability Rating",
-      value: reliabilityScore > 0 ? `${reliabilityScore}%` : "—",
+      value: reliabilityScore > 0 ? formatDependabilityRating(reliabilityScore) : "—",
       activeLabel: "Most Reliable",
     },
   ] as const;
@@ -536,10 +528,11 @@ export default function ExpertProfilePage() {
                         <AvatarImage src={photo ?? undefined} alt={name} className="object-cover" />
                         <AvatarFallback className="bg-convene-hero text-3xl text-white">{initials}</AvatarFallback>
                       </Avatar>
+                      <OnlineDot online={online} availableNow={availableNow} />
                     </div>
                     <div className="mt-3 flex w-full max-w-[180px] flex-col items-center space-y-2">
-                      <OnlineNowPill online={online} />
-                      {availableNow ? <Badge className="bg-convene-hero text-white">Available now</Badge> : null}
+                      <OnlineNowPill online={online && !availableNow} />
+                      <AvailableNowPill availableNow={availableNow} />
                     </div>
                   </div>
 
@@ -550,12 +543,7 @@ export default function ExpertProfilePage() {
                           {name}
                         </h1>
                         <VisibleTempDot expertVisibilityState={visibility} variant="inline" className="h-2.5 w-2.5" />
-                        {verified ? (
-                          <Badge className="shrink-0 gap-1 bg-convene-hero text-white hover:bg-convene-hero">
-                            <BadgeCheck className="h-3.5 w-3.5" />
-                            Verified Expert
-                          </Badge>
-                        ) : null}
+                        {verified ? <VerifiedExpertBadge /> : null}
                         {avg != null && avg >= 4 ? (
                           <Badge className="shrink-0" variant="secondary">
                             Top rated
@@ -643,7 +631,9 @@ export default function ExpertProfilePage() {
                             <ShieldCheck className="h-6 w-6 text-convene-primary" aria-hidden />
                           </span>
                           <span className="inline-flex min-h-6 min-w-[5.5rem] shrink-0 items-center justify-end text-right text-xl font-semibold tabular-nums leading-none text-foreground">
-                            {Number.isFinite(dependabilityRating) ? `${Math.round(dependabilityRating)}%` : "—"}
+                            {Number.isFinite(dependabilityRating)
+                              ? formatDependabilityRating(dependabilityRating)
+                              : "—"}
                           </span>
                         </div>
                         <span className="pl-3 text-left text-sm leading-snug text-foreground md:pl-4">dependability</span>

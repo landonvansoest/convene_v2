@@ -894,10 +894,6 @@ export function AdminDashboardClient({ adminEmail }: Props) {
     }
   }
 
-  async function toggleCategoryActive(cat: AdminCat) {
-    await updateCategoryRow(cat.category_id, { is_active: !cat.is_active });
-  }
-
   const loadRefundQueue = useCallback(
     async (source: BookingProblemSource = refundSource) => {
       setRefundLoading(true);
@@ -2865,21 +2861,5 @@ export function AdminDashboardClient({ adminEmail }: Props) {
         </div>
       </main>
     </div>
-  );
-}
-
-function ComingSoonCard({ title, description }: { title: string; description: string }) {
-  return (
-    <Card className="border-2 border-dashed border-[#003049]/20 bg-white/50 shadow-none">
-      <CardHeader>
-        <CardTitle className="text-lg text-[#003049]">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          This section is a placeholder — wire it up to the relevant admin API when ready.
-        </p>
-      </CardContent>
-    </Card>
   );
 }

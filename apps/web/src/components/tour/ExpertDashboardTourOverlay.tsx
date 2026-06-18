@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { EXPERT_BIBLE_TOUR_STEPS } from "@/components/tour/expert-bible-tour";
 import { useExpertDashboardTour } from "@/components/tour/expert-dashboard-tour-context";
+import { TourSkipLink } from "@/components/tour/TourSkipLink";
 
 const PADDING = 8;
 const POPUP_OFFSET = 16;
@@ -189,6 +190,8 @@ export function ExpertDashboardTourOverlay() {
           </Button>
         </div>
       </div>
+
+      <TourSkipLink onSkip={dismissTour} />
     </div>,
     document.body,
   );

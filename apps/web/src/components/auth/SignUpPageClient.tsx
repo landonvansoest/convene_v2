@@ -719,6 +719,8 @@ export function SignUpPageClient() {
       cancelled = true;
       clearTimeout(t);
     };
+    // buildDraftRegistrationPatch reads latest field state inline.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: save latest wizard fields on debounce
   }, [
     registrationSessionReady,
     draftAutosaveReady,

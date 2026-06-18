@@ -102,7 +102,6 @@ export function SessionManageDialog({
   onOpenChange,
   session,
   onPutStatus,
-  onPayForSession: _onPayForSession,
   onSessionUpdated,
 }: Props) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);

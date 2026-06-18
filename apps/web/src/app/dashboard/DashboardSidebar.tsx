@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { OnlineDot } from "@/components/presence/OnlineDot";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
+import { formatDependabilityRating } from "@/lib/formatDependabilityRating";
 import { cn } from "@/lib/utils";
 import type { DashboardSummaryJson } from "./DashboardOverview";
 
@@ -127,7 +128,7 @@ export function DashboardSidebar({
   const dependability = isExpert
     ? expert?.expertDependabilityRating
     : profile.learnerDependabilityRating;
-  const dependLabel = dependability != null ? String(dependability) : "—";
+  const dependLabel = formatDependabilityRating(dependability);
 
   const avatarInitials =
     [profile.firstName, profile.lastName]
@@ -185,7 +186,7 @@ export function DashboardSidebar({
             <p className="truncate font-bold text-[#003049]">{displayName}</p>
             <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
             {profile.online ? (
-              <p className="mt-1 text-xs font-medium text-convene-online">Online now</p>
+              <p className="mt-1 text-xs font-medium text-convene-hero">Online now</p>
             ) : null}
           </div>
         </div>

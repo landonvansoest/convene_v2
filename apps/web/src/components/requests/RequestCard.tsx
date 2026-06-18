@@ -35,6 +35,7 @@ type RequestResponseRow = {
     last_name: string | null;
     profile_photo: string | null;
     online: boolean | null;
+    available_now?: boolean | null;
     expert_visibility_state?: string | null;
   } | null;
 };
@@ -226,7 +227,12 @@ export function RequestCard({
                           {initials || "?"}
                         </AvatarFallback>
                       </Avatar>
-                      {resp.expert?.online ? <OnlineDot online={true} /> : null}
+                      {resp.expert?.online || resp.expert?.available_now ? (
+                        <OnlineDot
+                          online={resp.expert?.online}
+                          availableNow={resp.expert?.available_now}
+                        />
+                      ) : null}
                       <VisibleTempDot expertVisibilityState={resp.expert?.expert_visibility_state} />
                     </div>
                     <div className="min-w-0 flex-1">

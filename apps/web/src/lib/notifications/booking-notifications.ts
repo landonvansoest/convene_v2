@@ -1,7 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   fetchMessageTemplate,
-  renderMessageTemplate,
   resolveEmailFromTemplate,
   resolveSmsFromTemplate,
   TEMPLATE_FALLBACKS,

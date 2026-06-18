@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Star, MapPin, MessageSquare, ChevronLeft, Clock3 } from "lucide-react";
+import { formatDependabilityRating } from "@/lib/formatDependabilityRating";
 
 type LearnerJson = {
   id: string;
@@ -152,7 +153,9 @@ export function LearnerProfileClient() {
                     </Button>
                     {learner.dependability_rating != null ? (
                       <div className="flex flex-wrap gap-2 pt-1">
-                        <Badge variant="secondary">Dependability {learner.dependability_rating}</Badge>
+                        <Badge variant="secondary">
+                          Dependability {formatDependabilityRating(learner.dependability_rating)}
+                        </Badge>
                       </div>
                     ) : null}
                   </div>

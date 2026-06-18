@@ -8,7 +8,6 @@ import {
   fetchMessageTemplate,
   resolveEmailFromTemplate,
   resolveSmsFromTemplate,
-  TEMPLATE_FALLBACKS,
 } from "@/lib/notifications/message-templates";
 import { isE164Phone, sendEmailSendGrid, sendSmsTwilio } from "@/lib/notifications/send-channels";
 
@@ -31,7 +30,6 @@ export type NewMessageDispatch = {
 export async function dispatchNewMessageNotification(input: NewMessageDispatch) {
   const admin = createAdminClient();
   const template = await fetchMessageTemplate(admin, "new_message");
-  const fb = TEMPLATE_FALLBACKS.new_message;
   const vars = {
     recipient_name: input.recipientName,
     sender_name: input.senderName,
@@ -75,7 +73,6 @@ export type BookingReminderDispatch = {
 export async function dispatchBookingReminder(input: BookingReminderDispatch) {
   const admin = createAdminClient();
   const template = await fetchMessageTemplate(admin, "booking_reminder");
-  const fb = TEMPLATE_FALLBACKS.booking_reminder;
 
   const vars = {
     recipient_name: input.recipientName,
@@ -120,7 +117,6 @@ export type HelpTicketReplyDispatch = {
 export async function dispatchHelpTicketReply(input: HelpTicketReplyDispatch): Promise<boolean> {
   const admin = createAdminClient();
   const template = await fetchMessageTemplate(admin, "help_ticket_reply");
-  const fb = TEMPLATE_FALLBACKS.help_ticket_reply;
   const fromLabel = input.fromLabel?.trim() || "Convene Support";
   const vars = {
     recipient_name: input.recipientName || "there",
