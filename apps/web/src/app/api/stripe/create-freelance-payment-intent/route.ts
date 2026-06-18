@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isSessionPaymentTestBypassAllowed } from "@/lib/dev-session-payment-test";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { getStripe } from "@/lib/stripe/server";
 import { publicApiError } from "@/lib/api/public-error";
-import { getDevToolEnabled } from "@/lib/devTools/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -99,10 +99,7 @@ export async function POST(request: Request) {
   }
 
   const destination = expertProfile.stripe_connect_account_id;
-  const allowBypass =
-    process.env.NODE_ENV !== "production" &&
-    (process.env.ALLOW_PAYMENT_BYPASS === "true" ||
-      (await getDevToolEnabled(admin, "payment_bypass_session")));
+  const allowBypass = await isSessionPaymentTestBypassAllowed(admin);
 
   const metaBase = {
     convene_type: "freelance_work",

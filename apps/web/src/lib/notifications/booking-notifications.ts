@@ -51,8 +51,47 @@ type PartyRow = {
   time_zone?: string | null;
 };
 
+async function fetchBookingParties(booking: {
+  expert_user_id: string;
+  learner_user_id: string;
+}) {
+  const admin = createAdminClient();
+  const { data: users } = await admin
+    .from("users")
+    .select("user_id, first_name, last_name, email_address, phone_number, time_zone")
+    .in("user_id", [booking.expert_user_id, booking.learner_user_id]);
+
+  const expert = users?.find((u) => u.user_id === booking.expert_user_id) as PartyRow | undefined;
+  const learner = users?.find((u) => u.user_id === booking.learner_user_id) as PartyRow | undefined;
+  return { admin, expert, learner };
+}
+
+async function notifyParty(
+  admin: ReturnType<typeof createAdminClient>,
+  automationKey: string,
+  recipient: PartyRow,
+  vars: Record<string, string>,
+) {
+  const template = await fetchMessageTemplate(admin, automationKey);
+  const fb = TEMPLATE_FALLBACKS[automationKey];
+  if (!fb) return;
+
+  const email = resolveEmailFromTemplate(template, vars, {
+    subject: fb.email_subject,
+    body: fb.email_body,
+  });
+  if (email.enabled && recipient.email_address) {
+    await sendEmailSendGrid(recipient.email_address, email.subject, email.body);
+  }
+
+  const sms = resolveSmsFromTemplate(template, vars, fb.sms_body);
+  if (sms.enabled && isE164Phone(recipient.phone_number)) {
+    await sendSmsTwilio(recipient.phone_number, sms.body);
+  }
+}
+
 async function notifyBookingParties(
-  automationKey: "booking_confirmed" | "booking_canceled",
+  automationKey: "booking_canceled",
   booking: {
     booking_id: string;
     session_date: string;
@@ -62,17 +101,7 @@ async function notifyBookingParties(
   },
   extraVars: Record<string, string> = {},
 ) {
-  const admin = createAdminClient();
-  const template = await fetchMessageTemplate(admin, automationKey);
-  const fb = TEMPLATE_FALLBACKS[automationKey];
-
-  const { data: users } = await admin
-    .from("users")
-    .select("user_id, first_name, last_name, email_address, phone_number, time_zone")
-    .in("user_id", [booking.expert_user_id, booking.learner_user_id]);
-
-  const expert = users?.find((u) => u.user_id === booking.expert_user_id) as PartyRow | undefined;
-  const learner = users?.find((u) => u.user_id === booking.learner_user_id) as PartyRow | undefined;
+  const { admin, expert, learner } = await fetchBookingParties(booking);
   if (!expert || !learner) return;
 
   const sessionDate = formatSessionDate(booking.session_date, booking.start_time);
@@ -96,18 +125,7 @@ async function notifyBookingParties(
       ...extraVars,
     };
 
-    const email = resolveEmailFromTemplate(template, vars, {
-      subject: fb.email_subject,
-      body: fb.email_body,
-    });
-    if (email.enabled && recipient.email_address) {
-      await sendEmailSendGrid(recipient.email_address, email.subject, email.body);
-    }
-
-    const sms = resolveSmsFromTemplate(template, vars, fb.sms_body);
-    if (sms.enabled && isE164Phone(recipient.phone_number)) {
-      await sendSmsTwilio(recipient.phone_number, sms.body);
-    }
+    await notifyParty(admin, automationKey, recipient, vars);
   }
 }
 
@@ -119,7 +137,37 @@ export async function dispatchBookingConfirmed(bookingId: string) {
     .eq("booking_id", bookingId)
     .maybeSingle();
   if (!booking || booking.payment_status !== "paid") return;
-  await notifyBookingParties("booking_confirmed", booking);
+
+  const { expert, learner } = await fetchBookingParties(booking);
+  if (!expert || !learner) return;
+
+  const sessionDate = formatSessionDate(booking.session_date, booking.start_time);
+  const sessionTime = formatSessionTime(booking.session_date, booking.start_time);
+  const sessionLink = `${appBaseUrl()}/session/${booking.booking_id}`;
+  const expertName = displayName(expert);
+  const learnerName = displayName(learner);
+
+  await notifyParty(admin, "booking_confirmed", learner, {
+    recipient_name: learnerName,
+    expert_name: expertName,
+    learner_name: learnerName,
+    other_party_name: expertName,
+    session_date: sessionDate,
+    session_time: sessionTime,
+    session_link: sessionLink,
+    time_zone: (learner.time_zone ?? expert.time_zone ?? "UTC").trim() || "UTC",
+  });
+
+  await notifyParty(admin, "new_booking", expert, {
+    recipient_name: expertName,
+    expert_name: expertName,
+    learner_name: learnerName,
+    other_party_name: learnerName,
+    session_date: sessionDate,
+    session_time: sessionTime,
+    session_link: sessionLink,
+    time_zone: (expert.time_zone ?? learner.time_zone ?? "UTC").trim() || "UTC",
+  });
 }
 
 export async function dispatchBookingCanceled(bookingId: string, refundStatus = "") {

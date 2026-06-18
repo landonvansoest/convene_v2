@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSessionPaymentTestBypassAllowed } from "@/lib/dev-session-payment-test";
-import { getDevToolEnabled } from "@/lib/devTools/store";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
 import { ensureLearnerStripeCustomer } from "@/lib/stripe/ensure-learner-customer";
@@ -134,10 +133,7 @@ export async function POST(request: Request, { params }: Params) {
   /** Include cents so live `pricing` updates (parent poll) do not reuse the same key with a different amount — Stripe rejects that. */
   const idempotencyKey = `sess-ext-${bId}-${priorExtensions}-${amount}-${nonce}`;
 
-  const allowBypassWithoutConnect =
-    process.env.NODE_ENV !== "production" ||
-    process.env.ALLOW_PAYMENT_BYPASS === "true" ||
-    (await getDevToolEnabled(admin, "payment_bypass_session"));
+  const allowBypassWithoutConnect = await isSessionPaymentTestBypassAllowed(admin);
 
   if (!destination) {
     if (!allowBypassWithoutConnect) {

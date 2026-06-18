@@ -6,7 +6,6 @@ import { isSessionPaymentTestBypassAllowed } from "@/lib/dev-session-payment-tes
 import { getAuthedUserId } from "@/lib/messages/service";
 import { getStripe } from "@/lib/stripe/server";
 import { publicApiError } from "@/lib/api/public-error";
-import { getDevToolEnabled } from "@/lib/devTools/store";
 import { prepareExpertSessionBooking } from "@/lib/session-booking-prepare";
 import { randomUUID } from "crypto";
 import { publicStripePaymentSetupError } from "@/lib/stripe/stripeMessageUi";
@@ -214,10 +213,7 @@ export async function POST(request: Request) {
     }
 
     const destination = expertProfile.stripe_connect_account_id;
-    const allowBypassWithoutConnect =
-      process.env.NODE_ENV !== "production" ||
-      process.env.ALLOW_PAYMENT_BYPASS === "true" ||
-      (await getDevToolEnabled(admin, "payment_bypass_session"));
+    const allowBypassWithoutConnect = await isSessionPaymentTestBypassAllowed(admin);
 
     const idempotencyKey = buildDeferredPaymentIntentIdempotencyKey({
       learnerId,
@@ -362,10 +358,7 @@ export async function POST(request: Request) {
 
   const destination = expertProfile.stripe_connect_account_id;
   /** Local `next dev`: allow test PaymentIntents without Connect. Production requires Connect or explicit flags. */
-  const allowBypassWithoutConnect =
-    process.env.NODE_ENV !== "production" ||
-    process.env.ALLOW_PAYMENT_BYPASS === "true" ||
-    (await getDevToolEnabled(admin, "payment_bypass_session"));
+  const allowBypassWithoutConnect = await isSessionPaymentTestBypassAllowed(admin);
 
   if (!destination) {
     if (!allowBypassWithoutConnect) {

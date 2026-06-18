@@ -6,12 +6,18 @@ import {
 } from "@/lib/session-booking-prepare";
 
 /**
- * Same bar as create-payment-intent dev bypass: non-production always
- * allows it; production needs either the env escape hatch or the admin
- * DEV Tools toggle for `payment_bypass_session` set to enabled.
+ * Whether session/freelance/extension payments may proceed without an expert
+ * Stripe Connect account (platform collects; no transfer_data).
+ *
+ * Allowed when:
+ * - local dev (`NODE_ENV !== production`)
+ * - Vercel Preview (`VERCEL_ENV=preview`) — testing only; remove before launch
+ * - `ALLOW_PAYMENT_BYPASS=true` env
+ * - Admin DEV Tools toggle `payment_bypass_session`
  */
 export async function isSessionPaymentTestBypassAllowed(admin: SupabaseClient): Promise<boolean> {
   if (process.env.NODE_ENV !== "production") return true;
+  if (process.env.VERCEL_ENV === "preview") return true;
   if (process.env.ALLOW_PAYMENT_BYPASS === "true") return true;
   return await getDevToolEnabled(admin, "payment_bypass_session");
 }

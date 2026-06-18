@@ -38,7 +38,15 @@ export const AUTOMATION_CATALOG: AutomationCatalogEntry[] = [
   {
     automation_key: "booking_confirmed",
     automation_label: "Booking confirmed",
-    when_it_sends: "Automatically when session payment succeeds (Stripe webhook / payment finalize).",
+    when_it_sends:
+      "Automatically when session payment succeeds — sent to the learner who made the booking (Stripe webhook / payment finalize).",
+    wired_channels: ["email", "sms"],
+  },
+  {
+    automation_key: "new_booking",
+    automation_label: "New booking",
+    when_it_sends:
+      "Automatically when session payment succeeds — sent to the expert who was booked (Stripe webhook / payment finalize).",
     wired_channels: ["email", "sms"],
   },
   {
@@ -113,24 +121,43 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   booking_confirmed: {
     automation_key: "booking_confirmed",
     automation_label: "Booking confirmed",
-    automation_description: AUTOMATION_CATALOG[1].when_it_sends,
+    automation_description:
+      "Automatically when session payment succeeds — sent to the learner who made the booking.",
     in_app_enabled: true,
-    in_app_subject: "Session confirmed with {{other_party_name}}",
+    in_app_subject: "Session confirmed with {{expert_name}}",
     in_app_body:
-      "Your session with {{other_party_name}} is confirmed for {{session_date}} at {{session_time}}.",
+      "Your session with {{expert_name}} is confirmed for {{session_date}} at {{session_time}}.",
     email_enabled: true,
     email_subject: "Session confirmed: {{session_date}} at {{session_time}}",
     email_body:
-      "Hi {{recipient_name}},\n\nYour Convene session is confirmed.\n\nWith: {{other_party_name}}\nWhen: {{session_date}} at {{session_time}} ({{time_zone}})\nJoin link: {{session_link}}\n\nSee you then!",
+      "Hi {{recipient_name}},\n\nYour Convene session is confirmed.\n\nExpert: {{expert_name}}\nWhen: {{session_date}} at {{session_time}} ({{time_zone}})\nJoin link: {{session_link}}\n\nSee you then!",
     sms_enabled: false,
     sms_body:
-      "Convene: session with {{other_party_name}} confirmed for {{session_date}} {{session_time}}.",
+      "Convene: session with {{expert_name}} confirmed for {{session_date}} {{session_time}}.",
     display_order: 20,
+  },
+  new_booking: {
+    automation_key: "new_booking",
+    automation_label: "New booking",
+    automation_description:
+      "Automatically when session payment succeeds — sent to the expert who was booked.",
+    in_app_enabled: true,
+    in_app_subject: "New booking from {{learner_name}}",
+    in_app_body:
+      "{{learner_name}} booked a session with you for {{session_date}} at {{session_time}}.",
+    email_enabled: true,
+    email_subject: "New booking: {{session_date}} at {{session_time}}",
+    email_body:
+      "Hi {{recipient_name}},\n\n{{learner_name}} booked a session with you.\n\nWhen: {{session_date}} at {{session_time}} ({{time_zone}})\nJoin link: {{session_link}}\n\nSee you then!",
+    sms_enabled: false,
+    sms_body:
+      "Convene: new booking from {{learner_name}} on {{session_date}} {{session_time}}.",
+    display_order: 21,
   },
   booking_reminder: {
     automation_key: "booking_reminder",
     automation_label: "Upcoming session reminder",
-    automation_description: AUTOMATION_CATALOG[2].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[3].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Reminder: session on {{session_date}}",
     in_app_body:
@@ -146,7 +173,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   booking_canceled: {
     automation_key: "booking_canceled",
     automation_label: "Booking canceled",
-    automation_description: AUTOMATION_CATALOG[3].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[4].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Session canceled",
     in_app_body:
@@ -162,7 +189,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   refund_issued: {
     automation_key: "refund_issued",
     automation_label: "Refund issued",
-    automation_description: AUTOMATION_CATALOG[4].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[5].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Refund issued",
     in_app_body:
@@ -178,7 +205,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   expert_approved: {
     automation_key: "expert_approved",
     automation_label: "Expert registration approved",
-    automation_description: AUTOMATION_CATALOG[5].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[6].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "You're approved on Convene",
     in_app_body:
@@ -194,7 +221,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   welcome_learner: {
     automation_key: "welcome_learner",
     automation_label: "Welcome (new learner)",
-    automation_description: AUTOMATION_CATALOG[6].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[7].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Welcome to Convene",
     in_app_body:
@@ -210,7 +237,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   expert_registration_welcome: {
     automation_key: "expert_registration_welcome",
     automation_label: "Expert registration submitted",
-    automation_description: AUTOMATION_CATALOG[7].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[8].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Thanks for registering as an expert",
     in_app_body:
@@ -225,7 +252,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   help_ticket_reply: {
     automation_key: "help_ticket_reply",
     automation_label: "Help ticket admin reply",
-    automation_description: AUTOMATION_CATALOG[8].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[9].when_it_sends,
     in_app_enabled: false,
     in_app_subject: "",
     in_app_body: "",
