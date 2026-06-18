@@ -11,13 +11,13 @@ import {
  *
  * Allowed when:
  * - local dev (`NODE_ENV !== production`)
- * - Vercel Preview (`VERCEL_ENV=preview`) — testing only; remove before launch
+ * - any Vercel deployment (`VERCEL=1`) — pre-launch testing; remove before launch
  * - `ALLOW_PAYMENT_BYPASS=true` env
  * - Admin DEV Tools toggle `payment_bypass_session`
  */
 export async function isSessionPaymentTestBypassAllowed(admin: SupabaseClient): Promise<boolean> {
   if (process.env.NODE_ENV !== "production") return true;
-  if (process.env.VERCEL_ENV === "preview") return true;
+  if (process.env.VERCEL === "1") return true;
   if (process.env.ALLOW_PAYMENT_BYPASS === "true") return true;
   return await getDevToolEnabled(admin, "payment_bypass_session");
 }
