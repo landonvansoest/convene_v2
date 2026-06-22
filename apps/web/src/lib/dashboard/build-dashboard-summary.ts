@@ -14,6 +14,7 @@ import { publicApiError } from "@/lib/api/public-error";
 import { displayName, getUsersByIds } from "@/lib/messages/service";
 import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
 import { isUserOnlineFresh } from "@/lib/presence/online";
+import { refreshStaleDependabilityForBookings } from "@/lib/dependability-persist";
 import type { DashboardSummaryJson } from "@/app/dashboard/DashboardOverview";
 
 type ActionItem = {
@@ -124,6 +125,8 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
 
   const bookings = bookingsRes.data ?? [];
   const expertProfile = profile.has_expert_profile ? expertRes.data : null;
+
+  await refreshStaleDependabilityForBookings(admin, bookings);
 
   const learnerBookingRows = bookings.filter((b) => b.learner_user_id === userId);
   const expertBookingRows = bookings.filter((b) => b.expert_user_id === userId);
@@ -404,14 +407,10 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
       ),
       sessionsBooked: profile.sessions_booked ?? 0,
       sessionsCompleted: learnerBookingMetrics.completedSessionCount,
-      // Bible §"Dependability Rating": prefer the persisted rolling average
-      // (lib/dependability-persist.ts + migration 043 keep this live across
-      // completed AND cancelled bookings, per Bible). The on-the-fly average
-      // is a backwards-compatible fallback for users whose scores predate
-      // the persistence layer.
+      // Computed from booking history (with inferred no-shows when cron lags); DB column is fallback.
       learnerDependabilityRating:
-        (profile.learner_dependability_rating as number | null) ??
         learnerBookingMetrics.avgLearnerDependability ??
+        (profile.learner_dependability_rating as number | null) ??
         null,
       hasExpertProfile: Boolean(profile.has_expert_profile),
       conveneRoleMode: profile.convene_role_mode ?? "learner",
@@ -421,8 +420,8 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
           expertProfileId: expertProfile.expert_profile_id,
           completeSessions: expertBookingMetrics.completedSessionCount,
           expertDependabilityRating:
-            (expertProfile.expert_dependability_rating as number | null) ??
             expertBookingMetrics.avgExpertDependability ??
+            (expertProfile.expert_dependability_rating as number | null) ??
             null,
           categoryId: expertProfile.category_id ?? null,
           expertVisibilityState:

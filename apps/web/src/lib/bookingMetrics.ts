@@ -29,18 +29,25 @@ function isNoShowLikeStatus(statusLower: string): boolean {
 }
 
 /**
- * Paid session counts as “completed” for public stats once it reached `complete` in the DB or
- * the scheduled window has ended (excluding cancelled / no-show style statuses).
+ * Public “sessions complete” stat — only bookings that reached `complete` in the DB.
+ * Do not count ended-but-unfinalized rows (no-shows still marked `upcoming`).
  */
 export function isCountableCompletedBooking(row: BookingMetricsRow): boolean {
   if (!bookingPaymentIsSettled(row.payment_status)) return false;
+  return String(row.status ?? "").toLowerCase() === "complete";
+}
+
+/** Bookings that should contribute a per-session dependability score to the rolling average. */
+export function isEligibleForDependabilityScore(row: BookingForMetrics): boolean {
+  if (!bookingPaymentIsSettled(row.payment_status)) return false;
   const st = String(row.status ?? "").toLowerCase();
-  if (CANCELLED.has(st)) return false;
-  if (isNoShowLikeStatus(st)) return false;
+  if (CANCELLED.has(st)) return true;
+  if (isNoShowLikeStatus(st)) return true;
   if (st === "complete") return true;
-  const sessionDate = String(row.session_date ?? "");
-  if (!sessionDate) return false;
-  return hasSessionEndedByWallClock(sessionDate, row.end_time);
+  if ((st === "upcoming" || st === "live") && hasSessionEndedByWallClock(row.session_date, row.end_time)) {
+    return true;
+  }
+  return false;
 }
 
 function roundAvg(vals: number[]): number | null {
@@ -95,7 +102,7 @@ export function summarizeExpertBookingMetrics(rows: BookingForMetrics[], resched
   completedSessionCount: number;
   avgExpertDependability: number | null;
 } {
-  const done = rows.filter(isCountableCompletedBooking);
+  const done = rows.filter(isEligibleForDependabilityScore);
   const scores: number[] = [];
   for (const b of done) {
     const rm = rescheduleForBooking(b, rescheduleByMessageId);
@@ -103,7 +110,7 @@ export function summarizeExpertBookingMetrics(rows: BookingForMetrics[], resched
     scores.push(br.viewerSessionScore);
   }
   return {
-    completedSessionCount: done.length,
+    completedSessionCount: rows.filter(isCountableCompletedBooking).length,
     avgExpertDependability: roundAvg(scores),
   };
 }
@@ -115,7 +122,7 @@ export function summarizeLearnerBookingMetrics(
   completedSessionCount: number;
   avgLearnerDependability: number | null;
 } {
-  const done = rows.filter(isCountableCompletedBooking);
+  const done = rows.filter(isEligibleForDependabilityScore);
   const scores: number[] = [];
   for (const b of done) {
     const rm = rescheduleForBooking(b, rescheduleByMessageId);
@@ -123,12 +130,15 @@ export function summarizeLearnerBookingMetrics(
     scores.push(br.viewerSessionScore);
   }
   return {
-    completedSessionCount: done.length,
+    completedSessionCount: rows.filter(isCountableCompletedBooking).length,
     avgLearnerDependability: roundAvg(scores),
   };
 }
 
-export type BookingRowWithExpertId = BookingForMetrics & { expert_user_id?: string | null };
+export type BookingRowWithExpertId = BookingForMetrics & {
+  expert_user_id?: string | null;
+  booking_id?: string | null;
+};
 
 /** Columns required to count completed sessions and compute dependability (same rules as Session Details). */
 export const BOOKING_SELECT_FOR_METRICS =

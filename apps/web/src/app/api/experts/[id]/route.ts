@@ -13,6 +13,7 @@ import {
   type BookingRowWithExpertId,
 } from "@/lib/bookingMetrics";
 import { isUserOnlineFresh } from "@/lib/presence/online";
+import { refreshStaleDependabilityForBookings } from "@/lib/dependability-persist";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ export async function GET(_request: Request, { params }: Params) {
     .select(BOOKING_SELECT_FOR_METRICS)
     .eq("expert_user_id", id);
   const selfRows = selfBookingMetricRows ?? [];
+  await refreshStaleDependabilityForBookings(admin, selfRows);
   const selfRescheduleMap = await fetchRescheduleMessagesForBookings(admin, selfRows);
   const selfExpertMetrics = summarizeExpertBookingMetrics(selfRows, selfRescheduleMap);
 
@@ -197,7 +199,7 @@ export async function GET(_request: Request, { params }: Params) {
     // Prefer the persisted rolling average (migration 043 keeps this live
     // across completed AND cancelled bookings, per Bible §"Dependability Rating").
     const currentReliability =
-      Number(profile.expert_dependability_rating ?? selfExpertMetrics.avgExpertDependability ?? 0);
+      Number(selfExpertMetrics.avgExpertDependability ?? profile.expert_dependability_rating ?? 0);
     const currentCancellation = cancellationRate;
 
     const top60SessionsThreshold = quantile(sessionCounts, 0.4);
@@ -244,7 +246,7 @@ export async function GET(_request: Request, { params }: Params) {
       ...profile,
       complete_sessions: selfExpertMetrics.completedSessionCount,
       expert_dependability_rating:
-        profile.expert_dependability_rating ?? selfExpertMetrics.avgExpertDependability ?? null,
+        selfExpertMetrics.avgExpertDependability ?? profile.expert_dependability_rating ?? null,
       membership_tier: (profile as { membership_tier?: string | null }).membership_tier ?? "free",
       is_verified:
         ((profile as { membership_tier?: string | null }).membership_tier ?? "free") !== "free",

@@ -1,4 +1,4 @@
-import { sessionWallClockInstant } from "@/lib/sessionWallClock";
+import { sessionWallClockInstant, hasSessionEndedByWallClock } from "@/lib/sessionWallClock";
 
 export type DependabilityLineItem = {
   code: string;
@@ -108,6 +108,36 @@ function reschedulePublicPhrase(hoursBefore: number): string {
   return "suggesting a reschedule at or after the scheduled start time";
 }
 
+function isNoShowLikeStatus(statusLower: string): boolean {
+  return statusLower.includes("no_show") || statusLower.includes("no-show") || statusLower.includes("noshow");
+}
+
+/**
+ * When the finalize cron has not run yet, infer the terminal no-show outcome from
+ * join timestamps once the scheduled session window has ended.
+ */
+export function inferTerminalNoShowStatus(
+  booking: Pick<
+    BookingDependabilityInput,
+    "session_date" | "end_time" | "status" | "cancelled_at" | "learner_joined" | "expert_joined"
+  >,
+): "no_show" | "no_show_learner" | "no_show_expert" | null {
+  const st = String(booking.status ?? "").toLowerCase();
+  if (st === "no_show") return "no_show";
+  if (st === "no_show_learner") return "no_show_learner";
+  if (st === "no_show_expert") return "no_show_expert";
+  if (booking.cancelled_at || st === "cancelled" || st === "canceled") return null;
+  if (st !== "upcoming" && st !== "live") return null;
+  if (!hasSessionEndedByWallClock(booking.session_date, booking.end_time)) return null;
+
+  const learnerJoined = booking.learner_joined != null && String(booking.learner_joined).trim() !== "";
+  const expertJoined = booking.expert_joined != null && String(booking.expert_joined).trim() !== "";
+  if (!learnerJoined && !expertJoined) return "no_show";
+  if (!learnerJoined) return "no_show_learner";
+  if (!expertJoined) return "no_show_expert";
+  return null;
+}
+
 function humanHoursBefore(hoursBefore: number): string {
   if (hoursBefore > 48) return `${Math.round(hoursBefore / 24)} days before`;
   if (hoursBefore >= 24) return `${hoursBefore.toFixed(1)} hours before`;
@@ -166,7 +196,9 @@ export function computeDependabilityBreakdown(
   const scheduledStartLabel = startInstant ? formatLocalDateTime(startInstant) : null;
 
   const st = String(booking.status ?? "").toLowerCase();
-  const isCancelled = st === "cancelled" || !!booking.cancelled_at;
+  const isCancelled = st === "cancelled" || st === "canceled" || !!booking.cancelled_at;
+
+  const inferredNoShow = inferTerminalNoShowStatus(booking);
 
   const joinIso = viewerRole === "learner" ? booking.learner_joined ?? null : booking.expert_joined ?? null;
   const joinTimeLabel = joinIso && Number.isFinite(Date.parse(joinIso)) ? formatLocalDateTime(new Date(joinIso)) : null;
@@ -194,11 +226,11 @@ export function computeDependabilityBreakdown(
   const lineItems: DependabilityLineItem[] = [];
 
   const noShowSpecific =
-    (viewerRole === "learner" && st === "no_show_learner") ||
-    (viewerRole === "expert" && st === "no_show_expert");
+    (viewerRole === "learner" && (st === "no_show_learner" || inferredNoShow === "no_show_learner")) ||
+    (viewerRole === "expert" && (st === "no_show_expert" || inferredNoShow === "no_show_expert"));
 
   /** Neither party joined — penalty applies to both sides for this session outcome. */
-  const noShowBoth = st === "no_show";
+  const noShowBoth = st === "no_show" || inferredNoShow === "no_show";
   const viewerNoShow = noShowSpecific || noShowBoth;
 
   if (viewerNoShow) {

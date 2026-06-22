@@ -4,7 +4,7 @@ import {
   type BookingDependabilityInput,
   type RescheduleMessageMeta,
 } from "@/lib/dependability-breakdown";
-import { sessionWallClockInstant } from "@/lib/sessionWallClock";
+import { bookingPaymentIsSettled, hasSessionEndedByWallClock, sessionWallClockInstant } from "@/lib/sessionWallClock";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -86,6 +86,37 @@ export async function persistBookingDependability(
   if (!dirty) return;
 
   await admin.from("bookings").update(payload).eq("booking_id", bookingId);
+}
+
+type StaleDependabilityRow = {
+  booking_id?: string | null;
+  session_date?: string | null;
+  end_time?: string | null;
+  status?: string | null;
+  payment_status?: unknown;
+};
+
+/**
+ * Best-effort: write per-booking scores for sessions whose wall-clock window ended
+ * but the finalize cron has not yet flipped `status` off `upcoming` / `live`.
+ */
+export async function refreshStaleDependabilityForBookings(
+  admin: Admin,
+  rows: StaleDependabilityRow[],
+): Promise<void> {
+  for (const row of rows) {
+    const bookingId = row.booking_id ? String(row.booking_id) : "";
+    if (!bookingId) continue;
+    if (!bookingPaymentIsSettled(row.payment_status)) continue;
+    const st = String(row.status ?? "").toLowerCase();
+    if (st !== "upcoming" && st !== "live") continue;
+    if (!hasSessionEndedByWallClock(String(row.session_date ?? ""), row.end_time)) continue;
+    try {
+      await persistBookingDependability(admin, bookingId);
+    } catch {
+      // Cron will retry; profile load should not fail.
+    }
+  }
 }
 
 async function loadRescheduleMessage(
