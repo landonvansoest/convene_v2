@@ -50,6 +50,20 @@ export const AUTOMATION_CATALOG: AutomationCatalogEntry[] = [
     wired_channels: ["email", "sms"],
   },
   {
+    automation_key: "package_purchased",
+    automation_label: "Package purchased",
+    when_it_sends:
+      "Automatically when a learner completes package checkout (Stripe webhook) — confirms credits granted and expiration.",
+    wired_channels: ["email", "in_app"],
+  },
+  {
+    automation_key: "package_credit_expiring",
+    automation_label: "Package credits expiring soon",
+    when_it_sends:
+      "Automatically at ~1 month, ~2 weeks, ~1 week, and ~3 days before unused credits expire (cron: check-package-credit-expiration-reminders, daily).",
+    wired_channels: ["email", "sms", "in_app"],
+  },
+  {
     automation_key: "booking_reminder",
     automation_label: "Upcoming session reminder",
     when_it_sends: "Automatically ~15 minutes before session start (cron: check-booking-reminders, every 2 min).",
@@ -154,10 +168,46 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
       "Convene: new booking from {{learner_name}} on {{session_date}} {{session_time}}.",
     display_order: 21,
   },
+  package_purchased: {
+    automation_key: "package_purchased",
+    automation_label: "Package purchased",
+    automation_description:
+      "Automatically when a learner completes package checkout (Stripe webhook) — confirms credits granted and expiration.",
+    in_app_enabled: true,
+    in_app_subject: "Package confirmed: {{package_title}}",
+    in_app_body:
+      "You purchased {{credit_count}} sessions with {{expert_name}} ({{package_title}}). Credits expire {{expiration_date}}. Book a session: {{book_url}}",
+    email_enabled: true,
+    email_subject: "Package purchase confirmed: {{package_title}}",
+    email_body:
+      "Hi {{recipient_name}},\n\nYour Convene package purchase is confirmed.\n\nExpert: {{expert_name}}\nPackage: {{package_title}}\nSessions: {{credit_count}}\nExpires: {{expiration_date}}\n\nBook a session: {{book_url}}\nView credits: {{account_url}}",
+    sms_enabled: false,
+    sms_body:
+      "Convene: {{credit_count}} sessions with {{expert_name}} — expires {{expiration_date}}.",
+    display_order: 22,
+  },
+  package_credit_expiring: {
+    automation_key: "package_credit_expiring",
+    automation_label: "Package credits expiring soon",
+    automation_description:
+      "Automatically at ~1 month, ~2 weeks, ~1 week, and ~3 days before unused credits expire (cron: check-package-credit-expiration-reminders, daily).",
+    in_app_enabled: true,
+    in_app_subject: "Credits expiring in {{days_until_expiry_label}}",
+    in_app_body:
+      "You have {{remaining_credits}} unused session(s) with {{expert_name}} ({{package_title}}) expiring on {{expiration_date}}. Book now: {{book_url}}",
+    email_enabled: true,
+    email_subject: "Reminder: package credits expiring in {{days_until_expiry_label}}",
+    email_body:
+      "Hi {{recipient_name}},\n\nYou have {{remaining_credits}} unused session(s) with {{expert_name}} for {{package_title}}.\n\nThey expire on {{expiration_date}} ({{days_until_expiry_label}} from now).\n\nBook a session: {{book_url}}\nView credits: {{account_url}}",
+    sms_enabled: true,
+    sms_body:
+      "Convene: {{remaining_credits}} session(s) with {{expert_name}} expire {{expiration_date}}. {{book_url}}",
+    display_order: 25,
+  },
   booking_reminder: {
     automation_key: "booking_reminder",
     automation_label: "Upcoming session reminder",
-    automation_description: AUTOMATION_CATALOG[3].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[5].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Reminder: session on {{session_date}}",
     in_app_body:
@@ -173,7 +223,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   booking_canceled: {
     automation_key: "booking_canceled",
     automation_label: "Booking canceled",
-    automation_description: AUTOMATION_CATALOG[4].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[6].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Session canceled",
     in_app_body:
@@ -189,7 +239,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   refund_issued: {
     automation_key: "refund_issued",
     automation_label: "Refund issued",
-    automation_description: AUTOMATION_CATALOG[5].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[7].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Refund issued",
     in_app_body:
@@ -205,7 +255,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   expert_approved: {
     automation_key: "expert_approved",
     automation_label: "Expert registration approved",
-    automation_description: AUTOMATION_CATALOG[6].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[8].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "You're approved on Convene",
     in_app_body:
@@ -221,7 +271,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   welcome_learner: {
     automation_key: "welcome_learner",
     automation_label: "Welcome (new learner)",
-    automation_description: AUTOMATION_CATALOG[7].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[9].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Welcome to Convene",
     in_app_body:
@@ -237,7 +287,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   expert_registration_welcome: {
     automation_key: "expert_registration_welcome",
     automation_label: "Expert registration submitted",
-    automation_description: AUTOMATION_CATALOG[8].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[10].when_it_sends,
     in_app_enabled: true,
     in_app_subject: "Thanks for registering as an expert",
     in_app_body:
@@ -252,7 +302,7 @@ export const TEMPLATE_FALLBACKS: Record<string, Omit<MessageTemplateRow, "templa
   help_ticket_reply: {
     automation_key: "help_ticket_reply",
     automation_label: "Help ticket admin reply",
-    automation_description: AUTOMATION_CATALOG[9].when_it_sends,
+    automation_description: AUTOMATION_CATALOG[11].when_it_sends,
     in_app_enabled: false,
     in_app_subject: "",
     in_app_body: "",

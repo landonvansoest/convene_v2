@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { assertAdmin } from "@/lib/admin/assert-admin";
+import { computePackageCreditExpirationAt } from "@/lib/packages/package-credit-expiration";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
 
@@ -51,12 +52,7 @@ export async function POST(request: Request) {
   const credits = remainingCredits ?? pkg.session_count;
   const now = new Date();
   const nowIso = now.toISOString();
-  let expirationAt: string | null = null;
-  if (pkg.credit_expiration_days != null && pkg.credit_expiration_days > 0) {
-    expirationAt = new Date(
-      now.getTime() + pkg.credit_expiration_days * 24 * 60 * 60 * 1000
-    ).toISOString();
-  }
+  const expirationAt = computePackageCreditExpirationAt(pkg.credit_expiration_days, now);
 
   const { data: row, error: insErr } = await admin
     .from("learner_package_credits")

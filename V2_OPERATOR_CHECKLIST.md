@@ -53,8 +53,9 @@
   - `/api/cron/finalize-no-show-sessions` — every 5 min (settles no-shows after the wall clock)
   - `/api/cron/sweep-online-presence` — every 2 min (flips `users.online = false` when `last_seen_at` is older than 5 min; backstop for tab crashes that miss the offline beacon)
   - `/api/cron/freelance-auto-release` — every 15 min (auto-releases freelance payouts after 3-day learner silence; escalates `paid_in_progress` rows to `admin_review` after expert misses work deadline + 3-day grace)
+  - `/api/cron/check-package-credit-expiration-reminders` — daily (emails learners at ~1 mo / 2 wk / 1 wk / 3 d before unused package credits expire)
 
-  All four authenticate with `CRON_SECRET`; smoke-test each from the Vercel Cron dashboard or with a manual `curl -H "Authorization: Bearer $CRON_SECRET" …` after deploy.
+  All five authenticate with `CRON_SECRET`; smoke-test each from the Vercel Cron dashboard or with a manual `curl -H "Authorization: Bearer $CRON_SECRET" …` after deploy.
 
 - [ ] **Freelance lifecycle** (Bible §"Special bookings — lifecycle" / §"freelance_work — status enum") — the full 8-status state machine, SLA fields, and admin review queue now live in the app. Before launch:
   - Apply migration **`046`** *then* **`047`** as separate runs. `046` only mutates the `freelance_work_status` enum (renames `approved`→`paid_in_progress` and `complete`→`completed`, adds `declined / accepted_pending_payment / completion_submitted / refunded / admin_review`); `047` adds the new columns, backfills SLA timestamps, creates the cron/admin indexes, and installs the `freelance_compute_sla` helper. They MUST run as two separate transactions — Postgres won't let newly-added enum values be referenced in DDL until the transaction that added them has committed (Supabase's SQL editor wraps each run in one transaction).

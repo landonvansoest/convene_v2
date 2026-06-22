@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
+import { dispatchPackagePurchased } from "@/lib/notifications/package-notifications";
+import { computePackageCreditExpirationAt } from "@/lib/packages/package-credit-expiration";
 
 const TYPE = "package_purchase";
 
@@ -124,12 +126,7 @@ export async function finalizePackagePurchaseFromCheckoutSession(
   const credits = pkg.session_count;
   const now = new Date();
   const nowIso = now.toISOString();
-  let expirationAt: string | null = null;
-  if (pkg.credit_expiration_days != null && pkg.credit_expiration_days > 0) {
-    expirationAt = new Date(
-      now.getTime() + pkg.credit_expiration_days * 24 * 60 * 60 * 1000
-    ).toISOString();
-  }
+  const expirationAt = computePackageCreditExpirationAt(pkg.credit_expiration_days, now);
 
   const { error: insErr } = await admin.from("learner_package_credits").insert({
     package_id: packageId,
@@ -159,5 +156,18 @@ export async function finalizePackagePurchaseFromCheckoutSession(
     learnerUserId: userId,
     expertUserId: pkg.expert_user_id,
   });
+
+  try {
+    await dispatchPackagePurchased({
+      learnerUserId: userId,
+      expertUserId: pkg.expert_user_id,
+      packageTitle: pkg.title ?? "Package",
+      creditCount: credits,
+      expirationAt,
+    });
+  } catch (err) {
+    console.error("[stripe] package purchase notification failed", session.id, err);
+  }
+
   console.info("[stripe] granted package credits", session.id, userId, packageId, credits);
 }
