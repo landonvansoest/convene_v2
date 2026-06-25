@@ -10,9 +10,11 @@ const OUTER_BG = "#ECECEC";
 const CARD_BG = "#FFFFFF";
 const MUTED = "#6B7280";
 const SUPPORT_EMAIL = "support@convene.io";
-/** Display size for the square wordmark PNG in `public/email/convene-logo.png`. */
-export const EMAIL_LOGO_DISPLAY_PX = 140;
-const EMAIL_LOGO_CACHE_VERSION = "2";
+/** Display size for `public/email/convene_logo.png` (280×47 @2x → 140×24). */
+export const EMAIL_LOGO_DISPLAY_WIDTH_PX = 140;
+export const EMAIL_LOGO_DISPLAY_HEIGHT_PX = 24;
+export const EMAIL_LOGO_FILENAME = "convene_logo.png";
+const EMAIL_LOGO_CACHE_VERSION = "4";
 
 export function escapeHtml(s: string): string {
   return s
@@ -27,7 +29,7 @@ export function emailLogoUrl(): string | null {
   if (override) return override;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
   if (appUrl?.startsWith("http")) {
-    return `${appUrl}/email/convene-logo.png`;
+    return `${appUrl}/email/${EMAIL_LOGO_FILENAME}`;
   }
   return null;
 }
@@ -40,11 +42,12 @@ function renderLogoCell(): string {
   return renderEmailLogoTextHtml();
 }
 
-/** Hosted PNG wordmark (Acumin Pro on black) — use in Supabase auth templates too. */
+/** Hosted transparent PNG wordmark — use same URL in Supabase auth templates. */
 export function renderEmailLogoImgHtml(logoUrl: string): string {
   const src = logoUrl.includes("?") ? logoUrl : `${logoUrl}?v=${EMAIL_LOGO_CACHE_VERSION}`;
-  const px = EMAIL_LOGO_DISPLAY_PX;
-  return `<img src="${escapeHtml(src)}" alt="Convene" width="${px}" height="${px}" style="display:block;border:0;outline:none;text-decoration:none;width:${px}px;height:${px}px;max-width:${px}px;"/>`;
+  const w = EMAIL_LOGO_DISPLAY_WIDTH_PX;
+  const h = EMAIL_LOGO_DISPLAY_HEIGHT_PX;
+  return `<img src="${escapeHtml(src)}" alt="Convene" width="${w}" height="${h}" style="display:block;border:0;outline:none;text-decoration:none;width:${w}px;height:${h}px;max-width:${w}px;"/>`;
 }
 
 /** Orange wordmark — reliable in auth email templates where hosted images are often blocked. */
