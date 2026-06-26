@@ -16,6 +16,7 @@ export type ManagedSessionRow = Record<string, unknown> & {
   session_date?: string;
   start_time?: string;
   end_time?: string;
+  duration_minutes?: number | null;
   status?: string;
   payment_status?: string;
   total_price?: number;
@@ -106,6 +107,7 @@ export function SessionManageDialog({
 }: Props) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   if (!session) {
     return (
@@ -132,16 +134,16 @@ export function SessionManageDialog({
   const datePipeRange = formatSessionDatePipeRange(session.session_date, session.start_time, session.end_time);
   const bookedLine = formatBookedLine(session.session_date, session.start_time, price);
 
-  function confirmCancel() {
-    if (!window.confirm("Cancel this session? Your partner will see the updated status on their dashboard.")) {
-      return;
-    }
-    const r = window.prompt("Optional cancellation reason (visible to support)") ?? "";
-    void (async () => {
-      await onPutStatus(id, "cancelled", r.trim() || null);
-      onSessionUpdated?.();
-      onOpenChange(false);
-    })();
+  async function handleConfirmCancel() {
+    await onPutStatus(id, "cancelled", null);
+    onSessionUpdated?.();
+    setCancelConfirmOpen(false);
+    onOpenChange(false);
+  }
+
+  function handleDialogOpenChange(nextOpen: boolean) {
+    if (!nextOpen) setCancelConfirmOpen(false);
+    onOpenChange(nextOpen);
   }
 
   return (
@@ -154,11 +156,13 @@ export function SessionManageDialog({
         defaultDate={session.session_date ? String(session.session_date) : undefined}
         defaultStartTime={session.start_time ? String(session.start_time) : undefined}
         defaultEndTime={session.end_time ? String(session.end_time) : undefined}
+        defaultDurationMinutes={
+          typeof session.duration_minutes === "number" ? session.duration_minutes : undefined
+        }
         counterpartName={counterpartName}
         viewerRole={isExpert ? "expert" : "learner"}
         onSubmitted={() => {
           onSessionUpdated?.();
-          onOpenChange(false);
         }}
       />
       {isExpert && counterpartId ? (
@@ -176,76 +180,107 @@ export function SessionManageDialog({
         />
       ) : null}
 
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#003049]">
-              <ClipboardList className="h-5 w-5 text-[#F77F00]" />
-              Manage Session
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="flex gap-3 rounded-lg border border-[#003049]/10 bg-gray-50/80 p-3">
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-[#003049]/10 bg-white">
-              {session.partner_photo ? (
-                <Image
-                  src={session.partner_photo}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="56px"
-                  unoptimized
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-[#003049]/40">
-                  {(session.partner_name || "?").slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <VisibleTempDot expertVisibilityState={session.partner_expert_visibility_state} />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-[#003049]">{counterpartName}</p>
-              <p className="mt-1 text-sm text-[#003049]/80">{datePipeRange}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{bookedLine}</p>
-            </div>
-          </div>
-
-          {!isCancelled && st !== "complete" ? (
-            <div data-tour-target="tour-manage-booking" className="mt-5 space-y-3">
-              <div className="grid gap-2 sm:grid-cols-1">
+          {cancelConfirmOpen ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-[#003049]">Cancel session?</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm leading-relaxed text-[#003049]/80">
+                Are you sure you want to cancel? Note that cancelling sessions will negatively impact your public
+                dependability score.
+              </p>
+              <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-11 justify-start gap-2 border-[#003049]/20 bg-white font-semibold text-[#003049] hover:bg-[#003049]/5"
-                  disabled={!counterpartId || isCancelled || st === "complete"}
-                  onClick={() => setRescheduleOpen(true)}
+                  className="border-[#003049]/20 text-[#003049]"
+                  onClick={() => setCancelConfirmOpen(false)}
                 >
-                  <CalendarRange className="h-4 w-4 shrink-0 text-[#F77F00]" aria-hidden />
-                  Reschedule Session
+                  Go Back
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
-                  className="h-11 justify-start gap-2 border-red-200 bg-red-50/60 font-semibold text-red-900 hover:bg-red-100/80"
-                  disabled={isCancelled}
-                  onClick={confirmCancel}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                  onClick={() => void handleConfirmCancel()}
                 >
-                  <Ban className="h-4 w-4 shrink-0" aria-hidden />
-                  Cancel Session
+                  Confirm Cancellation
                 </Button>
-                {isExpert && counterpartId ? (
-                  <Button
-                    type="button"
-                    className="h-11 justify-start gap-2 bg-[#F77F00] font-semibold text-white hover:bg-[#F77F00]/92"
-                    onClick={() => setOfferOpen(true)}
-                  >
-                    <Gift className="h-4 w-4 shrink-0" aria-hidden />
-                    Send an Offer
-                  </Button>
-                ) : null}
               </div>
-            </div>
-          ) : null}
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-[#003049]">
+                  <ClipboardList className="h-5 w-5 text-[#F77F00]" />
+                  Manage Session
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="flex gap-3 rounded-lg border border-[#003049]/10 bg-gray-50/80 p-3">
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-[#003049]/10 bg-white">
+                  {session.partner_photo ? (
+                    <Image
+                      src={session.partner_photo}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="56px"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-[#003049]/40">
+                      {(session.partner_name || "?").slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <VisibleTempDot expertVisibilityState={session.partner_expert_visibility_state} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#003049]">{counterpartName}</p>
+                  <p className="mt-1 text-sm text-[#003049]/80">{datePipeRange}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{bookedLine}</p>
+                </div>
+              </div>
+
+              {!isCancelled && st !== "complete" ? (
+                <div data-tour-target="tour-manage-booking" className="mt-5 space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 justify-start gap-2 border-[#003049]/20 bg-white font-semibold text-[#003049] hover:bg-[#003049]/5"
+                      disabled={!counterpartId || isCancelled || st === "complete"}
+                      onClick={() => setRescheduleOpen(true)}
+                    >
+                      <CalendarRange className="h-4 w-4 shrink-0 text-[#F77F00]" aria-hidden />
+                      Reschedule Session
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 justify-start gap-2 border-[#003049]/20 bg-white font-semibold text-[#003049] hover:bg-[#003049]/5"
+                      disabled={isCancelled}
+                      onClick={() => setCancelConfirmOpen(true)}
+                    >
+                      <Ban className="h-4 w-4 shrink-0 text-[#F77F00]" aria-hidden />
+                      Cancel Session
+                    </Button>
+                    {isExpert && counterpartId ? (
+                      <Button
+                        type="button"
+                        className="h-11 justify-start gap-2 bg-[#F77F00] font-semibold text-white hover:bg-[#F77F00]/92"
+                        onClick={() => setOfferOpen(true)}
+                      >
+                        <Gift className="h-4 w-4 shrink-0" aria-hidden />
+                        Send an Offer
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

@@ -4,6 +4,7 @@ import {
   dispatchNewMessageNotification,
   type NewMessageDispatch,
 } from "@/lib/notifications/dispatch";
+import { messagePreviewForEmail } from "@/lib/notifications/message-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
     recipientPhone: recipientRow.phone_number,
     recipientName: displayName(recipientRow),
     senderName: displayName(senderRow),
-    messagePreview: (message.message ?? "").slice(0, 200),
+    messagePreview: messagePreviewForEmail(message.message ?? ""),
   };
 
   await dispatchNewMessageNotification(payload);

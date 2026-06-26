@@ -43,6 +43,7 @@ import DashboardExpertAvailabilityView from "./views/DashboardExpertAvailability
 import DashboardExpertStatusView from "./views/DashboardExpertStatusView";
 import DashboardBookingPreferencesView from "./views/DashboardBookingPreferencesView";
 import { RegistrationSuccessOverlay } from "@/components/auth/RegistrationSuccessOverlay";
+import type { ConveneRoleMode } from "@/lib/dashboard/role-mode-session";
 
 type Props = {
   bootstrap: DashboardBootstrap;
@@ -162,6 +163,26 @@ export default function DashboardClient({
       }
     })();
   }, []);
+
+  const switchRoleMode = useCallback(
+    async (nextMode: ConveneRoleMode) => {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ convene_role_mode: nextMode }),
+      });
+      if (!res.ok) return;
+      setRoleMode(nextMode);
+      if (nextMode === "expert") {
+        setView("community-requests");
+        router.push("/dashboard?view=community-requests");
+      } else {
+        setView("overview");
+        router.push("/dashboard?view=overview");
+      }
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (bootstrap.kind !== "authed") return;
@@ -441,6 +462,9 @@ export default function DashboardClient({
           view={view}
           pathname={pathname}
           onGo={goToEntry}
+          roleMode={roleMode}
+          hasExpertProfile={hasExpertProfile}
+          onSwitchRoleMode={(mode) => void switchRoleMode(mode)}
         />
 
         <main className="min-w-0 flex-1 overflow-x-auto px-3 py-6 sm:px-4 lg:px-6 lg:py-8">
@@ -448,7 +472,10 @@ export default function DashboardClient({
             {view === "overview" ? <DashboardOverview summary={summary} /> : null}
 
             {view === "sessions" ? (
-              <DashboardBookedSessionsView tourDemoSession={tourDemoSession ?? expertTourDemoSession} />
+              <DashboardBookedSessionsView
+                roleMode={roleMode}
+                tourDemoSession={tourDemoSession ?? expertTourDemoSession}
+              />
             ) : null}
             {view === "inbox" ? <DashboardInboxView tourDemo={expertTourInboxDemo} /> : null}
             {view === "requests" ? <RequestsListBody variant="dashboard" /> : null}

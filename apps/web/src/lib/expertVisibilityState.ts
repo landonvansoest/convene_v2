@@ -37,6 +37,30 @@ export function expertVisibilityFeaturedSortRank(state: string | null | undefine
   return 3;
 }
 
+/** Featured grid: visibility tier first, random order within each tier. */
+export function orderFeaturedExperts<T extends { expert_visibility_state?: string | null }>(
+  items: T[],
+): T[] {
+  const buckets = new Map<number, T[]>();
+  for (const item of items) {
+    const rank = expertVisibilityFeaturedSortRank(item.expert_visibility_state);
+    const list = buckets.get(rank) ?? [];
+    list.push(item);
+    buckets.set(rank, list);
+  }
+
+  const ordered: T[] = [];
+  for (const rank of [...buckets.keys()].sort((a, b) => a - b)) {
+    const bucket = buckets.get(rank)!;
+    for (let i = bucket.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bucket[i], bucket[j]] = [bucket[j], bucket[i]];
+    }
+    ordered.push(...bucket);
+  }
+  return ordered;
+}
+
 /** Experts included in homepage grid / GET /api/experts (before rating/session filters). */
 export function expertVisibilityStatesForBrowseGrid(s: {
   include_temp: boolean;

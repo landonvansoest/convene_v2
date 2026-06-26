@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bookingRowVisibleInSessionList } from "@/lib/booking-dashboard-visibility";
+import {
+  isAwaitingExpertBookingRequest,
+  isBookingRequestSubmittedToExpert,
+} from "@/lib/booking-request";
 import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
 import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
@@ -109,9 +113,18 @@ export async function GET(request: Request) {
   });
 
   if (!includePendingUnpaid) {
-    sessions = sessions.filter((s) =>
-      bookingRowVisibleInSessionList(s.payment_status, s.user_role),
-    );
+    sessions = sessions.filter((s) => {
+      if (!bookingRowVisibleInSessionList(s.payment_status, s.user_role)) return false;
+      // Experts only see booking requests after the learner saved a payment method.
+      if (
+        String(s.user_role ?? "").toLowerCase() === "expert" &&
+        isAwaitingExpertBookingRequest(s.payment_status) &&
+        !isBookingRequestSubmittedToExpert(s.payment_status, s.stripe_payment_method_id)
+      ) {
+        return false;
+      }
+      return true;
+    });
   }
 
   const bookingIds = sessions.map((s) => s.booking_id).filter(Boolean) as string[];

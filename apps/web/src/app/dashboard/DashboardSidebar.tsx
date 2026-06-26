@@ -1,12 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CircleCheck, Star, TrendingUp } from "lucide-react";
+import { Briefcase, CircleCheck, GraduationCap, Star, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { OnlineDot } from "@/components/presence/OnlineDot";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { formatDependabilityRating } from "@/lib/formatDependabilityRating";
+import type { ConveneRoleMode } from "@/lib/dashboard/role-mode-session";
 import { cn } from "@/lib/utils";
 import type { DashboardSummaryJson } from "./DashboardOverview";
 
@@ -79,8 +80,7 @@ function navBadge(
   counts: DashboardSummaryJson["counts"]
 ): number | undefined {
   if (entryKey === "sessions") {
-    const n = isExpert ? counts.expertNewBookings : counts.upcomingSessions;
-    return n > 0 ? n : undefined;
+    return counts.upcomingSessions > 0 ? counts.upcomingSessions : undefined;
   }
   if (entryKey === "inbox") {
     return counts.unreadMessages > 0 ? counts.unreadMessages : undefined;
@@ -102,12 +102,18 @@ export function DashboardSidebar({
   view,
   pathname,
   onGo,
+  roleMode,
+  hasExpertProfile,
+  onSwitchRoleMode,
 }: {
   summary: DashboardSummaryJson;
   entries: SidebarEntry[];
   view: string;
   pathname: string;
   onGo: (entry: SidebarEntry) => void;
+  roleMode: ConveneRoleMode;
+  hasExpertProfile: boolean;
+  onSwitchRoleMode: (nextMode: ConveneRoleMode) => void;
 }) {
   const { profile, expert, ratings } = summary;
   const isExpert = profile.hasExpertProfile;
@@ -146,6 +152,9 @@ export function DashboardSidebar({
     ? entries.filter((e) => EXPERT_SIDEBAR_FOOTER_KEYS.has(e.key))
     : [];
 
+  const showSwitchToLearning = roleMode === "expert";
+  const showSwitchToCoaching = roleMode === "learner" && hasExpertProfile;
+
   const statRows: Array<{ icon: ReactNode; label: string; value: string }> = [
     {
       icon: <Star className="h-4 w-4 shrink-0 text-[#F77F00]" strokeWidth={2} aria-hidden />,
@@ -179,7 +188,7 @@ export function DashboardSidebar({
                 {avatarInitials.slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            <OnlineDot online={profile.online} />
+            <OnlineDot online={profile.online} availableNow={profile.availableNow} />
             <VisibleTempDot expertVisibilityState={expert?.expertVisibilityState} />
           </div>
           <div className="min-w-0 flex-1">
@@ -187,6 +196,9 @@ export function DashboardSidebar({
             <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
             {profile.online ? (
               <p className="mt-1 text-xs font-medium text-convene-hero">Online now</p>
+            ) : null}
+            {profile.availableNow ? (
+              <p className="mt-0.5 text-xs font-medium text-convene-hero">Available now</p>
             ) : null}
           </div>
         </div>
@@ -241,6 +253,33 @@ export function DashboardSidebar({
                   />
                 ))}
               </div>
+            </>
+          ) : null}
+          {showSwitchToLearning || showSwitchToCoaching ? (
+            <>
+              <div className="my-3 h-px bg-[#003049]/12" aria-hidden />
+              {showSwitchToLearning ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal rounded-md px-3 py-2 text-left"
+                  onClick={() => onSwitchRoleMode("learner")}
+                >
+                  <GraduationCap className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="flex-1 truncate text-left">Switch to Learning</span>
+                </Button>
+              ) : null}
+              {showSwitchToCoaching ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal rounded-md px-3 py-2 text-left"
+                  onClick={() => onSwitchRoleMode("expert")}
+                >
+                  <Briefcase className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="flex-1 truncate text-left">Switch to Coaching</span>
+                </Button>
+              ) : null}
             </>
           ) : null}
         </nav>

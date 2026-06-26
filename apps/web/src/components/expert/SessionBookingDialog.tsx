@@ -2,11 +2,13 @@
 
 import { Elements, useElements, useStripe } from "@stripe/react-stripe-js";
 import Link from "next/link";
+import { CheckCircle } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import type { ExpertAvailabilityForPreview } from "@/lib/expertBookingPreview";
+import type { ExpertAvailabilityForPreview, ExpertBlockingInterval } from "@/lib/expertBookingPreview";
 import { buildBookingSlotRowFromAnchor } from "@/lib/expertBookingPreview";
 import { computeSessionCheckoutPricing, roundUsd2 } from "@/lib/sessionCheckoutPricing";
+import { firstSessionBookingDurationBounds, previewFirstSessionDiscountPricing } from "@/lib/pricing/first-session-discount";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,6 +28,7 @@ import {
 } from "@/lib/stripe/sessionPaymentElementOptions";
 import { sanitizeStripeMessageForUi } from "@/lib/stripe/stripeMessageUi";
 import { SessionPaymentMethodBlock } from "@/components/stripe/SessionPaymentMethodBlock";
+import { BookingRequestSetupDialog } from "@/components/dashboard/BookingRequestSetupDialog";
 import { stripePromise } from "@/lib/stripe/loadStripeClient";
 import { dispatchHeaderBadgesMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { cn } from "@/lib/utils";
@@ -95,7 +98,13 @@ function timeZoneAbbrevAt(utcMs: number, iana: string): string {
   }
 }
 
-type BookStep = "book" | "request_sent";
+type BookStep = "book" | "request_sent" | "confirmed";
+
+type FirstSessionDiscountPreview = {
+  eligible: true;
+  discountUsd: number;
+  chargedUsd: number;
+};
 
 type Props = {
   open: boolean;
@@ -115,8 +124,18 @@ type Props = {
   expertTimeZoneDisplayLabel?: string | null;
   /** When set (e.g. signed-in viewer profile `time_zone`), chip labels and session copy use this IANA zone. */
   displayWallTimeZone?: string | null;
+  blockingIntervals?: ExpertBlockingInterval[];
   anchorUtcMs: number | null;
   firstSessionDiscountAvailable: boolean;
+  firstSessionDiscountMaxSessionMinutes?: number | null;
+  firstSessionDiscountType?: string | null;
+  firstSessionDiscountValue?: number | string | null;
+  viewerHasPaidSession?: boolean;
+  packageRequireAfterFirst?: boolean;
+  /** When set, booking redeems this package credit (no card payment). */
+  packageCreditId?: string | null;
+  packageCreditDurationMinutes?: number | null;
+  packageCreditRemaining?: number | null;
   onRequestSignIn?: () => void;
 };
 
@@ -129,14 +148,24 @@ export function SessionBookingDialog({
   expertPhoto,
   expertVisibilityState = null,
   ratePer15Min,
+  autoAccept,
   minBookingMinutes,
   maxBookingMinutes,
   availability,
   expertTimeZone,
   expertTimeZoneDisplayLabel,
   displayWallTimeZone,
+  blockingIntervals = [],
   anchorUtcMs,
   firstSessionDiscountAvailable,
+  firstSessionDiscountMaxSessionMinutes = null,
+  firstSessionDiscountType = null,
+  firstSessionDiscountValue = null,
+  viewerHasPaidSession = false,
+  packageRequireAfterFirst = false,
+  packageCreditId = null,
+  packageCreditDurationMinutes = null,
+  packageCreditRemaining = null,
   onRequestSignIn,
 }: Props) {
   const expertFirstName = useMemo(() => {
@@ -147,10 +176,14 @@ export function SessionBookingDialog({
   const [row, setRow] = useState<{ utcMs: number; label: string }[]>([]);
   /** Inclusive chip indices; `null` = user cleared all slots. */
   const [range, setRange] = useState<{ start: number; end: number } | null>(null);
-  const [applyDiscount, setApplyDiscount] = useState(false);
+  const [discountPreview, setDiscountPreview] = useState<FirstSessionDiscountPreview | null>(null);
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [discountEligibleKnown, setDiscountEligibleKnown] = useState(false);
+  const [confirmedDiscountUsd, setConfirmedDiscountUsd] = useState(0);
   const [bookStep, setBookStep] = useState<BookStep>("book");
   const [payOpen, setPayOpen] = useState(false);
   const [paySuccess, setPaySuccess] = useState(false);
+  const [confirmationNumber, setConfirmationNumber] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -159,6 +192,8 @@ export function SessionBookingDialog({
     null,
   );
   const [priceBreakdownOpen, setPriceBreakdownOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
 
   /** Closing the book dialog after “Book Session” must not wipe PI / chip state. */
   const preserveBookStateRef = useRef(false);
@@ -181,6 +216,7 @@ export function SessionBookingDialog({
     setBookStep("book");
     setErr(null);
     setPricingState(null);
+    setConfirmedDiscountUsd(0);
     setPriceBreakdownOpen(false);
   }, []);
 
@@ -189,24 +225,72 @@ export function SessionBookingDialog({
     setClientSecret(null);
     setPayOpen(false);
     setPaySuccess(false);
+    setConfirmationNumber(null);
     setPayErr(null);
     setRow([]);
     setRange(null);
+    setDiscountPreview(null);
+    setDiscountLoading(false);
+    setDiscountEligibleKnown(false);
   }, [resetBookOnly]);
+
+  const usingPackageCredit = Boolean(packageCreditId);
+  const bookingDurationBounds = useMemo(
+    () =>
+      firstSessionBookingDurationBounds({
+        minBookingMinutes,
+        maxBookingMinutes,
+        firstSessionDiscountEnabled: firstSessionDiscountAvailable || packageRequireAfterFirst,
+        firstSessionDiscountMaxSessionMinutes,
+        learnerHasPaidSession: viewerHasPaidSession,
+        packageRequireAfterFirst,
+      }),
+    [
+      minBookingMinutes,
+      maxBookingMinutes,
+      firstSessionDiscountAvailable,
+      firstSessionDiscountMaxSessionMinutes,
+      viewerHasPaidSession,
+      packageRequireAfterFirst,
+    ],
+  );
+  const effectiveMinMinutes = usingPackageCredit && packageCreditDurationMinutes
+    ? packageCreditDurationMinutes
+    : bookingDurationBounds.minMinutes;
+  const effectiveMaxMinutes = usingPackageCredit && packageCreditDurationMinutes
+    ? packageCreditDurationMinutes
+    : bookingDurationBounds.maxMinutes;
 
   useEffect(() => {
     if (!open || anchorUtcMs == null) return;
     resetBookOnly();
-    setApplyDiscount(false);
+    setDiscountPreview(null);
+    setDiscountEligibleKnown(false);
     preserveBookStateRef.current = false;
     const chips = buildBookingSlotRowFromAnchor(availability, expertTimeZone, anchorUtcMs, new Date(), {
       labelTimeZone: displayWallTimeZone?.trim() || undefined,
+      blockingIntervals,
     });
     setRow(chips);
-    const needSlots = Math.max(1, Math.ceil(minBookingMinutes / 15));
+    const needSlots =
+      usingPackageCredit && packageCreditDurationMinutes
+        ? Math.max(1, packageCreditDurationMinutes / 15)
+        : Math.max(1, Math.ceil(bookingDurationBounds.minMinutes / 15));
     const end = Math.min(Math.max(0, chips.length - 1), Math.max(0, needSlots - 1));
     setRange(chips.length ? { start: 0, end } : null);
-  }, [open, anchorUtcMs, availability, expertTimeZone, displayWallTimeZone, minBookingMinutes, resetBookOnly]);
+  }, [
+    open,
+    anchorUtcMs,
+    availability,
+    expertTimeZone,
+    displayWallTimeZone,
+    blockingIntervals,
+    minBookingMinutes,
+    bookingDurationBounds.minMinutes,
+    usingPackageCredit,
+    packageCreditDurationMinutes,
+    resetBookOnly,
+  ]);
 
   useEffect(() => {
     payOpenRef.current = payOpen;
@@ -222,13 +306,125 @@ export function SessionBookingDialog({
     [ratePer15Min, numBlocks],
   );
 
-  const estimatePricing = useMemo(
-    () => (numBlocks > 0 ? computeSessionCheckoutPricing(listBookingFee) : null),
-    [listBookingFee, numBlocks],
+  const configDiscountPreview = useMemo((): FirstSessionDiscountPreview | null => {
+    if (!firstSessionDiscountAvailable || usingPackageCredit || numBlocks <= 0) return null;
+    const preview = previewFirstSessionDiscountPricing({
+      durationMinutes,
+      listPriceUsd: listBookingFee,
+      discountEnabled: true,
+      discountType: firstSessionDiscountType,
+      discountValue: firstSessionDiscountValue,
+      maxSessionMinutes: firstSessionDiscountMaxSessionMinutes,
+    });
+    return preview.eligible ? preview : null;
+  }, [
+    firstSessionDiscountAvailable,
+    usingPackageCredit,
+    numBlocks,
+    durationMinutes,
+    listBookingFee,
+    firstSessionDiscountType,
+    firstSessionDiscountValue,
+    firstSessionDiscountMaxSessionMinutes,
+  ]);
+
+  useEffect(() => {
+    if (!open || !firstSessionDiscountAvailable || usingPackageCredit || numBlocks <= 0) {
+      setDiscountPreview(null);
+      setDiscountLoading(false);
+      setDiscountEligibleKnown(false);
+      return;
+    }
+
+    if (configDiscountPreview) {
+      setDiscountPreview(configDiscountPreview);
+    } else {
+      setDiscountPreview(null);
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const sb = createBrowserSupabase();
+      const { data: sess } = await sb.auth.getSession();
+      if (!sess.session?.user) {
+        if (!cancelled) {
+          setDiscountEligibleKnown(Boolean(configDiscountPreview));
+          setDiscountLoading(false);
+        }
+        return;
+      }
+
+      setDiscountLoading(true);
+      try {
+        const params = new URLSearchParams({
+          durationMinutes: String(durationMinutes),
+          listPrice: String(listBookingFee),
+        });
+        const res = await fetch(
+          `/api/experts/${encodeURIComponent(expertId)}/first-session-discount?${params.toString()}`,
+        );
+        const data = (await res.json()) as {
+          eligible?: boolean;
+          discountUsd?: number;
+          chargedUsd?: number;
+        };
+        if (cancelled) return;
+        if (res.ok && data.eligible && typeof data.discountUsd === "number" && typeof data.chargedUsd === "number") {
+          setDiscountPreview({
+            eligible: true,
+            discountUsd: data.discountUsd,
+            chargedUsd: data.chargedUsd,
+          });
+        } else {
+          setDiscountPreview(null);
+        }
+        setDiscountEligibleKnown(true);
+      } catch {
+        if (!cancelled) {
+          setDiscountPreview(configDiscountPreview);
+          setDiscountEligibleKnown(Boolean(configDiscountPreview));
+        }
+      } finally {
+        if (!cancelled) setDiscountLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    open,
+    expertId,
+    firstSessionDiscountAvailable,
+    usingPackageCredit,
+    durationMinutes,
+    listBookingFee,
+    numBlocks,
+    configDiscountPreview,
+  ]);
+
+  const activeDiscountPreview = discountPreview?.eligible ? discountPreview : null;
+
+  const firstSessionDiscountApplied = Boolean(
+    firstSessionDiscountAvailable && activeDiscountPreview,
   );
 
+  const displayPricing = useMemo(() => {
+    if (numBlocks <= 0) return null;
+    const bookingFeeAfterDiscount =
+      firstSessionDiscountApplied && activeDiscountPreview
+        ? activeDiscountPreview.chargedUsd
+        : listBookingFee;
+    return computeSessionCheckoutPricing(bookingFeeAfterDiscount);
+  }, [numBlocks, firstSessionDiscountApplied, activeDiscountPreview, listBookingFee]);
+
+  const taxesAndFeesTotal = displayPricing
+    ? roundUsd2(displayPricing.platform_fee + displayPricing.taxes_fees)
+    : 0;
+
   const startUtc = range != null ? row[startIdx]?.utcMs : undefined;
-  const durationOk = durationMinutes >= minBookingMinutes && durationMinutes <= maxBookingMinutes;
+  const durationOk =
+    durationMinutes >= effectiveMinMinutes && durationMinutes <= effectiveMaxMinutes;
 
   const tzDisplay = useMemo(() => {
     const trimmed = expertTimeZoneDisplayLabel?.trim();
@@ -306,7 +502,11 @@ export function SessionBookingDialog({
   async function onBookSession() {
     setErr(null);
     if (startUtc == null || range == null || !durationOk) {
-      setErr(`Choose a duration between ${minBookingMinutes} and ${maxBookingMinutes} minutes.`);
+      setErr(
+        usingPackageCredit && packageCreditDurationMinutes
+          ? `Choose a ${formatDurationLabel(packageCreditDurationMinutes)} session.`
+          : `Choose a duration between ${formatDurationLabel(effectiveMinMinutes)} and ${formatDurationLabel(effectiveMaxMinutes)}.`,
+      );
       return;
     }
     const sb = createBrowserSupabase();
@@ -317,13 +517,48 @@ export function SessionBookingDialog({
     }
     setBusy(true);
     try {
+      let applyFirstSessionDiscount = firstSessionDiscountApplied;
+      let confirmedDiscount = 0;
+      if (firstSessionDiscountAvailable && !usingPackageCredit) {
+        const params = new URLSearchParams({
+          durationMinutes: String(durationMinutes),
+          listPrice: String(listBookingFee),
+        });
+        const discountRes = await fetch(
+          `/api/experts/${encodeURIComponent(expertId)}/first-session-discount?${params.toString()}`,
+        );
+        const discountData = (await discountRes.json()) as {
+          eligible?: boolean;
+          discountUsd?: number;
+          chargedUsd?: number;
+        };
+        if (
+          discountRes.ok &&
+          discountData.eligible &&
+          typeof discountData.discountUsd === "number" &&
+          typeof discountData.chargedUsd === "number"
+        ) {
+          applyFirstSessionDiscount = true;
+          confirmedDiscount = discountData.discountUsd;
+          setDiscountPreview({
+            eligible: true,
+            discountUsd: discountData.discountUsd,
+            chargedUsd: discountData.chargedUsd,
+          });
+          setDiscountEligibleKnown(true);
+        } else {
+          applyFirstSessionDiscount = false;
+        }
+      }
+
       const res = await fetch(`/api/experts/${encodeURIComponent(expertId)}/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           startUtcMs: startUtc,
           durationMinutes,
-          applyFirstSessionDiscount: applyDiscount && firstSessionDiscountAvailable,
+          applyFirstSessionDiscount,
+          ...(packageCreditId ? { packageCreditId } : {}),
         }),
       });
       const data = (await res.json()) as Record<string, unknown>;
@@ -331,10 +566,21 @@ export function SessionBookingDialog({
         setErr(typeof data.error === "string" ? data.error : "Could not create booking");
         return;
       }
+      if (Boolean(data.complimentary)) {
+        setBookStep("confirmed");
+        return;
+      }
+      if (Boolean(data.package_credit_redeemed)) {
+        setBookStep("confirmed");
+        return;
+      }
       const auto = Boolean(data.auto_accept);
       const deferred = Boolean(data.deferred_checkout);
       const pricing = data.pricing as ReturnType<typeof computeSessionCheckoutPricing> | undefined;
       if (pricing) setPricingState(pricing);
+      if (applyFirstSessionDiscount) {
+        setConfirmedDiscountUsd(confirmedDiscount);
+      }
 
       if (auto) {
         if (!stripePromise) {
@@ -350,7 +596,7 @@ export function SessionBookingDialog({
               expertUserId: expertId,
               startUtcMs: startUtc,
               durationMinutes,
-              applyFirstSessionDiscount: applyDiscount && firstSessionDiscountAvailable,
+              applyFirstSessionDiscount,
               checkoutAttemptId,
             }
           : {
@@ -389,11 +635,20 @@ export function SessionBookingDialog({
           setClientSecret(piJson.clientSecret ?? null);
           setPayErr(null);
           setPaySuccess(false);
+          setConfirmationNumber(null);
           setPayOpen(true);
         });
         onOpenChange(false);
       } else {
-        setBookStep("request_sent");
+        const bid = String((data.booking as Record<string, unknown> | undefined)?.booking_id ?? "");
+        if (!bid) {
+          setErr("Booking created but missing id");
+          return;
+        }
+        preserveBookStateRef.current = true;
+        setPendingBookingId(bid);
+        setSetupOpen(true);
+        onOpenChange(false);
       }
     } finally {
       setBusy(false);
@@ -405,7 +660,10 @@ export function SessionBookingDialog({
       ? startUtc + (endIdx - startIdx + 1) * 15 * 60_000
       : null;
 
-  const breakdownPricing = pricingState ?? estimatePricing;
+  const breakdownPricing = pricingState ?? displayPricing;
+  const breakdownDiscountUsd =
+    confirmedDiscountUsd ||
+    (firstSessionDiscountApplied ? activeDiscountPreview?.discountUsd ?? 0 : 0);
 
   const initials = expertName
     .split(/\s+/)
@@ -448,7 +706,9 @@ export function SessionBookingDialog({
                   Book a Session with {expertName}
                 </DialogTitle>
                 <DialogDescription className="whitespace-pre-line text-left text-sm text-foreground">
-                  {`Click consecutive time slots to create your booking.\n${expertFirstName} allows bookings between ${formatDurationLabel(minBookingMinutes)} and ${formatDurationLabel(maxBookingMinutes)}.`}
+                  {usingPackageCredit && packageCreditDurationMinutes
+                    ? `Schedule a ${formatDurationLabel(packageCreditDurationMinutes)} session using your package credit.`
+                    : `Click consecutive time slots to create your booking.\n${expertFirstName} allows bookings between ${formatDurationLabel(effectiveMinMinutes)} and ${formatDurationLabel(effectiveMaxMinutes)}.`}
                 </DialogDescription>
               </DialogHeader>
 
@@ -482,8 +742,15 @@ export function SessionBookingDialog({
                 </p>
                 {!durationOk && row.length > 0 && range != null ? (
                   <p className="text-xs text-amber-700">
-                    Duration must be between {formatDurationLabel(minBookingMinutes)} and{" "}
-                    {formatDurationLabel(maxBookingMinutes)}.
+                    {usingPackageCredit && packageCreditDurationMinutes
+                      ? `Duration must be ${formatDurationLabel(packageCreditDurationMinutes)} for this package credit.`
+                      : `Duration must be between ${formatDurationLabel(effectiveMinMinutes)} and ${formatDurationLabel(effectiveMaxMinutes)}.`}
+                  </p>
+                ) : null}
+                {usingPackageCredit && packageCreditRemaining != null ? (
+                  <p className="text-sm text-convene-hero">
+                    Using package credit ({packageCreditRemaining} session
+                    {packageCreditRemaining === 1 ? "" : "s"} remaining after this booking).
                   </p>
                 ) : null}
                 {range == null && row.length > 0 ? (
@@ -491,20 +758,21 @@ export function SessionBookingDialog({
                 ) : null}
                 {err ? <p className="text-sm text-destructive">{err}</p> : null}
 
-                {firstSessionDiscountAvailable ? (
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={applyDiscount}
-                      onChange={(e) => setApplyDiscount(e.target.checked)}
-                    />
-                    Apply first-session discount (if eligible)
-                  </label>
+                {firstSessionDiscountAvailable && firstSessionDiscountApplied ? (
+                  <p className="text-sm text-convene-hero">
+                    First-session discount applied automatically
+                    {activeDiscountPreview ? ` (−$${activeDiscountPreview.discountUsd.toFixed(2)})` : ""}.
+                  </p>
+                ) : null}
+                {firstSessionDiscountAvailable && discountEligibleKnown && !firstSessionDiscountApplied && !discountLoading ? (
+                  <p className="text-xs text-muted-foreground">
+                    First-session discount is not available for this booking.
+                  </p>
                 ) : null}
 
                 <div className="space-y-2 rounded-lg bg-convene-primary px-4 py-3 text-white">
                   <p className="font-bold">Booking details</p>
-                  {startUtc != null && estimatePricing ? (
+                  {startUtc != null && (usingPackageCredit || displayPricing) ? (
                     <>
                       <div className="grid grid-cols-[64px_1fr] gap-1 text-sm">
                         <span className="text-white/80">Date</span>
@@ -518,30 +786,43 @@ export function SessionBookingDialog({
                       </div>
                       <Separator className="my-2 bg-white/20" />
                       <div className="space-y-2 text-sm">
-                        {applyDiscount && firstSessionDiscountAvailable ? (
-                          <p className="text-xs text-white/80">
-                            First-session discount is applied when you continue (if eligible); totals may
-                            change slightly.
-                          </p>
-                        ) : null}
+                        {usingPackageCredit ? (
+                          <>
+                            <div className="flex justify-between gap-3">
+                              <span>Package credit</span>
+                              <span className="font-medium tabular-nums">1 session</span>
+                            </div>
+                            <div className="flex justify-between gap-3 border-t border-white/25 pt-2 text-xl font-bold text-white">
+                              <span>Total (in USD)</span>
+                              <span className="tabular-nums">$0.00</span>
+                            </div>
+                          </>
+                        ) : displayPricing ? (
+                          <>
                         <div className="flex justify-between gap-3">
                           <span className="min-w-0 pr-2 text-white/95">
                             Booking Fee (${ratePer15Min.toFixed(2)} × {numBlocks}{" "}
                             {numBlocks === 1 ? "block" : "blocks"})
                           </span>
                           <span className="shrink-0 font-medium tabular-nums">
-                            ${estimatePricing.subtotal_before_tax.toFixed(2)}
+                            ${listBookingFee.toFixed(2)}
                           </span>
                         </div>
+                        {firstSessionDiscountApplied && activeDiscountPreview ? (
+                          <div className="flex justify-between gap-3 text-convene-hero">
+                            <span>First-session discount</span>
+                            <span className="font-medium tabular-nums">
+                              −${activeDiscountPreview.discountUsd.toFixed(2)}
+                            </span>
+                          </div>
+                        ) : null}
                         <div className="flex justify-between gap-3">
                           <span>Taxes and Fees</span>
-                          <span className="font-medium tabular-nums">
-                            ${estimatePricing.taxes_fees.toFixed(2)}
-                          </span>
+                          <span className="font-medium tabular-nums">${taxesAndFeesTotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between gap-3 border-t border-white/25 pt-2 text-xl font-bold text-white">
                           <span>Total (in USD)</span>
-                          <span className="tabular-nums">${estimatePricing.total_amount.toFixed(2)}</span>
+                          <span className="tabular-nums">${displayPricing.total_amount.toFixed(2)}</span>
                         </div>
                         <button
                           type="button"
@@ -550,6 +831,8 @@ export function SessionBookingDialog({
                         >
                           Price Breakdown
                         </button>
+                          </>
+                        ) : null}
                       </div>
                     </>
                   ) : (
@@ -563,7 +846,13 @@ export function SessionBookingDialog({
                   disabled={busy || !durationOk || !row.length || range == null}
                   onClick={() => void onBookSession()}
                 >
-                  {busy ? "Working…" : "Book Session"}
+                  {busy
+                    ? "Working…"
+                    : usingPackageCredit
+                      ? "Book with package credit"
+                      : autoAccept
+                        ? "Book Session"
+                        : "Request Booking"}
                 </Button>
               </div>
             </>
@@ -571,10 +860,13 @@ export function SessionBookingDialog({
 
           {bookStep === "request_sent" ? (
             <div className="space-y-4 py-2">
-              <DialogTitle className="text-xl font-bold text-convene-primary">Request sent</DialogTitle>
+              <DialogTitle className="flex items-center gap-2 text-xl font-bold text-convene-primary">
+                <CheckCircle className="h-6 w-6 shrink-0 text-convene-hero" aria-hidden />
+                Request sent
+              </DialogTitle>
               <p className="text-sm text-muted-foreground">
-                Your booking request was sent to {expertFirstName}. They can approve, decline, or send you a
-                different offer. We&apos;ll notify you by message when they respond.
+                Your card is saved on file. You&apos;ll only be charged if {expertFirstName} accepts the booking.
+                We&apos;ll notify you when they respond.
               </p>
               <Button
                 type="button"
@@ -585,8 +877,71 @@ export function SessionBookingDialog({
               </Button>
             </div>
           ) : null}
+
+          {bookStep === "confirmed" ? (
+            <div className="space-y-4 py-2">
+              <DialogTitle className="text-xl font-bold text-convene-primary">
+                Booking confirmed! <span aria-hidden>🎉</span>
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Your session with {expertName} is booked using a package credit.
+              </p>
+              <Button asChild className="w-full bg-convene-primary text-white">
+                <Link href="/dashboard">Go to Dashboard</Link>
+              </Button>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
+
+      <BookingRequestSetupDialog
+        open={setupOpen}
+        onOpenChange={(o) => {
+          setSetupOpen(o);
+          if (!o) {
+            preserveBookStateRef.current = false;
+            setPendingBookingId(null);
+            resetEverything();
+          }
+        }}
+        bookingId={pendingBookingId}
+        expertName={expertName}
+        expertTitle={expertTitle}
+        expertPhoto={expertPhoto}
+        expertVisibilityState={expertVisibilityState}
+        totalUsd={pricingState?.total_amount ?? displayPricing?.total_amount ?? null}
+        sessionSummary={
+          pricingState && startUtc != null ? (
+            <>
+              <p className="font-semibold text-convene-primary">Session details</p>
+              <dl className="mt-3 space-y-2 text-foreground">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd className="text-right font-medium">{formatLongDate(startUtc, tzSafe)}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Time</dt>
+                  <dd className="text-right font-medium">
+                    {timeLineWithZones(startUtc, startUtc + durationMinutes * 60_000)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Duration</dt>
+                  <dd className="text-right font-medium">{formatDurationLabel(durationMinutes)}</dd>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex justify-between gap-4 text-base font-bold text-convene-primary">
+                  <dt>Total if approved (USD)</dt>
+                  <dd className="tabular-nums">${pricingState.total_amount.toFixed(2)}</dd>
+                </div>
+              </dl>
+            </>
+          ) : null
+        }
+        onCompleted={() => {
+          dispatchHeaderBadgesMayHaveChanged();
+        }}
+      />
 
       <Dialog open={payOpen} onOpenChange={(o) => handlePaymentDialogOpenChange(o)}>
         <DialogContent className="z-[210] max-h-[90vh] max-w-lg overflow-y-auto border-border bg-card sm:max-w-md">
@@ -657,7 +1012,8 @@ export function SessionBookingDialog({
                   }}
                 >
                   <PayStep
-                    onSuccess={() => {
+                    onSuccess={(confirmation) => {
+                      setConfirmationNumber(confirmation);
                       setPaySuccess(true);
                       dispatchHeaderBadgesMayHaveChanged();
                     }}
@@ -674,7 +1030,14 @@ export function SessionBookingDialog({
                 Booking successful! <span aria-hidden>🎉</span>
               </h2>
               <p className="text-sm text-muted-foreground">
-                Your session with {expertName} has been confirmed.
+                Your session with {expertName} is confirmed.
+                {confirmationNumber ? (
+                  <>
+                    <br />
+                    Confirmation Number{" "}
+                    <span className="font-mono font-medium text-foreground">{confirmationNumber}</span>
+                  </>
+                ) : null}
               </p>
               <div className="rounded-lg border border-border bg-muted/25 p-4 text-sm">
                 <p className="font-semibold text-convene-primary">Booking details</p>
@@ -733,6 +1096,16 @@ export function SessionBookingDialog({
                 <span className="tabular-nums">{numBlocks}</span>
               </div>
               <div className="flex justify-between gap-3">
+                <span>Booking Fee</span>
+                <span className="tabular-nums">${listBookingFee.toFixed(2)}</span>
+              </div>
+              {firstSessionDiscountApplied || breakdownDiscountUsd > 0 ? (
+                <div className="flex justify-between gap-3 text-convene-hero">
+                  <span>First-session discount</span>
+                  <span className="tabular-nums">−${breakdownDiscountUsd.toFixed(2)}</span>
+                </div>
+              ) : null}
+              <div className="flex justify-between gap-3">
                 <span>Platform Fee</span>
                 <span className="tabular-nums">${breakdownPricing.platform_fee.toFixed(2)}</span>
               </div>
@@ -757,7 +1130,7 @@ function PayStep({
   onSuccess,
   setErr,
 }: {
-  onSuccess: () => void;
+  onSuccess: (confirmationNumber: string | null) => void;
   setErr: (s: string | null) => void;
 }) {
   const stripe = useStripe();
@@ -785,11 +1158,11 @@ function PayStep({
         setErr(sanitizeStripeMessageForUi(synced.error, "session_booking"));
         return;
       }
+      setBusy(false);
+      onSuccess(synced.confirmationNumber);
+      return;
     }
     setBusy(false);
-    if (paymentIntent?.status === "succeeded") {
-      onSuccess();
-    }
   }
 
   return (

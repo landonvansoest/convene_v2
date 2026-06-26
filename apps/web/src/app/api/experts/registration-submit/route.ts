@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { ensureExpertRegistrationWelcomeInbox } from "@/lib/messages/welcome-inbox";
 import { dispatchExpertRegistrationAlert } from "@/lib/notifications/admin-alerts";
+import { dispatchExpertRegistrationWelcome } from "@/lib/notifications/dispatch";
 import { publicApiError } from "@/lib/api/public-error";
 import { requiredFieldErrors } from "@/lib/expert-registration";
 
@@ -79,6 +80,17 @@ export async function POST() {
     await ensureExpertRegistrationWelcomeInbox(userId);
   } catch (e) {
     console.error("[registration-submit] expert welcome inbox", e);
+  }
+
+  try {
+    const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
+    await dispatchExpertRegistrationWelcome({
+      recipientUserId: userId,
+      recipientEmail: (user?.email_address ?? "").trim(),
+      recipientName: fullName,
+    });
+  } catch (e) {
+    console.error("[registration-submit] expert registration welcome email", e);
   }
 
   try {

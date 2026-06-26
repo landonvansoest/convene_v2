@@ -30,6 +30,25 @@ function appBaseUrl(): string {
   );
 }
 
+type AdminReviewPath =
+  | "expert-registrations"
+  | "refunds"
+  | "freelance-review"
+  | "help-tickets"
+  | "user-feedback";
+
+const REVIEW_PATH_LABEL: Record<AdminReviewPath, string> = {
+  "expert-registrations": "Expert Registrations",
+  refunds: "Booking Problems",
+  "freelance-review": "Freelance Review",
+  "help-tickets": "Help Tickets",
+  "user-feedback": "User Feedback",
+};
+
+function adminReviewLink(path: AdminReviewPath): string {
+  return `${appBaseUrl()}/admin  →  User Review → ${REVIEW_PATH_LABEL[path]}`;
+}
+
 async function sendAdminAlert(subject: string, body: string): Promise<void> {
   try {
     const ok = await sendEmailSendGrid(adminAlertRecipient(), subject, body);
@@ -51,7 +70,6 @@ export type ExpertRegistrationAlertInput = {
 export async function dispatchExpertRegistrationAlert(
   input: ExpertRegistrationAlertInput,
 ): Promise<void> {
-  const reviewUrl = `${appBaseUrl()}/admin`;
   const displayName = input.name?.trim() || "(no name on file)";
   const displayProfession = input.profession?.trim() || "(profession not set)";
   const displayEmail = input.email?.trim() || "(no email on file)";
@@ -66,7 +84,7 @@ export async function dispatchExpertRegistrationAlert(
     `User ID:     ${input.userId}`,
     "",
     "Review in the admin dashboard:",
-    `${reviewUrl}  →  User Review → Expert Registrations`,
+    adminReviewLink("expert-registrations"),
   ].join("\n");
 
   await sendAdminAlert(subject, body);
@@ -82,7 +100,6 @@ export type HelpTicketAlertInput = {
 };
 
 export async function dispatchHelpTicketAlert(input: HelpTicketAlertInput): Promise<void> {
-  const reviewUrl = `${appBaseUrl()}/admin`;
   const submitter = input.submitterName?.trim()
     ? `${input.submitterName.trim()} <${input.submitterEmail}>`
     : input.submitterEmail;
@@ -101,8 +118,123 @@ export async function dispatchHelpTicketAlert(input: HelpTicketAlertInput): Prom
     preview,
     "",
     "Reply in the admin dashboard:",
-    `${reviewUrl}  →  User Review → Help Tickets`,
+    adminReviewLink("help-tickets"),
   ].join("\n");
+
+  await sendAdminAlert(subject, body);
+}
+
+export type BookingNoShowAlertInput = {
+  bookingId: string;
+  sessionDate: string;
+  startTime: string;
+  learnerName: string | null;
+  expertName: string | null;
+};
+
+export async function dispatchBookingNoShowAlert(input: BookingNoShowAlertInput): Promise<void> {
+  const subject = `Booking problem: expert no-show — ${input.sessionDate}`;
+  const body = [
+    "A session was finalized as an expert no-show and needs refund review.",
+    "",
+    `Booking ID:  ${input.bookingId}`,
+    `Session:     ${input.sessionDate} ${input.startTime}`,
+    `Learner:     ${input.learnerName?.trim() || "—"}`,
+    `Expert:      ${input.expertName?.trim() || "—"}`,
+    "",
+    "Review in the admin dashboard:",
+    adminReviewLink("refunds"),
+  ].join("\n");
+
+  await sendAdminAlert(subject, body);
+}
+
+export type BookingComplaintAlertInput = {
+  feedbackId: string;
+  bookingId: string;
+  feedbackType: string;
+  feedbackText: string;
+};
+
+export async function dispatchBookingComplaintAlert(
+  input: BookingComplaintAlertInput,
+): Promise<void> {
+  const preview =
+    input.feedbackText.length > 800 ? `${input.feedbackText.slice(0, 800)}…` : input.feedbackText;
+
+  const subject = `Booking problem: user complaint — ${input.feedbackType.replace(/_/g, " ")}`;
+  const body = [
+    "A learner or expert submitted a session issue that needs admin review.",
+    "",
+    `Feedback ID: ${input.feedbackId}`,
+    `Booking ID:  ${input.bookingId}`,
+    `Type:        ${input.feedbackType}`,
+    "",
+    "Details:",
+    preview,
+    "",
+    "Review in the admin dashboard:",
+    adminReviewLink("refunds"),
+  ].join("\n");
+
+  await sendAdminAlert(subject, body);
+}
+
+export type FreelanceReviewAlertInput = {
+  freelanceId: string;
+  reason: string | null;
+  totalPrice: number | string | null;
+};
+
+export async function dispatchFreelanceReviewAlert(input: FreelanceReviewAlertInput): Promise<void> {
+  const subject = "Freelance work needs admin review";
+  const body = [
+    "A freelance booking was escalated to the admin review queue.",
+    "",
+    `Freelance ID: ${input.freelanceId}`,
+    `Total price:  ${input.totalPrice ?? "—"}`,
+    `Reason:       ${input.reason?.trim() || "(not specified)"}`,
+    "",
+    "Review in the admin dashboard:",
+    adminReviewLink("freelance-review"),
+  ].join("\n");
+
+  await sendAdminAlert(subject, body);
+}
+
+export type UserFeedbackAlertInput = {
+  feedbackId?: string;
+  feedbackType: string;
+  feedbackText: string;
+  userEmail?: string | null;
+  userName?: string | null;
+};
+
+export async function dispatchUserFeedbackAlert(input: UserFeedbackAlertInput): Promise<void> {
+  const label = input.feedbackType.replace(/_/g, " ");
+  const preview =
+    input.feedbackText.length > 800 ? `${input.feedbackText.slice(0, 800)}…` : input.feedbackText;
+  const who =
+    input.userName?.trim() && input.userEmail?.trim()
+      ? `${input.userName.trim()} <${input.userEmail.trim()}>`
+      : input.userEmail?.trim() || input.userName?.trim() || "—";
+
+  const subject = `New user feedback: ${label}`;
+  const body = [
+    "New feedback was submitted on Convene and is awaiting review.",
+    "",
+    input.feedbackId ? `Feedback ID: ${input.feedbackId}` : null,
+    `Type:        ${input.feedbackType}`,
+    `From:        ${who}`,
+    "",
+    "Message:",
+    preview,
+    "",
+    "Review in the admin dashboard:",
+    adminReviewLink("user-feedback"),
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   await sendAdminAlert(subject, body);
 }

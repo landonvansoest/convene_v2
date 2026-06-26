@@ -15,8 +15,10 @@ import { EXPERT_TOUR_INBOX_DEMO_PARTNER_ID } from "@/lib/tour/expert-tour-demo-b
 import { dispatchInboxUnreadMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { cn } from "@/lib/utils";
 import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
+import { OfferMessageBody } from "@/components/messages/OfferMessageBody";
+import { MessageBodyText } from "@/components/messages/MessageBodyText";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
-import { OnlineDot } from "@/components/presence/OnlineDot";
+import { SessionPaymentDialog } from "@/components/dashboard/SessionPaymentDialog";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Conv = {
@@ -41,9 +43,13 @@ type Msg = {
   sender_id: string;
   message_body: string;
   created_at?: string;
+  is_read?: boolean;
   offer_id?: string | null;
   offer_type?: string | null;
   offer_status?: string | null;
+  offer_payload?: Record<string, unknown> | null;
+  companion_message?: string | null;
+  sender_name?: string | null;
 };
 
 export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: InboxTourDemoProps | null }) {
@@ -61,7 +67,33 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
   const [sending, setSending] = useState(false);
   const [hasExpertProfile, setHasExpertProfile] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [payBookingId, setPayBookingId] = useState<string | null>(null);
   const inboxComposerRef = useRef<HTMLInputElement>(null);
+  const threadScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollThreadToAnchor = useCallback((msgs: Msg[], viewerId: string | null) => {
+    const container = threadScrollRef.current;
+    if (!container || msgs.length === 0) return;
+
+    let anchorId = msgs[msgs.length - 1].id;
+    for (let i = msgs.length - 1; i >= 0; i -= 1) {
+      const m = msgs[i];
+      if (viewerId && m.sender_id !== viewerId && m.is_read === false) {
+        anchorId = m.id;
+        break;
+      }
+    }
+
+    const scroll = () => {
+      const node = container.querySelector(`[data-message-id="${anchorId}"]`);
+      if (node instanceof HTMLElement) {
+        node.scrollIntoView({ block: "end", behavior: "auto" });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(scroll));
+  }, []);
 
   const loadLists = useCallback(async () => {
     setError(null);
@@ -207,6 +239,11 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
     void loadThread(selectedId);
   }, [selectedId, loadThread, tourDemoMessages]);
 
+  useEffect(() => {
+    if (threadLoading || !selectedId || messages.length === 0) return;
+    scrollThreadToAnchor(messages, meId);
+  }, [messages, threadLoading, selectedId, meId, scrollThreadToAnchor]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return displayConversations;
@@ -264,8 +301,8 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
 
       <div className={`${dashboardViewContentBoxClass} overflow-hidden p-0`}>
-      <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,320px)_1fr]">
-        <div className="max-h-[55vh] overflow-y-auto border-b border-[#003049]/10 lg:max-h-[min(70vh,640px)] lg:border-b-0 lg:border-r">
+      <div className="grid min-h-[420px] lg:h-[min(70vh,640px)] lg:max-h-[min(70vh,640px)] lg:grid-cols-[minmax(0,320px)_1fr]">
+        <div className="max-h-[45vh] overflow-y-auto border-b border-[#003049]/10 lg:max-h-none lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <div className="border-b border-[#003049]/10 p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[1.85rem] font-bold leading-none text-[#003049]">Messages</h2>
@@ -335,7 +372,6 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                             </div>
                           )}
                         </div>
-                        <OnlineDot online={!!c.partner_online} />
                         <VisibleTempDot expertVisibilityState={c.partner_expert_visibility_state} />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -381,7 +417,7 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
           )}
         </div>
 
-        <div className="flex min-h-[320px] flex-col bg-gray-50/40 lg:min-h-[min(70vh,640px)]">
+        <div className="flex min-h-[320px] max-h-[min(55vh,520px)] flex-col overflow-hidden bg-gray-50/40 lg:h-full lg:max-h-none lg:min-h-0">
           {!selectedId ? (
             <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
               <MessageSquare className="h-12 w-12 text-[#003049]/25" strokeWidth={1.5} aria-hidden />
@@ -389,44 +425,23 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
             </div>
           ) : (
             <>
-              <div className="border-b border-[#003049]/10 bg-white px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[#003049]">
-                      {selected?.partner_name?.trim() || `${selectedId.slice(0, 8)}…`}
+              <div className="shrink-0 border-b border-[#003049]/10 bg-white px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#003049]">
+                    {selected?.partner_name?.trim() || `${selectedId.slice(0, 8)}…`}
+                  </p>
+                  {selected?.tour_partner_profession ? (
+                    <p className="mt-0.5 text-xs font-medium text-muted-foreground">
+                      {selected.tour_partner_profession}
                     </p>
-                    {selected?.tour_partner_profession ? (
-                      <p className="mt-0.5 text-xs font-medium text-muted-foreground">
-                        {selected.tour_partner_profession}
-                      </p>
-                    ) : null}
-                  </div>
-                  {tourDemo?.active &&
-                  tourDemo.highlightSuggest &&
-                  selectedId === EXPERT_TOUR_INBOX_DEMO_PARTNER_ID ? (
-                    <button
-                      type="button"
-                      data-tour-target="tour-inbox-suggest"
-                      className="shrink-0 rounded-lg border-2 border-[#F77F00] bg-white px-3 py-1.5 text-sm font-semibold text-[#F77F00] shadow-sm"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      Suggest
-                    </button>
-                  ) : hasExpertProfile &&
-                    selectedId &&
-                    selectedId !== EXPERT_TOUR_INBOX_DEMO_PARTNER_ID ? (
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-lg border-2 border-[#003049]/20 bg-white px-3 py-1.5 text-sm font-semibold text-[#003049] shadow-sm transition hover:bg-[#003049]/5"
-                      onClick={() => setOfferOpen(true)}
-                    >
-                      Suggest
-                    </button>
                   ) : null}
                 </div>
               </div>
-              {threadErr ? <p className="px-4 py-2 text-sm text-red-600">{threadErr}</p> : null}
-              <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              {threadErr ? <p className="shrink-0 px-4 py-2 text-sm text-red-600">{threadErr}</p> : null}
+              <div
+                ref={threadScrollRef}
+                className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4"
+              >
                 {threadLoading ? (
                   <p className="text-sm text-muted-foreground">Loading thread</p>
                 ) : messages.length === 0 ? (
@@ -435,7 +450,11 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                   messages.map((m) => {
                     const mine = Boolean(meId && m.sender_id === meId);
                     return (
-                      <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                      <div
+                        key={m.id}
+                        data-message-id={m.id}
+                        className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                      >
                         <div
                           className={`max-w-[min(100%,28rem)] rounded-2xl px-3 py-2 text-sm text-[#003049] ${
                             mine
@@ -448,7 +467,22 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                               {formatChatMessageDate(m.created_at)}
                             </p>
                           ) : null}
-                          <p className="whitespace-pre-wrap">{m.message_body}</p>
+                          {m.offer_id ? (
+                            <OfferMessageBody
+                              offerType={m.offer_type}
+                              offerPayload={m.offer_payload}
+                              offerStatus={m.offer_status}
+                              companionMessage={m.companion_message}
+                              senderName={m.sender_name}
+                              messageBody={m.message_body}
+                              variant={mine ? "inbox" : "theirs"}
+                            />
+                          ) : (
+                            <MessageBodyText
+                              text={m.message_body}
+                              variant={mine ? "inbox" : "theirs"}
+                            />
+                          )}
                           <RescheduleOfferMessageActions
                             message={m}
                             viewerUserId={meId}
@@ -458,7 +492,7 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                                 ? () => void loadThread(selectedId)
                                 : undefined
                             }
-                            composerInputRef={inboxComposerRef}
+                            onAcceptPayment={(bookingId) => setPayBookingId(bookingId)}
                           />
                         </div>
                       </div>
@@ -466,7 +500,10 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                   })
                 )}
               </div>
-              <form onSubmit={(e) => void onSend(e)} className="border-t border-[#003049]/10 bg-white p-4">
+              <form
+                onSubmit={(e) => void onSend(e)}
+                className="shrink-0 border-t border-[#003049]/10 bg-white p-4"
+              >
                 <div className="flex gap-2">
                   <input
                     ref={inboxComposerRef}
@@ -475,6 +512,28 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                   />
+                  {tourDemo?.active &&
+                  tourDemo.highlightSuggest &&
+                  selectedId === EXPERT_TOUR_INBOX_DEMO_PARTNER_ID ? (
+                    <button
+                      type="button"
+                      data-tour-target="tour-inbox-suggest"
+                      className="shrink-0 rounded-lg border-2 border-[#F77F00] bg-white px-3 py-2 text-sm font-semibold text-[#F77F00] shadow-sm"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      Send an Offer
+                    </button>
+                  ) : hasExpertProfile &&
+                    selectedId &&
+                    selectedId !== EXPERT_TOUR_INBOX_DEMO_PARTNER_ID ? (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-lg border border-[#003049]/20 bg-white px-3 py-2 text-sm font-semibold text-[#003049] shadow-sm transition hover:bg-[#003049]/5"
+                      onClick={() => setOfferOpen(true)}
+                    >
+                      Send an Offer
+                    </button>
+                  ) : null}
                   <button
                     type="submit"
                     disabled={
@@ -510,6 +569,18 @@ export default function DashboardInboxView({ tourDemo = null }: { tourDemo?: Inb
           }}
         />
       ) : null}
+      <SessionPaymentDialog
+        open={Boolean(payBookingId)}
+        onOpenChange={(open) => {
+          if (!open) setPayBookingId(null);
+        }}
+        bookingId={payBookingId ?? ""}
+        onPaid={() => {
+          setPayBookingId(null);
+          if (selectedId) void loadThread(selectedId);
+          void loadLists();
+        }}
+      />
     </div>
   );
 }

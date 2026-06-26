@@ -1,7 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bookingTimesForPg, parseMinBookingMinutes } from "@/lib/expertBookingPreview";
+import {
+  fetchExpertBlockingIntervals,
+  proposedSessionOverlapsBlockingIntervals,
+  timeStrToSec,
+} from "@/lib/expert-booking-blocks";
 import { intervalStringToMinutes } from "@/lib/expert-registration";
-import { evaluateFirstSessionDiscount } from "@/lib/pricing/first-session-discount";
+import { expertRequiresPackagePurchaseForLearner } from "@/lib/packages/package-deal";
+import { validatePackageCreditForBooking } from "@/lib/packages/learner-package-credits";
+import { evaluateFirstSessionDiscount, firstSessionBookingDurationBounds, learnerHasPaidSessionWithExpert } from "@/lib/pricing/first-session-discount";
 import { computeSessionCheckoutPricing, roundUsd2, type SessionCheckoutPricing } from "@/lib/sessionCheckoutPricing";
 
 export type PreparedExpertSessionBooking = {
@@ -17,6 +24,8 @@ export type PreparedExpertSessionBooking = {
   discountApplied: number;
   pricing: SessionCheckoutPricing;
   autoAccept: boolean;
+  packageCreditId: string | null;
+  packageCreditRedemption: boolean;
 };
 
 export type PrepareExpertSessionBookingResult =
@@ -34,9 +43,11 @@ export async function prepareExpertSessionBooking(
     startUtcMs: number;
     durationMinutes: number;
     applyFirstSessionDiscount?: boolean;
+    packageCreditId?: string;
   },
 ): Promise<PrepareExpertSessionBookingResult> {
-  const { learnerUserId, expertUserId, startUtcMs, durationMinutes, applyFirstSessionDiscount } = input;
+  const { learnerUserId, expertUserId, startUtcMs, durationMinutes, applyFirstSessionDiscount, packageCreditId } =
+    input;
 
   if (learnerUserId === expertUserId) {
     return { ok: false, status: 400, error: "Cannot book your own profile" };
@@ -51,7 +62,9 @@ export async function prepareExpertSessionBooking(
       admin.from("users").select("user_id, time_zone").eq("user_id", expertUserId).maybeSingle(),
       admin
         .from("expert_availability")
-        .select("rate, minimum_booking, maximum_booking, auto_accept, calendar_paused")
+        .select(
+          "rate, minimum_booking, maximum_booking, auto_accept, calendar_paused, package_deal_enabled, package_require_purchase, package_require_purchase_after_first_session, first_session_discount_enabled, first_session_discount_max_session_minutes",
+        )
         .eq("user_id", expertUserId)
         .maybeSingle(),
       admin.from("expert_profiles").select("expert_profile_id").eq("user_id", expertUserId).maybeSingle(),
@@ -74,11 +87,49 @@ export async function prepareExpertSessionBooking(
 
   const minM = parseMinBookingMinutes(av.minimum_booking);
   const maxM = intervalStringToMinutes(av.maximum_booking) ?? 24 * 60;
-  if (durationMinutes < minM) {
-    return { ok: false, status: 400, error: `Duration must be at least ${minM} minutes` };
+
+  const learnerHasPaidSession = await learnerHasPaidSessionWithExpert(
+    admin,
+    expertUserId,
+    learnerUserId,
+  );
+
+  const durationBounds = firstSessionBookingDurationBounds({
+    minBookingMinutes: minM,
+    maxBookingMinutes: maxM,
+    firstSessionDiscountEnabled:
+      Boolean(av.first_session_discount_enabled) ||
+      Boolean(av.package_deal_enabled && av.package_require_purchase_after_first_session),
+    firstSessionDiscountMaxSessionMinutes: av.first_session_discount_max_session_minutes,
+    learnerHasPaidSession,
+    packageRequireAfterFirst: Boolean(
+      av.package_deal_enabled && av.package_require_purchase_after_first_session,
+    ),
+  });
+  if (durationMinutes < durationBounds.minMinutes) {
+    return { ok: false, status: 400, error: `Duration must be at least ${durationBounds.minMinutes} minutes` };
   }
-  if (durationMinutes > maxM) {
-    return { ok: false, status: 400, error: `Duration may not exceed ${maxM} minutes` };
+  if (durationMinutes > durationBounds.maxMinutes) {
+    return { ok: false, status: 400, error: `Duration may not exceed ${durationBounds.maxMinutes} minutes` };
+  }
+  const requiresPackage = expertRequiresPackagePurchaseForLearner(av, learnerHasPaidSession);
+
+  if (requiresPackage && !packageCreditId) {
+    return {
+      ok: false,
+      status: 403,
+      error: learnerHasPaidSession
+        ? "This expert requires purchasing a package before booking additional sessions. Buy a package below, then schedule a session."
+        : "This expert requires purchasing a package before booking. Buy a package below, then schedule a session.",
+    };
+  }
+
+  if (packageCreditId && applyFirstSessionDiscount) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Cannot combine package credit with first-session discount",
+    };
   }
 
   const numBlocks = durationMinutes / 15;
@@ -86,8 +137,21 @@ export async function prepareExpertSessionBooking(
 
   let bookingFeeAfterDiscount = listBookingFee;
   let discountApplied = 0;
+  let packageCreditRedemption = false;
 
-  if (applyFirstSessionDiscount) {
+  if (packageCreditId) {
+    const creditCheck = await validatePackageCreditForBooking(admin, {
+      creditId: packageCreditId,
+      learnerUserId,
+      expertUserId,
+      durationMinutes,
+    });
+    if (!creditCheck.ok) {
+      return { ok: false, status: creditCheck.status, error: creditCheck.error };
+    }
+    packageCreditRedemption = true;
+    bookingFeeAfterDiscount = 0;
+  } else if (applyFirstSessionDiscount) {
     const evalResult = await evaluateFirstSessionDiscount(admin, {
       expertUserId,
       learnerUserId,
@@ -101,11 +165,30 @@ export async function prepareExpertSessionBooking(
     bookingFeeAfterDiscount = evalResult.chargedUsd;
   }
 
-  const pricing = computeSessionCheckoutPricing(bookingFeeAfterDiscount);
+  const pricing = packageCreditRedemption
+    ? {
+        booking_amount: 0,
+        platform_fee: 0,
+        subtotal_before_tax: 0,
+        taxes_fees: 0,
+        total_amount: 0,
+      }
+    : computeSessionCheckoutPricing(bookingFeeAfterDiscount);
   const endUtcMs = startUtcMs + durationMinutes * 60_000;
   const times = bookingTimesForPg(startUtcMs, endUtcMs, tz);
   if (!times) {
     return { ok: false, status: 400, error: "Session must start and end on the same calendar day" };
+  }
+
+  const overlap = await expertHasBlockingBookingOverlap(
+    admin,
+    expertUserId,
+    times.sessionDate,
+    times.startTime,
+    times.endTime,
+  );
+  if (overlap) {
+    return { ok: false, status: 409, error: "That time slot is no longer available" };
   }
 
   const hours = durationMinutes / 60;
@@ -126,23 +209,12 @@ export async function prepareExpertSessionBooking(
       discountApplied,
       pricing,
       autoAccept: Boolean(av.auto_accept),
+      packageCreditId: packageCreditId ?? null,
+      packageCreditRedemption,
     },
   };
 }
 
-function timeStrToSec(t: string): number {
-  const parts = String(t).trim().split(":");
-  const h = Number(parts[0] ?? 0);
-  const m = Number(parts[1] ?? 0);
-  const s = Number(parts[2] ?? 0);
-  if (![h, m, s].every((n) => Number.isFinite(n))) return 0;
-  return h * 3600 + m * 60 + s;
-}
-
-/**
- * True if another non-cancelled booking blocks this wall-clock interval (same calendar day in expert TZ).
- * Counts rows that are not failed payments (pending / awaiting_expert / paid hold the slot).
- */
 export async function expertHasBlockingBookingOverlap(
   admin: SupabaseClient,
   expertUserId: string,
@@ -171,13 +243,20 @@ export async function expertHasBlockingBookingOverlap(
 
   if (error || !rows?.length) return false;
 
-  for (const r of rows) {
-    const ps = String(r.payment_status ?? "").toLowerCase();
-    if (ps === "failed") continue;
-    const rs = timeStrToSec(String(r.start_time ?? ""));
-    const re = timeStrToSec(String(r.end_time ?? ""));
-    if (re <= rs) continue;
-    if (newS < re && rs < newE) return true;
-  }
-  return false;
+  const intervals = rows
+    .map((r) => ({
+      sessionDate,
+      startSec: timeStrToSec(String(r.start_time ?? "")),
+      endSec: timeStrToSec(String(r.end_time ?? "")),
+      payment_status: r.payment_status,
+    }))
+    .filter((r) => {
+      const ps = String(r.payment_status ?? "").toLowerCase();
+      return ps !== "failed" && r.endSec > r.startSec;
+    })
+    .map(({ sessionDate: d, startSec, endSec }) => ({ sessionDate: d, startSec, endSec }));
+
+  return proposedSessionOverlapsBlockingIntervals(sessionDate, newS, newE, intervals);
 }
+
+export { fetchExpertBlockingIntervals };

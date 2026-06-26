@@ -24,9 +24,6 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   const isOwner = userId === row.user_id;
-  if (!row.is_active && !isOwner) {
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
   if (!row.is_public && !isOwner) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }

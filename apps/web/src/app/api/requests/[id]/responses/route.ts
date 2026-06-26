@@ -10,6 +10,7 @@ type Params = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({
   message: z.string().min(1).max(8000),
+  is_public: z.boolean().optional(),
 });
 
 export async function POST(request: Request, { params }: Params) {
@@ -61,12 +62,14 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const now = new Date().toISOString();
+  const isPublic = parsed.data.is_public ?? true;
   const { data: response, error: insErr } = await admin
     .from("request_responses")
     .insert({
       request_id: requestId,
       expert_user_id: expertUserId,
       message: parsed.data.message,
+      is_public: isPublic,
       is_seen: false,
       upvote_count: 0,
       responded_at: now,
@@ -100,7 +103,7 @@ export async function GET(_request: Request, { params }: Params) {
   const admin = createAdminClient();
   const { data: reqRow } = await admin
     .from("requests")
-    .select("user_id, is_public, is_active")
+    .select("user_id, is_public, is_active, title, description")
     .eq("request_id", requestId)
     .maybeSingle();
 
@@ -108,9 +111,6 @@ export async function GET(_request: Request, { params }: Params) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
   const isOwner = userId === reqRow.user_id;
-  if (!reqRow.is_active && !isOwner) {
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
   if (!reqRow.is_public && !isOwner) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -118,7 +118,7 @@ export async function GET(_request: Request, { params }: Params) {
   const { data: responses, error } = await admin
     .from("request_responses")
     .select(
-      "response_id, expert_user_id, message, is_seen, upvote_count, responded_at"
+      "response_id, expert_user_id, message, is_public, is_seen, upvote_count, responded_at"
     )
     .eq("request_id", requestId)
     .order("responded_at", { ascending: false });
@@ -127,7 +127,11 @@ export async function GET(_request: Request, { params }: Params) {
     return Response.json({ error: publicApiError(error) }, { status: 500 });
   }
 
-  const list = responses ?? [];
+  const list = (responses ?? []).filter((r) => {
+    if (r.is_public !== false) return true;
+    if (!userId) return false;
+    return userId === reqRow.user_id || userId === r.expert_user_id;
+  });
   const expertIds = [...new Set(list.map((r) => r.expert_user_id))];
   type ExpertSnippetRow = {
     user_id: string;
@@ -167,10 +171,29 @@ export async function GET(_request: Request, { params }: Params) {
     );
   }
 
+  let upvotedResponseIds = new Set<string>();
+  if (userId && list.length > 0) {
+    const responseIds = list.map((r) => r.response_id);
+    const { data: mine, error: upErr } = await admin
+      .from("request_response_upvotes")
+      .select("response_id")
+      .eq("user_id", userId)
+      .in("response_id", responseIds);
+    if (upErr) {
+      return Response.json({ error: publicApiError(upErr) }, { status: 500 });
+    }
+    upvotedResponseIds = new Set((mine ?? []).map((row) => String(row.response_id)));
+  }
+
   const enriched = list.map((r) => {
     const u = expertById.get(r.expert_user_id) ?? null;
+    const isOwnResponse = userId === r.expert_user_id;
+    const isPublic = r.is_public !== false;
     return {
       ...r,
+      is_public: isPublic,
+      i_upvoted: upvotedResponseIds.has(String(r.response_id)),
+      can_upvote: !!userId && !isOwnResponse && isPublic,
       expert: u
         ? {
             user_id: u.user_id,
@@ -184,5 +207,29 @@ export async function GET(_request: Request, { params }: Params) {
     };
   });
 
-  return Response.json({ responses: enriched });
+  let poster: {
+    user_id: string;
+    first_name: string | null;
+    last_name: string | null;
+    profile_photo: string | null;
+  } | null = null;
+  const { data: posterRow } = await admin
+    .from("users")
+    .select("user_id, first_name, last_name, profile_photo")
+    .eq("user_id", reqRow.user_id)
+    .maybeSingle();
+  if (posterRow) {
+    poster = posterRow;
+  }
+
+  return Response.json({
+    responses: enriched,
+    request: {
+      request_id: requestId,
+      user_id: reqRow.user_id,
+      title: reqRow.title,
+      description: reqRow.description,
+    },
+    poster,
+  });
 }

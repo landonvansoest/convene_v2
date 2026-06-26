@@ -10,6 +10,7 @@ import {
   DashboardViewHeader,
 } from "@/app/dashboard/DashboardViewShell";
 import { RequestCard, type RequestCardData } from "@/components/requests/RequestCard";
+import { dispatchHeaderBadgesMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { cn } from "@/lib/utils";
 
 type Req = RequestCardData;
@@ -97,6 +98,7 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
     const params = new URLSearchParams({ limit: "30" });
     if (tab === "forYou" && categoryId) {
       params.set("category_id", categoryId);
+      params.set("for_you", "1");
     } else if (tab === "all" && listCategoryFilter.trim()) {
       params.set("category_id", listCategoryFilter.trim());
     }
@@ -110,6 +112,28 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
     setErr(null);
     setRequests((data.requests as Req[]) ?? []);
   }, [tab, categoryId, listCategoryFilter]);
+
+  const markSeen = useCallback(async (requestId: string) => {
+    setRequests((prev) =>
+      prev.map((row) => (row.request_id === requestId ? { ...row, is_unseen: false } : row)),
+    );
+    try {
+      await fetch(`/api/requests/${encodeURIComponent(requestId)}/seen`, { method: "POST" });
+      dispatchHeaderBadgesMayHaveChanged();
+    } catch {
+      // Best-effort; UI already optimistic.
+    }
+  }, []);
+
+  const hideRequest = useCallback(async (requestId: string) => {
+    setRequests((prev) => prev.filter((row) => row.request_id !== requestId));
+    try {
+      await fetch(`/api/requests/${encodeURIComponent(requestId)}/hide`, { method: "POST" });
+      dispatchHeaderBadgesMayHaveChanged();
+    } catch {
+      void load();
+    }
+  }, [load]);
 
   useEffect(() => {
     let c = false;
@@ -220,6 +244,17 @@ export default function DashboardCommunityRequestsView({ categoryId }: { categor
                 categoryIcon={r.category_id ? categoryIconById.get(r.category_id) : null}
                 onToggleUpvote={toggleUpvote}
                 busyUpvote={busyUpvoteId === r.request_id}
+                expertDashboard
+                forYouExpert={tab === "forYou"}
+                onMarkSeen={tab === "forYou" ? markSeen : undefined}
+                onHide={tab === "forYou" ? hideRequest : undefined}
+                onResponseCountChange={(requestId, responseCount) => {
+                  setRequests((prev) =>
+                    prev.map((row) =>
+                      row.request_id === requestId ? { ...row, response_count: responseCount } : row,
+                    ),
+                  );
+                }}
               />
             </li>
           ))}

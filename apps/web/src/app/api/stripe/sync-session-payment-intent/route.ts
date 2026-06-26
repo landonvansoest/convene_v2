@@ -1,9 +1,14 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
+import { finalizePackagePurchaseFromPaymentIntent } from "@/lib/stripe/finalize-package-purchase";
 import { finalizeSessionBookingFromPaymentIntent } from "@/lib/stripe/finalize-session-payment";
 import { finalizeSessionExtensionFromPaymentIntent } from "@/lib/stripe/finalize-session-extension-payment";
 import { getStripe } from "@/lib/stripe/server";
+import {
+  formatPaymentConfirmationNumber,
+  lookupConfirmationNumberForPaymentIntent,
+} from "@/lib/payments/confirmation-number";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +57,31 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  const packagePurchase = (pi.metadata?.convene_type ?? "").trim() === "package_purchase";
   const bookingId = String(pi.metadata?.bookingId ?? "").trim();
   const deferred = String(pi.metadata?.conveneSessionCheckout ?? "").trim() === "1";
   const sessionExtension = String(pi.metadata?.conveneSessionExtension ?? "").trim() === "1";
+
+  if (packagePurchase) {
+    const metaUser = String(pi.metadata?.user_id ?? "").trim();
+    if (!metaUser || metaUser !== userId) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+    try {
+      await finalizePackagePurchaseFromPaymentIntent(admin, pi);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Finalize failed";
+      console.error("[sync-session-payment-intent] package", e);
+      return Response.json({ error: msg }, { status: 500 });
+    }
+    const confirmationRaw = await lookupConfirmationNumberForPaymentIntent(admin, pi);
+    return Response.json({
+      ok: true,
+      confirmationNumber: confirmationRaw
+        ? formatPaymentConfirmationNumber(confirmationRaw)
+        : null,
+    });
+  }
 
   if (deferred) {
     const metaLearner = String(pi.metadata?.learnerUserId ?? "").trim();
@@ -107,5 +134,9 @@ export async function POST(request: Request) {
     return Response.json({ error: msg }, { status: 500 });
   }
 
-  return Response.json({ ok: true });
+  const confirmationRaw = await lookupConfirmationNumberForPaymentIntent(admin, pi);
+  return Response.json({
+    ok: true,
+    confirmationNumber: confirmationRaw ? formatPaymentConfirmationNumber(confirmationRaw) : null,
+  });
 }

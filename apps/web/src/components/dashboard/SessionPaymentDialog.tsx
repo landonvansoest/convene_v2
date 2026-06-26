@@ -118,7 +118,7 @@ function formatDurationShort(mins: number | null): string {
   return `${h} hr ${m} min`;
 }
 
-function SessionPayForm({ onSuccess }: { onSuccess: () => void }) {
+function SessionPayForm({ onSuccess }: { onSuccess: (confirmationNumber: string | null) => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [err, setErr] = useState<string | null>(null);
@@ -145,11 +145,11 @@ function SessionPayForm({ onSuccess }: { onSuccess: () => void }) {
         setErr(sanitizeStripeMessageForUi(redactStripeSecrets(synced.error), "session_booking"));
         return;
       }
+      setBusy(false);
+      onSuccess(synced.confirmationNumber);
+      return;
     }
     setBusy(false);
-    if (paymentIntent?.status === "succeeded") {
-      onSuccess();
-    }
   }
 
   return (
@@ -195,6 +195,7 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [bookingPreview, setBookingPreview] = useState<BookingPreview | null>(null);
   const [paySuccess, setPaySuccess] = useState(false);
+  const [confirmationNumber, setConfirmationNumber] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -202,6 +203,7 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
       setLoadErr(null);
       setBookingPreview(null);
       setPaySuccess(false);
+      setConfirmationNumber(null);
       return;
     }
     if (!bookingId) return;
@@ -212,6 +214,7 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
       setClientSecret(null);
       setBookingPreview(null);
       setPaySuccess(false);
+      setConfirmationNumber(null);
 
       const bRes = await fetch(`/api/sessions/${encodeURIComponent(bookingId)}`);
       const bJson = (await bRes.json()) as Record<string, unknown>;
@@ -280,7 +283,8 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
     };
   }, [open, bookingId]);
 
-  function handleSuccess() {
+  function handleSuccess(confirmation: string | null) {
+    setConfirmationNumber(confirmation);
     setPaySuccess(true);
     dispatchHeaderBadgesMayHaveChanged();
     onPaid?.();
@@ -453,7 +457,17 @@ export function SessionPaymentDialog({ open, onOpenChange, bookingId, onPaid }: 
           <div className="space-y-4 py-1">
             <DialogTitle className="text-2xl font-bold text-[#003049]">Payment received</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Your session is paid. You can join from your dashboard when the join window opens.
+              Your session with {bookingPreview?.partner_name ?? "your expert"} is confirmed.
+              {confirmationNumber ? (
+                <>
+                  <br />
+                  Confirmation Number{" "}
+                  <span className="font-mono font-medium text-foreground">{confirmationNumber}</span>
+                </>
+              ) : null}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You can join from your dashboard when the join window opens.
             </p>
             <Button
               type="button"

@@ -23,6 +23,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import type { AdvancedSearchFilters } from "@/lib/advancedSearchUrl";
 import { buildAdvancedSearchUrl } from "@/lib/advancedSearchUrl";
+import { dispatchSearchLoading } from "@/lib/search/search-loading-events";
 import { SKILLS_BY_CATEGORY } from "@/components/search/skillsByCategory";
 import { useRouter } from "next/navigation";
 
@@ -110,6 +111,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, initialKeywords = "" 
       verifiedOnly,
     };
     router.push(buildAdvancedSearchUrl(filters));
+    dispatchSearchLoading(true);
     onOpenChange(false);
   }
 

@@ -1,3 +1,17 @@
+/** Join is allowed this many ms before scheduled start (matches dashboard Join Session button). */
+export const SESSION_JOIN_WINDOW_MS = 10 * 60 * 1000;
+
+/** True when the session join window is open (10 minutes before scheduled start). */
+export function isSessionJoinWindowOpen(
+  sessionDate: string | undefined | null,
+  startTime: string | undefined | null,
+  nowMs: number = Date.now(),
+): boolean {
+  const start = sessionWallClockInstant(String(sessionDate ?? ""), startTime);
+  if (!start) return false;
+  return nowMs >= start.getTime() - SESSION_JOIN_WINDOW_MS;
+}
+
 /** Parse `session_date` + time as local wall clock (same as dashboard session cards). */
 export function sessionWallClockInstant(sessionDate: string, time: string | undefined | null): Date | null {
   if (!sessionDate) return null;

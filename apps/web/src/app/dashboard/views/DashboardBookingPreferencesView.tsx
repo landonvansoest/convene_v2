@@ -1,12 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarClock, Info, Loader2, Wand2 } from "lucide-react";
+import { CalendarClock, CheckCircle, Info, Loader2, Wand2 } from "lucide-react";
 import {
   dashboardViewCardClass,
   dashboardViewContentBoxClass,
   DashboardViewHeader,
 } from "@/app/dashboard/DashboardViewShell";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -139,7 +147,6 @@ export default function DashboardBookingPreferencesView() {
   const [buffer, setBuffer] = useState("");
   const [autoAccept, setAutoAccept] = useState(true);
   const [extendSessions, setExtendSessions] = useState(true);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const [fsEnabled, setFsEnabled] = useState(false);
   const [fsType, setFsType] = useState<"percent" | "fixed_amount">("percent");
@@ -152,8 +159,10 @@ export default function DashboardBookingPreferencesView() {
   const [pkgDiscType, setPkgDiscType] = useState<"percent" | "fixed_amount">("percent");
   const [pkgDiscVal, setPkgDiscVal] = useState("");
   const [pkgRequire, setPkgRequire] = useState(false);
+  const [pkgRequireAfterFirst, setPkgRequireAfterFirst] = useState(false);
 
   const [generating, setGenerating] = useState(false);
+  const [saveSuccessOpen, setSaveSuccessOpen] = useState(false);
 
   const bookingPersistInitialized = useRef(false);
 
@@ -260,6 +269,12 @@ export default function DashboardBookingPreferencesView() {
         : "",
     );
     setPkgRequire(Boolean((p as { package_require_purchase?: boolean }).package_require_purchase));
+    setPkgRequireAfterFirst(
+      Boolean(
+        (p as { package_require_purchase_after_first_session?: boolean })
+          .package_require_purchase_after_first_session,
+      ),
+    );
   }, []);
 
   const load = useCallback(async () => {
@@ -287,7 +302,7 @@ export default function DashboardBookingPreferencesView() {
     };
   }, [load]);
 
-  const persist = useCallback(async () => {
+  const persist = useCallback(async (): Promise<boolean> => {
     setSaving(true);
     setErr(null);
     try {
@@ -295,7 +310,7 @@ export default function DashboardBookingPreferencesView() {
       const getData = (await getRes.json()) as { availability?: Record<string, unknown> | null; error?: string };
       if (!getRes.ok) {
         setErr(typeof getData.error === "string" ? getData.error : "Could not load availability");
-        return;
+        return false;
       }
       const row = getData.availability ?? undefined;
       const rateN = Number(rate);
@@ -324,6 +339,7 @@ export default function DashboardBookingPreferencesView() {
         packageDiscountType: pkgEnabled ? pkgDiscType : null,
         packageDiscountValue: pkgEnabled ? Number(pkgDiscVal || 0) : null,
         packageRequirePurchase: pkgEnabled ? pkgRequire : false,
+        packageRequirePurchaseAfterFirst: pkgEnabled ? pkgRequireAfterFirst : false,
       });
       const putRes = await fetch("/api/experts/availability", {
         method: "PUT",
@@ -333,7 +349,9 @@ export default function DashboardBookingPreferencesView() {
       const putData = (await putRes.json()) as { error?: string };
       if (!putRes.ok) {
         setErr(typeof putData.error === "string" ? putData.error : "Save failed");
+        return false;
       }
+      return true;
     } finally {
       setSaving(false);
     }
@@ -356,7 +374,13 @@ export default function DashboardBookingPreferencesView() {
     pkgDiscType,
     pkgDiscVal,
     pkgRequire,
+    pkgRequireAfterFirst,
   ]);
+
+  async function handleSaveClick() {
+    const ok = await persist();
+    if (ok) setSaveSuccessOpen(true);
+  }
 
   useEffect(() => {
     if (loading) return;
@@ -389,6 +413,7 @@ export default function DashboardBookingPreferencesView() {
     pkgDiscType,
     pkgDiscVal,
     pkgRequire,
+    pkgRequireAfterFirst,
   ]);
 
   async function suggestBooking() {
@@ -450,6 +475,10 @@ export default function DashboardBookingPreferencesView() {
     "You can offer a First Session Discount either as a fixed time/price or as a percentage. Note that this setting will offer the discount to all users; you can also offer special discounts to individual users from your dashboard later.";
   const packageDealTooltip =
     "You can offer users a multi-session package either as an incentive, or as a requirement for your services. Note that after purchasing a package, users will receive credits for the specified number of sessions, and be required to schedule individually according to your availability.";
+  const packageRequireTooltip =
+    "Users will only be able to book you by purchasing a package.";
+  const packageRequireAfterFirstTooltip =
+    'This option allows you to offer an initial consultation before requiring users to book a package. Set parameters for the initial consultation under "Discount First Session" above.';
 
   if (loading) {
     return (
@@ -468,6 +497,29 @@ export default function DashboardBookingPreferencesView() {
           title="Booking Preferences"
           subtitle={saving ? "Saving changes…" : "Preferences auto-save as you edit."}
         />
+
+        <Dialog open={saveSuccessOpen} onOpenChange={setSaveSuccessOpen}>
+          <DialogContent className="max-w-md">
+            <div className="flex flex-col items-center space-y-4 py-6 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-convene-hero/15">
+                <CheckCircle className="h-10 w-10 text-convene-hero" aria-hidden />
+              </div>
+              <DialogHeader>
+                <DialogTitle className="text-2xl">Settings updated</DialogTitle>
+                <DialogDescription className="text-base">
+                  Your booking preferences have been saved and are now active for new bookings.
+                </DialogDescription>
+              </DialogHeader>
+              <Button
+                type="button"
+                className="mt-2 w-full bg-[#003049] hover:bg-[#003049]/90"
+                onClick={() => setSaveSuccessOpen(false)}
+              >
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className={dashboardViewContentBoxClass}>
           <WizardSectionHeading Icon={CalendarClock}>Booking Preferences</WizardSectionHeading>
@@ -630,21 +682,11 @@ export default function DashboardBookingPreferencesView() {
                 </span>
               </div>
               <div className="mt-4">
-                <button
-                  type="button"
-                  className="inline-flex w-fit items-center gap-1.5 text-sm font-bold text-[#003049] hover:text-[#F77F00]"
-                  onClick={() => setAdvancedOpen((o) => !o)}
-                >
-                  Advanced Options{" "}
-                  <span className="text-[#F77F00]" aria-hidden>
-                    +
-                  </span>
-                </button>
+                <p className="text-sm font-bold text-[#003049]">Advanced Options</p>
               </div>
             </div>
 
-            {advancedOpen ? (
-              <div className="space-y-5 pt-1">
+            <div className="space-y-5 pt-1">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
                     <Label className="text-sm font-semibold text-[#003049]">Auto-Accept Bookings</Label>
@@ -796,14 +838,55 @@ export default function DashboardBookingPreferencesView() {
                       />
                       <p className="text-xs font-medium text-[#003049]/80">Estimated package total: {previewPackageTotal()}</p>
                       <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
-                        <Label className="text-sm font-semibold text-[#003049]">Require Package Purchase</Label>
-                        <Switch checked={pkgRequire} onCheckedChange={setPkgRequire} />
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-semibold text-[#003049]">Require Package Purchase</Label>
+                          <InfoTip text={packageRequireTooltip} />
+                        </div>
+                        <Switch
+                          checked={pkgRequire}
+                          onCheckedChange={(v) => {
+                            setPkgRequire(v);
+                            if (v) setPkgRequireAfterFirst(false);
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-semibold text-[#003049]">
+                            Require Package Purchase After First Session
+                          </Label>
+                          <InfoTip text={packageRequireAfterFirstTooltip} />
+                        </div>
+                        <Switch
+                          checked={pkgRequireAfterFirst}
+                          onCheckedChange={(v) => {
+                            setPkgRequireAfterFirst(v);
+                            if (v) setPkgRequire(false);
+                          }}
+                        />
                       </div>
                     </div>
                   ) : null}
                 </div>
               </div>
-            ) : null}
+
+          <div className="mt-8 flex justify-end border-t border-[#003049]/10 pt-6">
+            <Button
+              type="button"
+              className="min-w-[120px] bg-convene-hero text-white hover:bg-convene-hero/90"
+              disabled={saving}
+              onClick={() => void handleSaveClick()}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Saving…
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </div>
           </div>
         </div>
       </div>

@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 import { resolvePostSignInPath } from "@/lib/auth/learner-registration";
+import { withAuthTimeout } from "@/lib/auth/auth-call-timeout";
+import { authCallbackUrl } from "@/lib/auth/post-sign-in-redirect";
 import { authCallbackWithSignupWizard } from "@/lib/auth/post-signup-redirect";
 import { isEmailNotConfirmedAuthError } from "@/lib/auth/email-not-confirmed";
 
@@ -68,26 +70,34 @@ export function SignInDialog({ open, onOpenChange, description, onRequestSignUp,
     event.preventDefault();
     setBusy(true);
     setMessage(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setBusy(false);
-    if (error) {
-      setMessage(error.message);
-      return;
+    try {
+      const { error } = await withAuthTimeout(
+        supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        }),
+        { label: "Sign in" },
+      );
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      onOpenChange(false);
+      resetFields();
+      const destination = await resolvePostSignInPath(postSignInRedirect);
+      // Full navigation ensures auth cookies are synced before the registration wizard loads.
+      window.location.assign(destination);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Sign in failed");
+    } finally {
+      setBusy(false);
     }
-    onOpenChange(false);
-    resetFields();
-    const destination = await resolvePostSignInPath(postSignInRedirect);
-    // Full navigation ensures auth cookies are synced before the registration wizard loads.
-    window.location.assign(destination);
   }
 
   async function oauthSignIn(provider: "google" | "facebook" | "apple") {
     setBusy(true);
     setMessage(null);
-    const redirectTo = `${window.location.origin}/auth/callback`;
+    const redirectTo = authCallbackUrl(window.location.origin, postSignInRedirect);
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo },

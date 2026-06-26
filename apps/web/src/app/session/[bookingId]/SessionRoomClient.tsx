@@ -7,13 +7,26 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MediaTroubleshootCollapsible } from "@/components/dashboard/MediaTroubleshootCollapsible";
+import { SignInDialog } from "@/components/auth/SignInDialog";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { SessionReviewDialog } from "@/components/dashboard/SessionReviewDialog";
 import { SessionExtensionPaymentPanel } from "@/components/session/SessionExtensionPaymentDialog";
+import { WaitingRoomLateJoinDialog } from "@/components/session/WaitingRoomLateJoinDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { hasSessionEndedByWallClock, sessionWallClockInstant } from "@/lib/sessionWallClock";
+import { Button } from "@/components/ui/button";
+import {
+  canEndSession,
+  isTerminalSessionStatus,
+} from "@/lib/resolveManualSessionEndStatus";
+import { hasSessionEndedByWallClock, isSessionJoinWindowOpen, sessionWallClockInstant } from "@/lib/sessionWallClock";
 import type { SessionLiveTimingPayload } from "@/lib/sessionRoomLiveTiming";
 import { cn } from "@/lib/utils";
+import {
+  LATE_JOIN_REMIND_EVERY_MS,
+  lateJoinPhase,
+  partnerDisplayName,
+  type LateJoinPhase,
+} from "@/lib/waiting-room-late-join";
 
 /** Set after a successful in-page getUserMedia; next /session visit skips the gate UI if the browser still allows access. */
 const SESSION_MEDIA_GATE_STORAGE_KEY = "convene.session.mediaGateAck.v1";
@@ -62,6 +75,8 @@ type BookingPayload = {
   partner_name?: string | null;
   payment_status?: string | null;
   cancelled_at?: string | null;
+  learner_joined?: string | null;
+  expert_joined?: string | null;
 };
 
 function durationMinutesFromRow(b: {
@@ -160,6 +175,42 @@ function stopMediaStream(stream: MediaStream) {
   }
 }
 
+/** Daily allows one iframe per window — must fully destroy before createFrame (await destroy()). */
+async function destroyDailyCall(call: DailyCall | null): Promise<void> {
+  const getInstance =
+    typeof (Daily as { getCallInstance?: () => DailyCall | undefined }).getCallInstance === "function"
+      ? (Daily as { getCallInstance: () => DailyCall | undefined }).getCallInstance
+      : null;
+  const target = call ?? getInstance?.() ?? null;
+  if (!target) return;
+
+  try {
+    const destroyed =
+      typeof (target as { isDestroyed?: () => boolean }).isDestroyed === "function" &&
+      (target as { isDestroyed: () => boolean }).isDestroyed();
+    if (destroyed) return;
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    await target.leave();
+  } catch {
+    /* already left */
+  }
+
+  try {
+    await target.destroy();
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearDailyContainer(el: HTMLDivElement | null) {
+  if (!el) return;
+  el.replaceChildren();
+}
+
 /** Align with dashboard “Leave a review”: paid, not cancelled / no-show, session start has passed, review not yet in DB for this user. */
 function eligibleForSessionReviewPrompt(b: BookingPayload | null, reviewAlreadySubmitted: boolean): boolean {
   if (!b || reviewAlreadySubmitted) return false;
@@ -196,6 +247,9 @@ export function SessionRoomClient({ bookingId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callRef = useRef<DailyCall | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
+  const sessionPath = `/session/${bookingId}`;
   const [booking, setBooking] = useState<BookingPayload | null>(null);
   const [expert, setExpert] = useState<Party | null>(null);
   const [learner, setLearner] = useState<Party | null>(null);
@@ -209,6 +263,11 @@ export function SessionRoomClient({ bookingId }: Props) {
   const [showRejoinPrompt, setShowRejoinPrompt] = useState(false);
   /** Wall-clock end fired while still in-call — suppress rejoin; refreshed booking end clears this (e.g. paid extension). */
   const [endedBySchedule, setEndedBySchedule] = useState(false);
+  /** Participant ended the session (self or partner via status poll). */
+  const [sessionManuallyEnded, setSessionManuallyEnded] = useState(false);
+  const [noShowSettlementNote, setNoShowSettlementNote] = useState<string | null>(null);
+  const [endSessionBusy, setEndSessionBusy] = useState(false);
+  const [endSessionErr, setEndSessionErr] = useState<string | null>(null);
   /** Learner hides the extend CTA until the offer window resets (minute count goes above 10). */
   const [dismissExtendBar, setDismissExtendBar] = useState(false);
   const [liveTiming, setLiveTiming] = useState<SessionLiveTimingPayload | null>(null);
@@ -216,6 +275,13 @@ export function SessionRoomClient({ bookingId }: Props) {
   /** Expert: set when booking end time moves later (learner paid for an extension). */
   const [expertExtendNotice, setExpertExtendNotice] = useState<string | null>(null);
   const expertEndBaselineMsRef = useRef<number | null>(null);
+  const [waitingRoomTick, setWaitingRoomTick] = useState(0);
+  const [lateJoinTick, setLateJoinTick] = useState(0);
+  const [fiveMinLateNoticeSeen, setFiveMinLateNoticeSeen] = useState(false);
+  const [lateJoinDialogOpen, setLateJoinDialogOpen] = useState(false);
+  const [lateJoinSnoozeUntilMs, setLateJoinSnoozeUntilMs] = useState<number | null>(null);
+  const [reportNoShowBusy, setReportNoShowBusy] = useState(false);
+  const [endEligibilityTick, setEndEligibilityTick] = useState(0);
   /** User has allowed camera/mic for this page (session lifetime; rejoin skips the gate). */
   const [mediaReady, setMediaReady] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -224,9 +290,11 @@ export function SessionRoomClient({ bookingId }: Props) {
   const [rememberedMediaAttempt, setRememberedMediaAttempt] = useState(false);
   /** Auto gate runs once per bookingId when localStorage says the user already granted access before. */
   const autoGateRanForBookingIdRef = useRef<string | null>(null);
+  const [joinWindowTick, setJoinWindowTick] = useState(0);
   const sessionReviewPromptShownRef = useRef(false);
   /** Avoid overlapping timer-driven `leave()` calls. */
   const timerLeaveBusyRef = useRef(false);
+  const sessionFinalizedRef = useRef(false);
   const bookingRef = useRef(booking);
   const reviewSubmittedRef = useRef(viewerReviewSubmitted);
   useEffect(() => {
@@ -251,9 +319,18 @@ export function SessionRoomClient({ bookingId }: Props) {
     setRememberedMediaAttempt(false);
     autoGateRanForBookingIdRef.current = null;
     sessionReviewPromptShownRef.current = false;
+    sessionFinalizedRef.current = false;
     setReviewOpen(false);
     setShowRejoinPrompt(false);
     setEndedBySchedule(false);
+    setSessionManuallyEnded(false);
+    setNoShowSettlementNote(null);
+    setFiveMinLateNoticeSeen(false);
+    setLateJoinDialogOpen(false);
+    setLateJoinSnoozeUntilMs(null);
+    setReportNoShowBusy(false);
+    setEndSessionBusy(false);
+    setEndSessionErr(null);
     setDismissExtendBar(false);
     setLiveTiming(null);
     setExtendPayOpen(false);
@@ -263,13 +340,35 @@ export function SessionRoomClient({ bookingId }: Props) {
     setParticipantCount(0);
     setCallErr(null);
     setBusy(false);
-    try {
-      callRef.current?.destroy();
-    } catch {
-      /* ignore */
-    }
-    callRef.current = null;
+    setLoadErr(null);
+    setNeedsSignIn(false);
+    setSignInOpen(false);
+    setBooking(null);
+    void destroyDailyCall(callRef.current).finally(() => {
+      callRef.current = null;
+      clearDailyContainer(containerRef.current);
+    });
   }, [bookingId]);
+
+  useEffect(() => {
+    if (!booking) return;
+    const st = String(booking.status ?? "").toLowerCase();
+    if (st !== "upcoming" && st !== "") return;
+    const id = window.setInterval(() => setJoinWindowTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [booking]);
+
+  const nowMs = Date.now() + 0 * joinWindowTick;
+  const sessionStatus = String(booking?.status ?? "").toLowerCase();
+  const joinWindowOpen =
+    sessionStatus === "live" ||
+    isSessionJoinWindowOpen(booking?.session_date, booking?.start_time, nowMs);
+  const blockedBeforeJoinWindow =
+    Boolean(booking) &&
+    !inCall &&
+    !joinWindowOpen &&
+    sessionStatus === "upcoming" &&
+    !booking?.cancelled_at;
 
   const refreshParticipants = useCallback(() => {
     const call = callRef.current;
@@ -289,9 +388,16 @@ export function SessionRoomClient({ bookingId }: Props) {
       const data = (await res.json()) as SessionApiResponse;
       if (cancelled) return;
       if (!res.ok) {
+        if (res.status === 401) {
+          setNeedsSignIn(true);
+          setSignInOpen(true);
+          setLoadErr(null);
+          return;
+        }
         setLoadErr(typeof data.error === "string" ? data.error : "Could not load session");
         return;
       }
+      setNeedsSignIn(false);
       if (data.booking) setBooking(data.booking);
       if (data.expert != null) setExpert(data.expert);
       if (data.learner != null) setLearner(data.learner);
@@ -303,14 +409,89 @@ export function SessionRoomClient({ bookingId }: Props) {
     };
   }, [bookingId]);
 
+  const finalizeSessionFromRemoteEnd = useCallback(
+    async (nextBooking: BookingPayload) => {
+      if (sessionFinalizedRef.current) return;
+      sessionFinalizedRef.current = true;
+      const frame = callRef.current;
+      if (frame) {
+        await destroyDailyCall(frame);
+        callRef.current = null;
+        clearDailyContainer(containerRef.current);
+      }
+      bookingRef.current = nextBooking;
+      setBooking(nextBooking);
+      setInCall(false);
+      setShowRejoinPrompt(false);
+      setSessionManuallyEnded(true);
+      setEndSessionErr(null);
+      tryOpenSessionReviewPrompt();
+    },
+    [tryOpenSessionReviewPrompt],
+  );
+
+  const endSession = useCallback(async () => {
+    if (!bookingId || endSessionBusy || sessionFinalizedRef.current) return;
+    setEndSessionErr(null);
+    setEndSessionBusy(true);
+    try {
+      const frame = callRef.current;
+      if (frame) {
+        await destroyDailyCall(frame);
+        callRef.current = null;
+        clearDailyContainer(containerRef.current);
+      }
+      setInCall(false);
+      setShowRejoinPrompt(false);
+
+      const res = await fetch(`/api/sessions/${encodeURIComponent(bookingId)}/end`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = (await res.json()) as SessionApiResponse & {
+        ok?: boolean;
+        status?: string;
+        alreadyFinalized?: boolean;
+        error?: string;
+      };
+      if (!res.ok) {
+        setEndSessionErr(typeof data.error === "string" ? data.error : "Could not end session");
+        setShowRejoinPrompt(true);
+        return;
+      }
+
+      sessionFinalizedRef.current = true;
+      const refreshRes = await fetch(`/api/sessions/${encodeURIComponent(bookingId)}`);
+      const refreshData = (await refreshRes.json()) as SessionApiResponse;
+      if (refreshRes.ok && refreshData.booking) {
+        bookingRef.current = refreshData.booking;
+        setBooking(refreshData.booking);
+      } else if (data.booking) {
+        bookingRef.current = data.booking;
+        setBooking(data.booking);
+      }
+      setSessionManuallyEnded(true);
+      tryOpenSessionReviewPrompt();
+    } catch {
+      setEndSessionErr("Could not end session");
+      setShowRejoinPrompt(true);
+    } finally {
+      setEndSessionBusy(false);
+    }
+  }, [bookingId, endSessionBusy, tryOpenSessionReviewPrompt]);
+
   useEffect(() => {
-    if (!inCall) return;
+    if (!inCall && !showRejoinPrompt) return;
     const id = window.setInterval(() => {
       void (async () => {
         try {
           const res = await fetch(`/api/sessions/${encodeURIComponent(bookingId)}`);
           const data = (await res.json()) as SessionApiResponse;
           if (!res.ok) return;
+          if (data.booking && isTerminalSessionStatus(data.booking.status)) {
+            await finalizeSessionFromRemoteEnd(data.booking);
+            return;
+          }
           if (data.booking) setBooking(data.booking);
           if (data.live_timing) setLiveTiming(data.live_timing);
         } catch {
@@ -319,7 +500,7 @@ export function SessionRoomClient({ bookingId }: Props) {
       })();
     }, 5000);
     return () => window.clearInterval(id);
-  }, [inCall, bookingId]);
+  }, [bookingId, finalizeSessionFromRemoteEnd, inCall, showRejoinPrompt]);
 
   useEffect(() => {
     if (!booking?.session_date || !booking.end_time || booking.user_role !== "expert") return;
@@ -370,17 +551,9 @@ export function SessionRoomClient({ bookingId }: Props) {
       void (async () => {
         const frame = callRef.current;
         if (frame) {
-          try {
-            await frame.leave();
-          } catch {
-            /* ignore */
-          }
-          try {
-            frame.destroy();
-          } catch {
-            /* ignore */
-          }
+          await destroyDailyCall(frame);
           callRef.current = null;
+          clearDailyContainer(containerRef.current);
         }
         setInCall(false);
         setShowRejoinPrompt(false);
@@ -396,8 +569,9 @@ export function SessionRoomClient({ bookingId }: Props) {
 
   useEffect(() => {
     return () => {
-      callRef.current?.destroy();
-      callRef.current = null;
+      void destroyDailyCall(callRef.current).finally(() => {
+        callRef.current = null;
+      });
     };
   }, []);
 
@@ -411,6 +585,10 @@ export function SessionRoomClient({ bookingId }: Props) {
       setInCall(false);
       setShowRejoinPrompt(true);
       tryOpenSessionReviewPrompt();
+      void destroyDailyCall(callRef.current).finally(() => {
+        callRef.current = null;
+        clearDailyContainer(containerRef.current);
+      });
     };
 
     call.on("participant-joined", update);
@@ -439,6 +617,7 @@ export function SessionRoomClient({ bookingId }: Props) {
 
   const startOrReconnectCall = useCallback(async () => {
     if (!bookingId || !containerRef.current) return;
+    if (blockedBeforeJoinWindow) return;
     setShowRejoinPrompt(false);
     setCallErr(null);
     setBusy(true);
@@ -458,8 +637,15 @@ export function SessionRoomClient({ bookingId }: Props) {
       return;
     }
 
-    callRef.current?.destroy();
+    await destroyDailyCall(callRef.current);
     callRef.current = null;
+    clearDailyContainer(containerRef.current);
+
+    if (!containerRef.current) {
+      setCallErr("Video container unavailable");
+      setBusy(false);
+      return;
+    }
 
     const frame = Daily.createFrame(containerRef.current, {
       showLeaveButton: true,
@@ -491,11 +677,18 @@ export function SessionRoomClient({ bookingId }: Props) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Join failed";
       setCallErr(msg);
-      frame.destroy();
+      await destroyDailyCall(frame);
       callRef.current = null;
+      clearDailyContainer(containerRef.current);
     }
     setBusy(false);
-  }, [booking?.user_role, bookingId, expert?.display_name, learner?.display_name]);
+  }, [
+    blockedBeforeJoinWindow,
+    booking?.user_role,
+    bookingId,
+    expert?.display_name,
+    learner?.display_name,
+  ]);
 
   const requestMediaAccessThenJoin = useCallback(async () => {
     if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -530,23 +723,35 @@ export function SessionRoomClient({ bookingId }: Props) {
 
   useLayoutEffect(() => {
     if (!booking) return;
+    if (blockedBeforeJoinWindow) return;
     if (showRejoinPrompt || mediaReady) return;
     if (!readSessionMediaGateAck()) return;
     if (autoGateRanForBookingIdRef.current === bookingId) return;
     autoGateRanForBookingIdRef.current = bookingId;
     setRememberedMediaAttempt(true);
     void requestMediaAccessThenJoin();
-  }, [booking, bookingId, mediaReady, requestMediaAccessThenJoin, showRejoinPrompt]);
+  }, [blockedBeforeJoinWindow, booking, bookingId, mediaReady, requestMediaAccessThenJoin, showRejoinPrompt]);
 
   const durationMin = booking ? durationMinutesFromRow(booking) : null;
   const showPrejoinStrip = participantCount < 2;
 
-  const [waitingRoomTick, setWaitingRoomTick] = useState(0);
   useEffect(() => {
     if (!inCall || !showPrejoinStrip) return;
     const id = window.setInterval(() => setWaitingRoomTick((n) => n + 1), 30000);
     return () => window.clearInterval(id);
   }, [inCall, showPrejoinStrip]);
+  useEffect(() => {
+    if (!inCall || !showPrejoinStrip || !booking) return;
+    const id = window.setInterval(() => setLateJoinTick((n) => n + 1), 10_000);
+    return () => window.clearInterval(id);
+  }, [booking, inCall, showPrejoinStrip]);
+  useEffect(() => {
+    if (!showRejoinPrompt) return;
+    const id = window.setInterval(() => setEndEligibilityTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [showRejoinPrompt]);
+
+  const endSessionAllowed = canEndSession(booking, Date.now() + 0 * endEligibilityTick);
 
   const startsInWaiting =
     inCall && showPrejoinStrip && booking
@@ -555,6 +760,127 @@ export function SessionRoomClient({ bookingId }: Props) {
 
   const waitingRoomParties =
     inCall && showPrejoinStrip && expert && learner ? { expert, learner } : null;
+
+  const viewerRole = booking?.user_role === "expert" ? "expert" : "learner";
+  const waitingPartnerName = partnerDisplayName(
+    viewerRole,
+    expert,
+    learner,
+    booking?.partner_name,
+  );
+  const currentLateJoinPhase: LateJoinPhase =
+    inCall && showPrejoinStrip && booking
+      ? lateJoinPhase(booking.session_date, booking.start_time, Date.now() + 0 * lateJoinTick)
+      : "none";
+
+  const lateJoinDialogVariant =
+    currentLateJoinPhase === "ten_min_action" ? "ten_min_action" : "five_min_info";
+
+  useEffect(() => {
+    if (!inCall || !showPrejoinStrip || !booking) {
+      setLateJoinDialogOpen(false);
+      return;
+    }
+    if (currentLateJoinPhase === "none") {
+      setLateJoinDialogOpen(false);
+      return;
+    }
+    if (currentLateJoinPhase === "five_min_info") {
+      if (!fiveMinLateNoticeSeen) {
+        setLateJoinDialogOpen(true);
+      }
+      return;
+    }
+    const snoozed = lateJoinSnoozeUntilMs != null && Date.now() < lateJoinSnoozeUntilMs;
+    setLateJoinDialogOpen(!snoozed);
+  }, [
+    booking,
+    currentLateJoinPhase,
+    fiveMinLateNoticeSeen,
+    inCall,
+    lateJoinSnoozeUntilMs,
+    lateJoinTick,
+    showPrejoinStrip,
+  ]);
+
+  const dismissLateJoinDialog = useCallback(() => {
+    if (currentLateJoinPhase === "five_min_info") {
+      setFiveMinLateNoticeSeen(true);
+    } else {
+      setLateJoinSnoozeUntilMs(Date.now() + LATE_JOIN_REMIND_EVERY_MS);
+    }
+    setLateJoinDialogOpen(false);
+  }, [currentLateJoinPhase]);
+
+  const reportNoShow = useCallback(async () => {
+    if (!bookingId || reportNoShowBusy) return;
+    setReportNoShowBusy(true);
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(bookingId)}/report-no-show`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        booking?: BookingPayload;
+        settlementNote?: string | null;
+      };
+      if (!res.ok) {
+        window.alert(typeof data.error === "string" ? data.error : "Could not report no-show");
+        return;
+      }
+      const frame = callRef.current;
+      if (frame) {
+        await destroyDailyCall(frame);
+        callRef.current = null;
+        clearDailyContainer(containerRef.current);
+      }
+      setInCall(false);
+      setLateJoinDialogOpen(false);
+      if (data.booking) {
+        bookingRef.current = data.booking;
+        setBooking(data.booking);
+      }
+      setNoShowSettlementNote(
+        typeof data.settlementNote === "string" ? data.settlementNote : null,
+      );
+      setSessionManuallyEnded(true);
+    } catch {
+      window.alert("Could not report no-show");
+    } finally {
+      setReportNoShowBusy(false);
+    }
+  }, [bookingId, reportNoShowBusy]);
+
+  if (needsSignIn && !booking) {
+    return (
+      <>
+        <SignInDialog
+          open={signInOpen}
+          onOpenChange={setSignInOpen}
+          description="Sign in to join your Convene session."
+          postSignInRedirect={sessionPath}
+        />
+        <div className="flex flex-1 items-center justify-center bg-[#0a1628] px-4 py-12">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-6 text-center shadow-xl sm:p-8">
+            <p className="text-sm font-medium text-[#003049]">
+              Sign in to join this session.
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Use the account for this booking. After sign-in you&apos;ll return here automatically.
+            </p>
+            <Button
+              type="button"
+              className="mt-6 rounded-lg bg-[#F77F00] px-8 py-3 text-sm font-semibold text-white hover:bg-[#F77F00]/90"
+              onClick={() => setSignInOpen(true)}
+            >
+              Sign in
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   if (loadErr) {
     return (
@@ -575,6 +901,27 @@ export function SessionRoomClient({ bookingId }: Props) {
     );
   }
 
+  if (blockedBeforeJoinWindow) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-[#0a1628] px-4 py-12">
+        <div
+          role="alert"
+          className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-6 text-center shadow-xl sm:p-8"
+        >
+          <p className="text-sm font-medium text-[#003049]">
+            Your session is not active until 10 minutes before the scheduled start time.
+          </p>
+          <Link
+            href="/dashboard?view=sessions"
+            className="mt-6 inline-flex rounded-lg bg-[#F77F00] px-8 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-[#F77F00]/90"
+          >
+            Return to dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
       <SessionReviewDialog
@@ -586,6 +933,16 @@ export function SessionRoomClient({ bookingId }: Props) {
         onSubmitted={() => {
           setViewerReviewSubmitted(true);
         }}
+      />
+
+      <WaitingRoomLateJoinDialog
+        open={lateJoinDialogOpen && Boolean(waitingRoomParties)}
+        variant={lateJoinDialogVariant}
+        partnerName={waitingPartnerName}
+        viewerRole={viewerRole}
+        reportBusy={reportNoShowBusy}
+        onContinueWaiting={dismissLateJoinDialog}
+        onReportNoShow={() => void reportNoShow()}
       />
 
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
@@ -761,6 +1118,21 @@ export function SessionRoomClient({ bookingId }: Props) {
                 Back to dashboard
               </Link>
             </div>
+          ) : !inCall && sessionManuallyEnded ? (
+            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[#0a1628]/92 px-4 py-10 text-center">
+              <p className="pointer-events-auto max-w-md text-sm font-medium text-white/90">
+                This session has ended.
+              </p>
+              {noShowSettlementNote ? (
+                <p className="pointer-events-auto max-w-md text-sm text-white/75">{noShowSettlementNote}</p>
+              ) : null}
+              <Link
+                href="/dashboard?view=sessions"
+                className="pointer-events-auto rounded-lg bg-[#F77F00] px-8 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#F77F00]/90"
+              >
+                Back to dashboard
+              </Link>
+            </div>
           ) : !inCall && (busy || callErr || showRejoinPrompt) ? (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[#0a1628]/90 px-4 py-10 text-center">
               {busy ? (
@@ -784,13 +1156,34 @@ export function SessionRoomClient({ bookingId }: Props) {
                   <p className="pointer-events-auto max-w-md text-sm text-white/80">
                     You left the video call.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => void startOrReconnectCall()}
-                    className="pointer-events-auto rounded-lg bg-[#F77F00] px-8 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#F77F00]/90"
-                  >
-                    Rejoin call
-                  </button>
+                  {endSessionErr ? (
+                    <p className="pointer-events-auto max-w-md text-sm text-red-300" role="alert">
+                      {endSessionErr}
+                    </p>
+                  ) : null}
+                  <div className="pointer-events-auto flex flex-col items-center gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => void startOrReconnectCall()}
+                      disabled={endSessionBusy}
+                      className="rounded-lg bg-[#F77F00] px-8 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#F77F00]/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Rejoin call
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void endSession()}
+                      disabled={endSessionBusy || !endSessionAllowed}
+                      title={
+                        endSessionAllowed
+                          ? undefined
+                          : "End session is available once both participants have joined, or 10 minutes after the scheduled start."
+                      }
+                      className="rounded-lg border border-white/35 bg-white/10 px-8 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {endSessionBusy ? "Ending session…" : "End session"}
+                    </button>
+                  </div>
                 </>
               )}
             </div>

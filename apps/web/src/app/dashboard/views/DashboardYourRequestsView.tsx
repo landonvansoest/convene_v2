@@ -10,7 +10,6 @@ import {
   dashboardViewContentBoxClass,
 } from "@/app/dashboard/DashboardViewShell";
 import { PostRequestDialog } from "@/components/requests/PostRequestDialog";
-import { OnlineDot } from "@/components/presence/OnlineDot";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -154,12 +153,12 @@ export function DashboardYourRequestsView() {
 
       const cat = req.category_id?.trim();
       const exUrl = cat
-        ? `/api/experts?category=${encodeURIComponent(cat)}&limit=8`
-        : `/api/experts?limit=8`;
+        ? `/api/experts?category=${encodeURIComponent(cat)}&limit=3`
+        : `/api/experts?limit=3`;
       const exRes = await fetch(exUrl);
       const exJson = await exRes.json();
       if (exRes.ok) {
-        setRecommended(((exJson.experts as RecExpert[]) ?? []).slice(0, 8));
+        setRecommended(((exJson.experts as RecExpert[]) ?? []).slice(0, 3));
       } else {
         setRecommended([]);
       }
@@ -345,10 +344,6 @@ export function DashboardYourRequestsView() {
                                                 {initials(name)}
                                               </AvatarFallback>
                                             </Avatar>
-                                            <OnlineDot
-                                              online={resp.expert?.online}
-                                              availableNow={resp.expert?.available_now}
-                                            />
                                             <VisibleTempDot
                                               expertVisibilityState={resp.expert?.expert_visibility_state}
                                             />

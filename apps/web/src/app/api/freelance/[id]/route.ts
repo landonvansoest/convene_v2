@@ -9,6 +9,7 @@ import {
   rectificationDeadlineAt,
   type FreelanceAction,
 } from "@/lib/freelance/transitions";
+import { dispatchFreelanceReviewAlert } from "@/lib/notifications/admin-alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -236,6 +237,18 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (updErr) {
     return Response.json({ error: publicApiError(updErr) }, { status: 500 });
+  }
+
+  if (parsed.data.action === "decline_completion" && updated?.status === "admin_review") {
+    try {
+      await dispatchFreelanceReviewAlert({
+        freelanceId: id,
+        reason: (updated as { admin_review_reason?: string | null }).admin_review_reason ?? null,
+        totalPrice: (updated as { total_price?: number | string | null }).total_price ?? null,
+      });
+    } catch {
+      /* best-effort */
+    }
   }
 
   return Response.json({ freelance: updated });

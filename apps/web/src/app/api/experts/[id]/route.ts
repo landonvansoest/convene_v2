@@ -4,7 +4,9 @@ import {
   computeAvailableNow,
   computeBookingWeekPreview,
   computeNextAvailableSummary,
+  bookingPreviewSessionDates,
 } from "@/lib/expertBookingPreview";
+import { fetchExpertBlockingIntervals } from "@/lib/expert-booking-blocks";
 import {
   bucketBookingsByExpertUserId,
   BOOKING_SELECT_FOR_METRICS,
@@ -13,6 +15,8 @@ import {
   type BookingRowWithExpertId,
 } from "@/lib/bookingMetrics";
 import { isUserOnlineFresh } from "@/lib/presence/online";
+import { getAuthedUserId } from "@/lib/messages/service";
+import { learnerHasPaidSessionWithExpert } from "@/lib/pricing/first-session-discount";
 import { refreshStaleDependabilityForBookings } from "@/lib/dependability-persist";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +58,7 @@ export async function GET(_request: Request, { params }: Params) {
   const { data: availability } = await admin
     .from("expert_availability")
     .select(
-      "rate, available_now, available_until, minimum_booking, maximum_booking, minimum_notice, maximum_notice, buffer_time, weekly_schedule, availability_overrides, calendar_paused, auto_accept, first_session_discount_enabled, first_session_discount_max_session_minutes, first_session_discount_effective_from, first_session_discount_effective_until, first_session_discount_type, first_session_discount_value",
+      "rate, available_now, available_until, minimum_booking, maximum_booking, minimum_notice, maximum_notice, buffer_time, weekly_schedule, availability_overrides, calendar_paused, auto_accept, first_session_discount_enabled, first_session_discount_max_session_minutes, first_session_discount_effective_from, first_session_discount_effective_until, first_session_discount_type, first_session_discount_value, package_deal_enabled, package_session_count, package_session_duration_minutes, package_require_purchase, package_require_purchase_after_first_session, package_discount_type, package_discount_value",
     )
     .eq("user_id", id)
     .maybeSingle();
@@ -226,9 +230,20 @@ export async function GET(_request: Request, { params }: Params) {
 
   const name = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email_address;
   const tz = (user as { time_zone?: string | null }).time_zone ?? null;
-  const booking_week_preview = computeBookingWeekPreview(availability, tz);
-  const next_available_summary = computeNextAvailableSummary(availability, tz);
-  const { availableNow, availableUntil } = computeAvailableNow(availability, tz);
+  const previewDates = bookingPreviewSessionDates(availability, tz);
+  const blockingIntervals = await fetchExpertBlockingIntervals(admin, id, previewDates);
+  const booking_week_preview = computeBookingWeekPreview(availability, tz, new Date(), {
+    blockingIntervals,
+  });
+  const next_available_summary = computeNextAvailableSummary(availability, tz, new Date(), blockingIntervals);
+  const { availableNow, availableUntil } = computeAvailableNow(availability, tz, new Date(), blockingIntervals);
+
+  const viewerUserId = await getAuthedUserId();
+  let viewerHasPaidSessionWithExpert = false;
+  if (viewerUserId && viewerUserId !== id) {
+    viewerHasPaidSessionWithExpert = await learnerHasPaidSessionWithExpert(admin, id, viewerUserId);
+  }
+
   return Response.json({
     expert: {
       id: user.user_id,
@@ -271,10 +286,19 @@ export async function GET(_request: Request, { params }: Params) {
             first_session_discount_effective_until: availability.first_session_discount_effective_until,
             first_session_discount_type: availability.first_session_discount_type,
             first_session_discount_value: availability.first_session_discount_value,
+            package_deal_enabled: availability.package_deal_enabled,
+            package_session_count: availability.package_session_count,
+            package_session_duration_minutes: availability.package_session_duration_minutes,
+            package_require_purchase: availability.package_require_purchase,
+            package_require_purchase_after_first_session:
+              availability.package_require_purchase_after_first_session,
+            package_discount_type: availability.package_discount_type,
+            package_discount_value: availability.package_discount_value,
           }
         : {}),
       expert_profile_id: profile.expert_profile_id,
       booking_week_preview,
+      booking_blocking_intervals: blockingIntervals,
       next_available_summary,
       cancellation_rate: cancellationRate,
       performance_highlights: performanceHighlights,
@@ -284,6 +308,7 @@ export async function GET(_request: Request, { params }: Params) {
             total_response_time_seconds: responseStats.total_response_time_seconds,
           }
         : {}),
+      viewer_has_paid_session_with_expert: viewerHasPaidSessionWithExpert,
     },
   });
 }

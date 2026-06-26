@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findOrCreateConversationForPair } from "@/lib/messages/service";
+import { findOrCreateConversationForPair } from "@/lib/messages/conversation-pair";
 import { resolveConveneTeamUserId } from "@/lib/messages/welcome-inbox";
 
 /** Send a one-off in-app DM from the Convene team account (best-effort). */

@@ -52,6 +52,22 @@ async function checkRow(table, filter) {
   if (error) return { ok: false, detail: `${table} ${JSON.stringify(filter)} → ${error.code}: ${error.message}` }
   return { ok: (count ?? 0) > 0, detail: `${table} ${JSON.stringify(filter)} count=${count}` }
 }
+async function checkTemplateField(automationKey, field, contains) {
+  const { data, error } = await supa
+    .from('message_templates')
+    .select(field)
+    .eq('automation_key', automationKey)
+    .maybeSingle()
+  if (error) return { ok: false, detail: `message_templates.${automationKey}.${field} → ${error.message}` }
+  if (!data) return { ok: false, detail: `message_templates row missing: ${automationKey}` }
+  const val = String(data[field] ?? '')
+  const ok = val.includes(contains)
+  return { ok, detail: `${automationKey}.${field} ${ok ? 'contains' : 'missing'} ${JSON.stringify(contains)}` }
+}
+async function checkColumnMissing(table, column) {
+  const r = await checkColumn(table, column)
+  return { ok: !r.ok, detail: r.ok ? `${table}.${column} still present (migration may be missing)` : `${table}.${column} absent (ok)` }
+}
 
 const checks = [
   // Foundational tables — sanity baseline.
@@ -103,6 +119,53 @@ const checks = [
   { id: '048', label: 'requests.upvote_count', run: () => checkColumn('requests', 'upvote_count') },
   { id: '049', label: 'message_templates row help_ticket_reply', run: () => checkRow('message_templates', { automation_key: 'help_ticket_reply' }) },
   { id: '049', label: 'message_templates row expert_registration_welcome', run: () => checkRow('message_templates', { automation_key: 'expert_registration_welcome' }) },
+
+  { id: '005', label: 'bookings.reminder_15m_sent_at', run: () => checkColumn('bookings', 'reminder_15m_sent_at') },
+  { id: '007', label: 'learner_package_credits.source_checkout_session_id', run: () => checkColumn('learner_package_credits', 'source_checkout_session_id') },
+  { id: '008', label: 'transactions.stripe_checkout_session_id', run: () => checkColumn('transactions', 'stripe_checkout_session_id') },
+  { id: '009', label: 'processed_stripe_webhook_events table', run: () => checkTable('processed_stripe_webhook_events') },
+  { id: '012', label: 'users.time_zone column', run: () => checkColumn('users', 'time_zone') },
+  { id: '019', label: 'expert_availability.allow_pre_booking_messaging dropped', run: () => checkColumnMissing('expert_availability', 'allow_pre_booking_messaging') },
+  { id: '024', label: 'user_feedback.booking_id', run: () => checkColumn('user_feedback', 'booking_id') },
+  { id: '050', label: 'help_tickets.conversation_id', run: () => checkColumn('help_tickets', 'conversation_id') },
+  { id: '051', label: 'dev_tools email_verification_bypass default off', run: async () => {
+      const { data, error } = await supa.from('dev_tools').select('enabled').eq('tool_key', 'email_verification_bypass').maybeSingle()
+      if (error) return { ok: false, detail: error.message }
+      if (!data) return { ok: false, detail: 'dev_tools row missing' }
+      return { ok: data.enabled === false, detail: `enabled=${data.enabled}` }
+    }},
+  { id: '052', label: 'users.learner_registration_completed_at', run: () => checkColumn('users', 'learner_registration_completed_at') },
+  { id: '053', label: 'message_templates row new_booking', run: () => checkRow('message_templates', { automation_key: 'new_booking' }) },
+  { id: '054', label: 'learner_package_credits.expiry_reminder_30d_sent_at', run: () => checkColumn('learner_package_credits', 'expiry_reminder_30d_sent_at') },
+  { id: '054', label: 'message_templates row package_credit_expiring', run: () => checkRow('message_templates', { automation_key: 'package_credit_expiring' }) },
+  { id: '056', label: 'message_templates.email_cta_url column', run: () => checkColumn('message_templates', 'email_cta_url') },
+  { id: '057', label: 'message_templates row expert_no_show_refund', run: () => checkRow('message_templates', { automation_key: 'expert_no_show_refund' }) },
+  { id: '058', label: 'new_booking CTA uses bookings_url', run: () => checkTemplateField('new_booking', 'email_cta_url', 'bookings_url') },
+  { id: '059', label: 'booking_confirmed body has calendar_link', run: () => checkTemplateField('booking_confirmed', 'email_body', '{{calendar_link}}') },
+  { id: '060', label: 'message_templates row booking_canceled_by_expert', run: () => checkRow('message_templates', { automation_key: 'booking_canceled_by_expert' }) },
+  { id: '060', label: 'message_templates row booking_canceled_by_learner', run: () => checkRow('message_templates', { automation_key: 'booking_canceled_by_learner' }) },
+  { id: '061', label: 'booking_canceled_by_expert expert hyperlink body', run: () => checkTemplateField('booking_canceled_by_expert', 'email_body', '{{expert_profile_url}}') },
+  { id: '062', label: 'welcome_learner markdown hyperlinks', run: () => checkTemplateField('welcome_learner', 'email_body', '[Browse experts]') },
+  { id: '063', label: 'expert_registration_welcome email enabled', run: async () => {
+      const { data, error } = await supa.from('message_templates').select('email_enabled').eq('automation_key', 'expert_registration_welcome').maybeSingle()
+      if (error) return { ok: false, detail: error.message }
+      if (!data) return { ok: false, detail: 'row missing' }
+      return { ok: data.email_enabled === true, detail: `email_enabled=${data.email_enabled}` }
+    }},
+  { id: '064', label: 'request_responses.is_public', run: () => checkColumn('request_responses', 'is_public') },
+  { id: '065', label: 'bookings.confirmation_notified_at', run: () => checkColumn('bookings', 'confirmation_notified_at') },
+  { id: '065', label: 'message_templates new_booking (065 seed)', run: () => checkRow('message_templates', { automation_key: 'new_booking' }) },
+  { id: '066', label: 'booking_confirmed email enabled', run: async () => {
+      const { data, error } = await supa.from('message_templates').select('email_enabled').eq('automation_key', 'booking_confirmed').maybeSingle()
+      if (error) return { ok: false, detail: error.message }
+      if (!data) return { ok: false, detail: 'row missing' }
+      return { ok: data.email_enabled === true, detail: `email_enabled=${data.email_enabled}` }
+    }},
+  { id: '068', label: 'message_templates row booking_request_approved', run: () => checkRow('message_templates', { automation_key: 'booking_request_approved' }) },
+  { id: '068', label: 'message_templates row booking_request_declined', run: () => checkRow('message_templates', { automation_key: 'booking_request_declined' }) },
+  { id: '068', label: 'booking_request_approved CTA uses bookings_url', run: () => checkTemplateField('booking_request_approved', 'email_cta_url', 'bookings_url') },
+  { id: '069', label: 'bookings.stripe_payment_method_id', run: () => checkColumn('bookings', 'stripe_payment_method_id') },
+  { id: '069', label: 'bookings.stripe_setup_intent_id', run: () => checkColumn('bookings', 'stripe_setup_intent_id') },
 ]
 
 let pass = 0, fail = 0

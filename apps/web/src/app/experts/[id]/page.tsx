@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SignInDialog } from "@/components/auth/SignInDialog";
 import { ExpertWeeklyBookingWidget } from "@/components/expert/ExpertWeeklyBookingWidget";
 import { SessionBookingDialog } from "@/components/expert/SessionBookingDialog";
-import type { BookingWeekPreview, ExpertAvailabilityForPreview } from "@/lib/expertBookingPreview";
+import { PackagePurchaseDialog, type PackageOfferPreview } from "@/components/expert/PackagePurchaseDialog";
+import { PartnerConversationDialog } from "@/components/dashboard/PartnerConversationDialog";
+import type { BookingWeekPreview, ExpertAvailabilityForPreview, ExpertBlockingInterval } from "@/lib/expertBookingPreview";
 import { computeBookingWeekPreview, parseMinBookingMinutes } from "@/lib/expertBookingPreview";
 import { intervalStringToMinutes } from "@/lib/expert-registration";
 import { ExpertsGrid, type ExpertsGridExpert } from "@/components/home/ExpertsGrid";
@@ -15,9 +17,28 @@ import { formatDependabilityRating } from "@/lib/formatDependabilityRating";
 import { isExpertProfilePubliclyViewable } from "@/lib/expertVisibilityState";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { formatRatePer15Min } from "@/lib/rates";
+import {
+  formatFirstSessionConsultationLengthLabel,
+  formatFirstSessionConsultationPriceLabel,
+  isFirstSessionDiscountAdvertised,
+} from "@/lib/pricing/first-session-discount";
+import {
+  expertRequiresPackageAfterFirstSession,
+  expertRequiresPackagePurchase,
+  expertRequiresPackagePurchaseForLearner,
+  isSessionPackagesAdvertised,
+  packageBookingNotice,
+  packageSessionCount,
+  packageSessionDurationMinutes,
+  requiredPackageSessionCount,
+  requiredPackageSessionDurationMinutes,
+} from "@/lib/packages/package-deal";
+import { isPackageCreditUsable } from "@/lib/packages/learner-package-credits";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { OnlineNowPill, OnlineDot, AvailableNowPill } from "@/components/presence/OnlineDot";
+import { OnlineNowPill, AvailableNowPill } from "@/components/presence/OnlineDot";
 import { VerifiedExpertBadge } from "@/components/expert/VerifiedExpertBadge";
+import { FirstSessionDiscountBadge } from "@/components/expert/FirstSessionDiscountBadge";
+import { SessionPackagesBadge } from "@/components/expert/SessionPackagesBadge";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +60,14 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+type PackageCreditRow = {
+  credit_id: string;
+  remaining_credits: number;
+  expiration_at: string | null;
+  expert_user_id: string | null;
+  session_duration_minutes: number | null;
+};
+
 type Pkg = {
   package_id: string;
   title: string;
@@ -55,6 +84,8 @@ type Review = {
   overall_rating: number;
   public_review: string | null;
   created_at: string;
+  reviewer_name?: string;
+  reviewer_photo?: string | null;
 };
 
 function parseSlotStartUtcMs(raw: string): number | null {
@@ -80,8 +111,6 @@ export default function ExpertProfilePage() {
   const [avg, setAvg] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [buyErr, setBuyErr] = useState<string | null>(null);
-  const [buyingId, setBuyingId] = useState<string | null>(null);
   const [signInState, setSignInState] = useState<{
     open: boolean;
     description: string | null;
@@ -90,10 +119,15 @@ export default function ExpertProfilePage() {
   const [similar, setSimilar] = useState<ExpertsGridExpert[]>([]);
   const [similarLoading, setSimilarLoading] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [packagePurchaseOpen, setPackagePurchaseOpen] = useState(false);
+  const [packageOffer, setPackageOffer] = useState<PackageOfferPreview | null>(null);
+  const [packageOfferLoading, setPackageOfferLoading] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
   const [bookingAnchorUtc, setBookingAnchorUtc] = useState<number | null>(null);
   const [me, setMe] = useState<{ user: { id: string } | null; profile: Record<string, unknown> | null } | null>(
     null,
   );
+  const [learnerPackageCredits, setLearnerPackageCredits] = useState<PackageCreditRow[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -145,76 +179,45 @@ export default function ExpertProfilePage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (loading || !expert) return;
-    const vis = String(expert.expert_visibility_state ?? "");
-    if (vis && !isExpertProfilePubliclyViewable(vis)) return;
-    const raw = searchParams.get("slotStart");
-    if (!raw) return;
-    const ms = parseSlotStartUtcMs(raw);
-    if (ms == null) return;
-    setBookingAnchorUtc(ms);
-    setBookingOpen(true);
+    if (!me?.user?.id) {
+      setLearnerPackageCredits([]);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/me/package-credits")
+      .then((r) => r.json() as Promise<{ credits?: PackageCreditRow[] }>)
+      .then((j) => {
+        if (!cancelled) setLearnerPackageCredits(j.credits ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setLearnerPackageCredits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [me?.user?.id]);
+
+  useEffect(() => {
+    if (loading || !expert || !me?.user) return;
+    if (searchParams.get("message") !== "1") return;
+    setMessageOpen(true);
     const next = new URLSearchParams(searchParams.toString());
-    next.delete("slotStart");
+    next.delete("message");
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [loading, expert, searchParams, pathname, router]);
+  }, [loading, expert, me?.user, searchParams, pathname, router]);
 
   async function openMessageThread() {
     const { data } = await supabase.auth.getSession();
     if (data.session?.user) {
-      router.push(`/messages/${id}`);
+      setMessageOpen(true);
       return;
     }
     setSignInState({
       open: true,
       description: "Sign in to message this expert.",
-      redirect: `/messages/${id}`,
+      redirect: `/experts/${id}?message=1`,
     });
-  }
-
-  async function buyPackage(packageId: string) {
-    setBuyErr(null);
-    setBuyingId(packageId);
-    const res = await fetch("/api/stripe/create-package-checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packageId }),
-    });
-    const data = (await res.json()) as { url?: string; error?: string };
-    setBuyingId(null);
-    if (!res.ok) {
-      if (res.status === 401) {
-        setBuyErr("Sign in to purchase a package.");
-        return;
-      }
-      setBuyErr(typeof data.error === "string" ? data.error : "Checkout failed");
-      return;
-    }
-    if (data.url) window.location.href = data.url;
-    else setBuyErr("Checkout did not return a URL");
-  }
-
-  function firstSessionDiscountTeaser(e: Record<string, unknown> | null): boolean {
-    if (!e || !e.first_session_discount_enabled) return false;
-    const now = Date.now();
-    const from = e.first_session_discount_effective_from;
-    if (from) {
-      const t = new Date(String(from)).getTime();
-      if (Number.isFinite(t) && now < t) return false;
-    }
-    const until = e.first_session_discount_effective_until;
-    if (until) {
-      const t = new Date(String(until)).getTime();
-      if (Number.isFinite(t) && now > t) return false;
-    }
-    return true;
-  }
-
-  function packageIsPurchasable(p: Pkg) {
-    const hasStripePrice = Boolean(p.stripe_price_id?.trim());
-    const hasAmount = p.price_cents != null && Number(p.price_cents) > 0;
-    return hasStripePrice || hasAmount;
   }
 
   const name = expert ? String(expert.name ?? expert.email ?? "Expert") : "";
@@ -290,23 +293,126 @@ export default function ExpertProfilePage() {
   }, [expert]);
 
   const signedIn = Boolean(me?.user?.id);
+  const packageOffered = isSessionPackagesAdvertised(expert);
+  const packageRequireImmediate = expertRequiresPackagePurchase(expert);
+  const packageRequireAfterFirst = expertRequiresPackageAfterFirstSession(expert);
+  const viewerHasPaidSession = Boolean(
+    (expert as { viewer_has_paid_session_with_expert?: boolean } | null)
+      ?.viewer_has_paid_session_with_expert,
+  );
+  const packageRequired = expert
+    ? expertRequiresPackagePurchaseForLearner(expert, viewerHasPaidSession)
+    : false;
+  const packageSessions = packageSessionCount(expert);
+  const packageDuration = packageSessionDurationMinutes(expert);
+  const requiredPackageSessions = requiredPackageSessionCount(expert);
+  const requiredPackageDuration = requiredPackageSessionDurationMinutes(expert);
+  const firstSessionConsultationLength = formatFirstSessionConsultationLengthLabel(
+    expert?.first_session_discount_max_session_minutes ?? null,
+  );
+  const firstSessionConsultationPrice = formatFirstSessionConsultationPriceLabel({
+    first_session_discount_type: expert?.first_session_discount_type,
+    first_session_discount_value: expert?.first_session_discount_value,
+    first_session_discount_max_session_minutes: expert?.first_session_discount_max_session_minutes,
+    ratePer15Min: rate,
+  });
+
+  const usableExpertCredits = useMemo(() => {
+    return learnerPackageCredits.filter(
+      (c) =>
+        c.expert_user_id === id &&
+        isPackageCreditUsable(c) &&
+        (requiredPackageDuration == null || c.session_duration_minutes === requiredPackageDuration),
+    );
+  }, [learnerPackageCredits, id, requiredPackageDuration]);
+
+  const activePackageCredit = usableExpertCredits[0] ?? null;
+  const canBookSessions = !packageRequired || usableExpertCredits.length > 0;
+
+  useEffect(() => {
+    if (!packagePurchaseOpen || !id || !packageOffered) {
+      if (!packagePurchaseOpen) setPackageOffer(null);
+      return;
+    }
+    let cancelled = false;
+    setPackageOfferLoading(true);
+    void fetch(`/api/experts/${encodeURIComponent(id)}/package-offer`)
+      .then((r) => r.json() as Promise<{ offer?: PackageOfferPreview | null }>)
+      .then((j) => {
+        if (!cancelled) setPackageOffer(j.offer ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setPackageOffer(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPackageOfferLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packagePurchaseOpen, id, packageOffered]);
+
+  function openPackagePurchaseDialog() {
+    setPackagePurchaseOpen(true);
+  }
+
+  function handlePickBookingSlot(utcMs: number) {
+    if (packageRequired && !canBookSessions) {
+      openPackagePurchaseDialog();
+      return;
+    }
+    setBookingAnchorUtc(utcMs);
+    setBookingOpen(true);
+  }
+
+  useEffect(() => {
+    if (loading || !expert) return;
+    const vis = String(expert.expert_visibility_state ?? "");
+    if (vis && !isExpertProfilePubliclyViewable(vis)) return;
+    const raw = searchParams.get("slotStart");
+    if (!raw) return;
+    const ms = parseSlotStartUtcMs(raw);
+    if (ms == null) return;
+    if (!canBookSessions) {
+      if (packageRequired) setPackagePurchaseOpen(true);
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("slotStart");
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      return;
+    }
+    setBookingAnchorUtc(ms);
+    setBookingOpen(true);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("slotStart");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [loading, expert, searchParams, pathname, router, canBookSessions, packageRequired]);
+
   const viewerTimeZoneIana =
     signedIn && typeof me?.profile?.time_zone === "string" && me.profile.time_zone.trim()
       ? me.profile.time_zone.trim()
       : "";
 
+  const bookingBlockingIntervals = useMemo((): ExpertBlockingInterval[] => {
+    const raw = expert?.booking_blocking_intervals;
+    return Array.isArray(raw) ? (raw as ExpertBlockingInterval[]) : [];
+  }, [expert?.booking_blocking_intervals]);
+
   const bookingPreview = useMemo((): BookingWeekPreview | null => {
     const fallback = (expert?.booking_week_preview as BookingWeekPreview | null) ?? null;
     const expertTz = expert ? String(expert.time_zone ?? "").trim() : "";
     if (!availabilityForBooking || !expertTz) return fallback;
+    const previewOptions = { blockingIntervals: bookingBlockingIntervals };
     if (signedIn && viewerTimeZoneIana) {
       const v = computeBookingWeekPreview(availabilityForBooking, expertTz, new Date(), {
         displayTimeZone: viewerTimeZoneIana,
+        ...previewOptions,
       });
       if (v) return v;
     }
     return fallback;
-  }, [availabilityForBooking, expert, signedIn, viewerTimeZoneIana]);
+  }, [availabilityForBooking, expert, signedIn, viewerTimeZoneIana, bookingBlockingIntervals]);
 
   const bookingTzName = bookingPreview?.timezoneNameLabel;
 
@@ -442,6 +548,14 @@ export default function ExpertProfilePage() {
         description={signInState.description}
         postSignInRedirect={signInState.redirect}
       />
+      <PartnerConversationDialog
+        open={messageOpen}
+        onOpenChange={setMessageOpen}
+        partnerId={id || null}
+        partnerName={name || null}
+        partnerPhoto={photo}
+        partnerExpertVisibilityState={visibility || null}
+      />
       <SessionBookingDialog
         open={bookingOpen}
         onOpenChange={(o) => {
@@ -461,8 +575,19 @@ export default function ExpertProfilePage() {
         expertTimeZone={expert ? String(expert.time_zone ?? "") : null}
         expertTimeZoneDisplayLabel={bookingTzName}
         displayWallTimeZone={signedIn && viewerTimeZoneIana ? viewerTimeZoneIana : null}
+        blockingIntervals={bookingBlockingIntervals}
         anchorUtcMs={bookingAnchorUtc}
-        firstSessionDiscountAvailable={firstSessionDiscountTeaser(expert)}
+        firstSessionDiscountAvailable={isFirstSessionDiscountAdvertised(expert) && !activePackageCredit}
+        firstSessionDiscountMaxSessionMinutes={
+          expert?.first_session_discount_max_session_minutes ?? null
+        }
+        firstSessionDiscountType={expert?.first_session_discount_type ?? null}
+        firstSessionDiscountValue={expert?.first_session_discount_value ?? null}
+        viewerHasPaidSession={viewerHasPaidSession}
+        packageRequireAfterFirst={packageRequireAfterFirst && !packageRequireImmediate}
+        packageCreditId={activePackageCredit?.credit_id ?? null}
+        packageCreditDurationMinutes={activePackageCredit?.session_duration_minutes ?? requiredPackageDuration}
+        packageCreditRemaining={activePackageCredit?.remaining_credits ?? null}
         onRequestSignIn={() =>
           setSignInState({
             open: true,
@@ -471,6 +596,29 @@ export default function ExpertProfilePage() {
           })
         }
       />
+      {packageOffered && packageSessions != null && packageDuration != null ? (
+        <PackagePurchaseDialog
+          open={packagePurchaseOpen}
+          onOpenChange={setPackagePurchaseOpen}
+          expertUserId={id}
+          expertName={name}
+          expertTitle={title}
+          expertPhoto={photo}
+          expertVisibilityState={visibility}
+          offer={packageOffer}
+          offerLoading={packageOfferLoading}
+          onRequestSignIn={
+            signedIn
+              ? undefined
+              : () =>
+                  setSignInState({
+                    open: true,
+                    description: "Sign in to purchase a package.",
+                    redirect: `/experts/${id}`,
+                  })
+          }
+        />
+      ) : null}
       <div className="border-b border-border bg-card">
         <div className="mx-auto w-full max-w-screen-2xl px-4 py-4 md:px-6">
           <Button variant="ghost" className="gap-1 text-convene-primary" asChild>
@@ -528,7 +676,6 @@ export default function ExpertProfilePage() {
                         <AvatarImage src={photo ?? undefined} alt={name} className="object-cover" />
                         <AvatarFallback className="bg-convene-hero text-3xl text-white">{initials}</AvatarFallback>
                       </Avatar>
-                      <OnlineDot online={online} availableNow={availableNow} />
                     </div>
                     <div className="mt-3 flex w-full max-w-[180px] flex-col items-center space-y-2">
                       <OnlineNowPill online={online && !availableNow} />
@@ -555,6 +702,8 @@ export default function ExpertProfilePage() {
                             Most Reliable
                           </Badge>
                         ) : null}
+                        <FirstSessionDiscountBadge expert={expert} />
+                        <SessionPackagesBadge expert={expert} publishedPackageCount={packages.length} />
                       </div>
                       <p className="mt-2 text-lg font-medium leading-tight text-convene-hero">{title}</p>
                     </div>
@@ -639,11 +788,6 @@ export default function ExpertProfilePage() {
                         <span className="pl-3 text-left text-sm leading-snug text-foreground md:pl-4">dependability</span>
                       </div>
                     </div>
-                    {firstSessionDiscountTeaser(expert) ? (
-                      <p className="mt-4 rounded border border-convene-hero/40 bg-convene-hero/10 px-2 py-1 text-center text-xs text-convene-primary">
-                        First-session discount available.
-                      </p>
-                    ) : null}
                   </div>
                 </div>
               </CardContent>
@@ -658,30 +802,73 @@ export default function ExpertProfilePage() {
                       Book a Session
                     </CardTitle>
                     <CardDescription className="space-y-1.5 text-foreground/90">
-                      <span className="block">Select an available time slot to book your session.</span>
+                      {autoBook ? (
+                        <span className="block">Select an available time slot to book your session.</span>
+                      ) : (
+                        <>
+                          <span className="block font-medium text-convene-hero">
+                            This expert has opted out of auto-bookings.
+                          </span>
+                          <span className="block">
+                            Click below to request a time, your expert will need to approve the booking before it
+                            is final.
+                          </span>
+                        </>
+                      )}
+                      {packageOffered && packageSessions != null && packageDuration != null ? (
+                        <span className="block space-y-2">
+                          <span className="block font-medium text-convene-hero">
+                            {packageBookingNotice(packageSessions, packageDuration, {
+                              required: packageRequireImmediate,
+                              requiredAfterFirst:
+                                packageRequireAfterFirst && !packageRequireImmediate,
+                              firstSessionConsultationLength,
+                              firstSessionConsultationPrice,
+                            })}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-convene-primary text-white hover:bg-convene-primary/90"
+                            onClick={openPackagePurchaseDialog}
+                          >
+                            Purchase Package
+                          </Button>
+                        </span>
+                      ) : null}
                       <span className="block">
-                        Times displayed in{" "}
-                        <span className="font-medium text-convene-hero">{bookingTzName ?? "Pacific Time"}</span>
-                        .
-                        {!signedIn ? (
+                        {signedIn && viewerTimeZoneIana ? (
                           <>
-                            {" "}
-                            <button
-                              type="button"
-                              className="font-semibold text-convene-primary underline underline-offset-2 hover:text-convene-primary/90"
-                              onClick={() =>
-                                setSignInState({
-                                  open: true,
-                                  description: null,
-                                  redirect: `/experts/${id}`,
-                                })
-                              }
-                            >
-                              Sign In
-                            </button>{" "}
-                            to view in your home timezone.
+                            Times are adjusted to display in your hometown timezone (
+                            <span className="font-medium text-convene-hero">{viewerTimeZoneIana}</span>
+                            ).
                           </>
-                        ) : null}
+                        ) : (
+                          <>
+                            Times displayed in{" "}
+                            <span className="font-medium text-convene-hero">{bookingTzName ?? "Pacific Time"}</span>
+                            .
+                            {!signedIn ? (
+                              <>
+                                {" "}
+                                <button
+                                  type="button"
+                                  className="font-semibold text-convene-primary underline underline-offset-2 hover:text-convene-primary/90"
+                                  onClick={() =>
+                                    setSignInState({
+                                      open: true,
+                                      description: null,
+                                      redirect: `/experts/${id}`,
+                                    })
+                                  }
+                                >
+                                  Sign In
+                                </button>{" "}
+                                to view in your home timezone.
+                              </>
+                            ) : null}
+                          </>
+                        )}
                       </span>
                     </CardDescription>
                   </CardHeader>
@@ -689,10 +876,7 @@ export default function ExpertProfilePage() {
                     <ExpertWeeklyBookingWidget
                       expertId={id}
                       preview={bookingPreview}
-                      onPickSlot={(utcMs) => {
-                        setBookingAnchorUtc(utcMs);
-                        setBookingOpen(true);
-                      }}
+                      onPickSlot={(utcMs) => handlePickBookingSlot(utcMs)}
                     />
                   </CardContent>
                 </Card>
@@ -722,16 +906,16 @@ export default function ExpertProfilePage() {
                         <p>Booking Notice:</p>
                         <p>{minimumNoticeLabel}</p>
                       </div>
-                      {Boolean(expert?.first_session_discount_enabled) ? (
+                      {isFirstSessionDiscountAdvertised(expert) ? (
                         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                           <p>First Session Discount:</p>
                           <p>Available</p>
                         </div>
                       ) : null}
-                      {packages.length > 0 ? (
+                      {isSessionPackagesAdvertised(expert) || packages.length > 0 ? (
                         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                           <p>Packages:</p>
-                          <p>{packages.length}</p>
+                          <p>{packages.length > 0 ? packages.length : "Offered"}</p>
                         </div>
                       ) : null}
                     </CardContent>
@@ -841,43 +1025,6 @@ export default function ExpertProfilePage() {
                 </Card>
               </div>
 
-              {buyErr ? <p className="text-sm text-destructive">{buyErr}</p> : null}
-              {packages.length > 0 ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-convene-primary">
-                      <DollarSign className="h-5 w-5 text-convene-hero" />
-                      Packages
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 md:grid-cols-2">
-                    {packages.map((p) => (
-                      <Card key={p.package_id} className="border-border">
-                        <CardHeader>
-                          <CardTitle className="text-lg text-convene-primary">{p.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {p.description ? <p className="text-sm text-muted-foreground">{p.description}</p> : null}
-                          <p className="text-sm">
-                            {p.session_count} sessions × {p.session_duration_minutes} min
-                            {p.price_cents != null ? ` · ${(p.price_cents / 100).toFixed(2)} ${p.currency}` : null}
-                          </p>
-                          {packageIsPurchasable(p) ? (
-                            <Button
-                              className="bg-convene-primary text-white hover:bg-convene-primary/90"
-                              disabled={buyingId === p.package_id}
-                              onClick={() => void buyPackage(p.package_id)}
-                            >
-                              {buyingId === p.package_id ? "Redirecting…" : "Purchase"}
-                            </Button>
-                          ) : null}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </CardContent>
-                </Card>
-              ) : null}
-
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-convene-primary">
@@ -922,14 +1069,21 @@ export default function ExpertProfilePage() {
                   {reviews.length === 0 ? (
                     <p className="text-muted-foreground">No reviews yet.</p>
                   ) : (
-                    reviews.map((r) => (
+                    reviews.map((r) => {
+                      const reviewerName = r.reviewer_name?.trim() || "Community Member";
+                      return (
                       <div key={r.review_id} className="rounded-md px-1 py-2">
                         <div className="flex items-start gap-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-[#ecd9c8] text-convene-primary">U</AvatarFallback>
+                            {r.reviewer_photo ? (
+                              <AvatarImage src={r.reviewer_photo} alt="" />
+                            ) : null}
+                            <AvatarFallback className="bg-[#ecd9c8] text-convene-primary">
+                              {reviewerName.slice(0, 1).toUpperCase()}
+                            </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xl font-semibold text-convene-primary">Community Member</p>
+                            <p className="text-lg font-bold text-foreground">{reviewerName}</p>
                             <div className="mt-1 flex items-center gap-2">
                               <div className="flex items-center gap-0.5">
                                 {Array.from({ length: 5 }).map((_, i) => (
@@ -941,7 +1095,7 @@ export default function ExpertProfilePage() {
                                   />
                                 ))}
                               </div>
-                              <span className="text-sm text-convene-primary">
+                              <span className="text-sm text-muted-foreground">
                                 {new Date(r.created_at).toLocaleDateString(undefined, {
                                   month: "short",
                                   day: "numeric",
@@ -949,11 +1103,14 @@ export default function ExpertProfilePage() {
                                 })}
                               </span>
                             </div>
-                            {r.public_review ? <p className="mt-2 text-2xl text-convene-primary">{r.public_review}</p> : null}
+                            {r.public_review ? (
+                              <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{r.public_review}</p>
+                            ) : null}
                           </div>
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </CardContent>
               </Card>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
+import { dispatchUserFeedbackAlert } from "@/lib/notifications/admin-alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -57,22 +58,37 @@ export async function POST(request: Request) {
     .join("\n");
 
   const admin = createAdminClient();
-  const { error } = await admin.from("user_feedback").insert({
-    user_id: null,
-    feedback_type: "signup_issue",
-    feedback_text: feedbackText,
-    context: {
-      source: "signup_dialog",
-      email: email.trim(),
-      error_status: error_status ?? null,
-      error_code: error_code ?? null,
-      error_message: error_message ?? null,
-    },
-    admin_review_status: "pending",
-  });
+  const { data: inserted, error } = await admin
+    .from("user_feedback")
+    .insert({
+      user_id: null,
+      feedback_type: "signup_issue",
+      feedback_text: feedbackText,
+      context: {
+        source: "signup_dialog",
+        email: email.trim(),
+        error_status: error_status ?? null,
+        error_code: error_code ?? null,
+        error_message: error_message ?? null,
+      },
+      admin_review_status: "pending",
+    })
+    .select("feedback_id")
+    .single();
 
   if (error) {
     return Response.json({ error: publicApiError(error) }, { status: 500 });
+  }
+
+  try {
+    await dispatchUserFeedbackAlert({
+      feedbackId: inserted?.feedback_id ? String(inserted.feedback_id) : undefined,
+      feedbackType: "signup_issue",
+      feedbackText,
+      userEmail: email.trim(),
+    });
+  } catch {
+    /* best-effort */
   }
 
   return Response.json({ ok: true });

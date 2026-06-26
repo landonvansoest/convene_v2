@@ -14,6 +14,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { dispatchSearchLoading } from "@/lib/search/search-loading-events";
 
 const categories = [
   { name: "Health + Wellness", icon: Heart },
@@ -33,6 +34,7 @@ export function HomeCategoryNav() {
 
   function handleCategoryClick(categoryName: string) {
     // Pass display name; search page resolves this to a category UUID.
+    dispatchSearchLoading(true);
     router.push(`/search?category=${encodeURIComponent(categoryName)}`);
   }
 

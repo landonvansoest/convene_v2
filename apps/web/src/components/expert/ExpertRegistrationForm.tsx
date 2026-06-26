@@ -225,6 +225,7 @@ type FormState = {
   package_discount_type: "percent" | "fixed_amount";
   package_discount_value: string;
   package_require_purchase: boolean;
+  package_require_purchase_after_first_session: boolean;
   weekly_schedule: Record<string, Array<{ start: string; end: string }>>;
   membership_tier: "free" | "verified" | "enterprise";
   stripe_connect_account_id: string;
@@ -278,6 +279,7 @@ const defaults: FormState = {
   package_discount_type: "percent",
   package_discount_value: "",
   package_require_purchase: false,
+  package_require_purchase_after_first_session: false,
   weekly_schedule: {},
   membership_tier: "free",
   stripe_connect_account_id: "",
@@ -368,6 +370,10 @@ function buildFormStateFromDraftProfile(p: Record<string, unknown>): FormState {
       (p as { package_discount_type?: string }).package_discount_type === "fixed_amount" ? "fixed_amount" : "percent",
     package_discount_value: String((p as { package_discount_value?: number | null }).package_discount_value ?? ""),
     package_require_purchase: Boolean((p as { package_require_purchase?: boolean }).package_require_purchase),
+    package_require_purchase_after_first_session: Boolean(
+      (p as { package_require_purchase_after_first_session?: boolean })
+        .package_require_purchase_after_first_session,
+    ),
     weekly_schedule: normalizeWeeklySchedule(p.weekly_schedule),
     membership_tier: (() => {
       const t = String(p.membership_tier ?? "free");
@@ -569,6 +575,7 @@ function getWizardStepSnapshotJson(st: number, s: FormState, categorySuggestion:
         package_discount_type: s.package_discount_type,
         package_discount_value: s.package_discount_value,
         package_require_purchase: s.package_require_purchase,
+        package_require_purchase_after_first_session: s.package_require_purchase_after_first_session,
       });
     case 6:
       return JSON.stringify({ weekly_schedule: normalizeWeeklySchedule(s.weekly_schedule) });
@@ -872,6 +879,9 @@ export function ExpertRegistrationForm({
       package_discount_value:
         st.package_deal_enabled && pkgDiscNum !== null && Number.isFinite(pkgDiscNum) ? pkgDiscNum : null,
       package_require_purchase: st.package_deal_enabled ? st.package_require_purchase : false,
+      package_require_purchase_after_first_session: st.package_deal_enabled
+        ? st.package_require_purchase_after_first_session
+        : false,
       current_step: nextStep ?? step,
     };
 
@@ -1013,6 +1023,21 @@ export function ExpertRegistrationForm({
   function back() {
     setInvalidFields([]);
     setStep((s) => Math.max(1, s - 1));
+  }
+
+  function handleVerifiedSubscriptionPaid() {
+    setError(null);
+    setInvalidFields((prev) => prev.filter((k) => k !== "membership_tier"));
+    setVerifiedConsentOpen(false);
+    setVerifiedSubscriptionOpen(false);
+    setState((s) => ({ ...s, membership_tier: "verified" }));
+    void (async () => {
+      const atStep = stepRef.current;
+      const target = Math.min(slideCount, atStep + 1);
+      const merged = { ...stateRef.current, membership_tier: "verified" as const };
+      const saved = await saveDraft(target, { mergedSnapshot: merged });
+      if (saved) setStep(target);
+    })();
   }
 
   function addSkill() {
@@ -1661,6 +1686,10 @@ export function ExpertRegistrationForm({
         "You can offer a First Session Discount either as a fixed time/price or as a percentage. Note that this setting will offer the discount to all users; you can also offer special discounts to individual users from your dashboard later.";
       const packageDealTooltip =
         "You can offer users a multi-session package either as an incentive, or as a requirement for your services. Note that after purchasing a package, users will receive credits for the specified number of sessions, and be required to schedule individually according to your availability.";
+      const packageRequireTooltip =
+        "Users will only be able to book you by purchasing a package.";
+      const packageRequireAfterFirstTooltip =
+        'This option allows you to offer an initial consultation before requiring users to book a package. Set parameters for the initial consultation under "Discount First Session" above.';
       const bookingSelectClass = cn(manualSelectTriggerClass, "w-full max-w-[220px]");
       const bookingInputClass = cn(manualInputClass, "max-w-[220px]");
       const fsAny = state.first_session_discount_max_session_minutes === "any";
@@ -2051,10 +2080,39 @@ export function ExpertRegistrationForm({
                       />
                       <p className="text-xs font-medium text-[#003049]/80">Estimated package total: {previewPackageTotal()}</p>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pt-1">
-                        <Label className="text-sm font-semibold text-[#003049]">Require Package Purchase</Label>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-semibold text-[#003049]">Require Package Purchase</Label>
+                          <InfoTip text={packageRequireTooltip} />
+                        </div>
                         <Switch
                           checked={state.package_require_purchase}
-                          onCheckedChange={(v) => setState({ ...state, package_require_purchase: v })}
+                          onCheckedChange={(v) =>
+                            setState({
+                              ...state,
+                              package_require_purchase: v,
+                              package_require_purchase_after_first_session: v
+                                ? false
+                                : state.package_require_purchase_after_first_session,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pt-1">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-semibold text-[#003049]">
+                            Require Package Purchase After First Session
+                          </Label>
+                          <InfoTip text={packageRequireAfterFirstTooltip} />
+                        </div>
+                        <Switch
+                          checked={state.package_require_purchase_after_first_session}
+                          onCheckedChange={(v) =>
+                            setState({
+                              ...state,
+                              package_require_purchase_after_first_session: v,
+                              package_require_purchase: v ? false : state.package_require_purchase,
+                            })
+                          }
                         />
                       </div>
                     </div>
@@ -2832,11 +2890,7 @@ export function ExpertRegistrationForm({
       <VerifiedSubscriptionDialog
         open={verifiedSubscriptionOpen}
         onOpenChange={setVerifiedSubscriptionOpen}
-        onSuccess={() => {
-          setError(null);
-          setState((s) => ({ ...s, membership_tier: "verified" }));
-          void saveDraft(step, { mergedSnapshot: { ...stateRef.current, membership_tier: "verified" } });
-        }}
+        onSuccess={handleVerifiedSubscriptionPaid}
       />
 
       <Dialog open={enterpriseInquiryOpen} onOpenChange={setEnterpriseInquiryOpen}>

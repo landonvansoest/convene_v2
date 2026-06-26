@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SKILLS_BY_CATEGORY } from "@/components/search/skillsByCategory";
+import { dispatchSearchLoading } from "@/lib/search/search-loading-events";
 
 type Cat = { category_id: string; name: string; icon: string | null; is_active?: boolean };
 
@@ -60,6 +61,7 @@ export function BrowseCategoriesDialog({ open, onOpenChange }: Props) {
                   variant="outline"
                   className="h-auto w-full justify-start whitespace-normal border-[#003049] bg-[#003049] px-4 py-3 text-left text-white hover:bg-[#003049]/95"
                   onClick={() => {
+                    dispatchSearchLoading(true);
                     router.push(`/search?category=${encodeURIComponent(cat.category_id)}`);
                     onOpenChange(false);
                   }}

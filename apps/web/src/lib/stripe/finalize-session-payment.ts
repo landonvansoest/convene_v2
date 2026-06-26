@@ -164,6 +164,11 @@ async function finalizeDeferredSessionCheckout(
 
     if (existingTx) {
       console.info("[stripe] idempotent skip: deferred session already recorded", pi.id);
+      try {
+        await dispatchBookingConfirmed(existingByPi.booking_id as string);
+      } catch (e) {
+        console.error("[stripe] booking confirmed notification failed (idempotent retry)", e);
+      }
       return;
     }
     await insertSessionBookingTransaction(admin, pi, existingByPi);
@@ -299,6 +304,11 @@ async function finalizeExistingBookingFromPaymentIntent(
 
   if (existing) {
     console.info("[stripe] idempotent skip: session_booking already recorded", bookingId);
+    try {
+      await dispatchBookingConfirmed(bookingId);
+    } catch (e) {
+      console.error("[stripe] booking confirmed notification failed (idempotent retry)", e);
+    }
     return;
   }
 

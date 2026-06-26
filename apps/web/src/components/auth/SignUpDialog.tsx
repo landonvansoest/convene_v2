@@ -5,14 +5,16 @@ import Link from "next/link";
 import { DevEmailConfirmationButton } from "@/components/auth/DevEmailConfirmationButton";
 import { OAuthDivider, OAuthProviderRow } from "@/components/auth/oauth-social";
 import { SignupIssueFeedbackDialog } from "@/components/auth/SignupIssueFeedbackDialog";
-import { AlertTriangle, Eye, EyeOff, Lock, Mail, User, UserPlus } from "lucide-react";
+import { AlertTriangle, ChevronDown, Eye, EyeOff, Lock, Mail, User, UserPlus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authCallbackWithSignupWizard } from "@/lib/auth/post-signup-redirect";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { withAuthTimeout } from "@/lib/auth/auth-call-timeout";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -20,6 +22,9 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onRequestSignIn?: () => void;
 };
+
+/** Sender address for auth + transactional mail — shown so users can safelist it. */
+const CONVENE_EMAIL_SENDER = "team.convene.io@gmail.com";
 
 /** Shape captured from a failing `supabase.auth.signUp()` call so we can show
  * the visitor a friendly message and hand details to the admin feedback form. */
@@ -131,10 +136,16 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   /** True after signUp API succeeds — success dialogue. */
   const [postSignupSuccess, setPostSignupSuccess] = useState(false);
+  const [emailHelpOpen, setEmailHelpOpen] = useState(false);
+  const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
   function reset() {
     setMessage(null);
     setPostSignupSuccess(false);
     setSignupError(null);
+    setEmailHelpOpen(false);
+    setResendStatus("idle");
+    setResendMessage(null);
     setFirstName("");
     setLastName("");
     setEmail("");
@@ -142,6 +153,30 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
     setConfirmPassword("");
     setShowPassword(false);
     setShowConfirmPassword(false);
+  }
+
+  async function resendConfirmationEmail() {
+    const trimmed = email.trim();
+    if (!trimmed.includes("@")) {
+      setResendStatus("error");
+      setResendMessage("We don't have a valid email on file. Close this dialog and try signing up again.");
+      return;
+    }
+    setResendStatus("sending");
+    setResendMessage(null);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: trimmed,
+      options: {
+        emailRedirectTo: authCallbackWithSignupWizard(window.location.origin),
+      },
+    });
+    if (error) {
+      setResendStatus("error");
+      setResendMessage(error.message);
+      return;
+    }
+    setResendStatus("sent");
   }
 
   async function onSubmit(e: FormEvent) {
@@ -167,64 +202,75 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
     setBusy(true);
     const origin = window.location.origin;
     console.debug("[SignUpDialog] calling supabase.auth.signUp", { email: email.trim() });
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: authCallbackWithSignupWizard(origin),
-        data: { first_name: firstName.trim(), last_name: lastName.trim() },
-      },
-    });
-    console.debug("[SignUpDialog] signUp returned", {
-      hasError: !!error,
-      errorMessage: error?.message,
-      hasSession: !!data?.session,
-      hasUser: !!data?.user,
-      identities: data?.user?.identities?.length ?? null,
-    });
-    if (error) {
-      setBusy(false);
+    try {
+      const { data, error } = await withAuthTimeout(
+        supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: authCallbackWithSignupWizard(origin),
+            data: { first_name: firstName.trim(), last_name: lastName.trim() },
+          },
+        }),
+        { label: "Sign up" },
+      );
+      console.debug("[SignUpDialog] signUp returned", {
+        hasError: !!error,
+        errorMessage: error?.message,
+        hasSession: !!data?.session,
+        hasUser: !!data?.user,
+        identities: data?.user?.identities?.length ?? null,
+      });
+      if (error) {
+        setSignupError(
+          toSignupErrorInfo({
+            message: error.message,
+            status: (error as { status?: number }).status,
+            code: (error as { code?: string }).code,
+            name: error.name,
+          }),
+        );
+        return;
+      }
+      if (data.session) {
+        // Session returned (email confirmation off). Save name now so the wizard
+        // step pre-fills correctly when the user proceeds.
+        await fetch("/api/me", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+          }),
+        }).catch(() => null);
+        // Dev safety net: the visible dialog tells the user "check your email" but a
+        // truthy `data.session` means Supabase signed them in instantly without sending
+        // any verification email. That only happens when "Confirm email" is OFF in
+        // Authentication → Sign In / Up → Email. Surface this loudly in dev so it
+        // can't masquerade as a working confirmation flow.
+        if (process.env.NODE_ENV === "development") {
+          console.warn(
+            "[SignUpDialog] Supabase returned an active session immediately after signUp(). " +
+              "This means 'Confirm email' is currently OFF in your Supabase project — no verification " +
+              "email was sent and the user is already signed in. Toggle it ON at " +
+              "Supabase Dashboard → Authentication → Sign In / Up → Email → Confirm email.",
+          );
+        }
+      }
+      // Always show the post-signup success dialog so the verification notice
+      // and DEV bypass button remain visible regardless of whether Supabase
+      // email confirmation is on or off.
+      setPostSignupSuccess(true);
+      console.debug("[SignUpDialog] postSignupSuccess set to true");
+    } catch (e) {
       setSignupError(
         toSignupErrorInfo({
-          message: error.message,
-          status: (error as { status?: number }).status,
-          code: (error as { code?: string }).code,
-          name: error.name,
+          message: e instanceof Error ? e.message : "Sign up timed out",
         }),
       );
-      return;
+    } finally {
+      setBusy(false);
     }
-    if (data.session) {
-      // Session returned (email confirmation off). Save name now so the wizard
-      // step pre-fills correctly when the user proceeds.
-      await fetch("/api/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-        }),
-      }).catch(() => null);
-      // Dev safety net: the visible dialog tells the user "check your email" but a
-      // truthy `data.session` means Supabase signed them in instantly without sending
-      // any verification email. That only happens when "Confirm email" is OFF in
-      // Authentication → Sign In / Up → Email. Surface this loudly in dev so it
-      // can't masquerade as a working confirmation flow.
-      if (process.env.NODE_ENV === "development") {
-        console.warn(
-          "[SignUpDialog] Supabase returned an active session immediately after signUp(). " +
-            "This means 'Confirm email' is currently OFF in your Supabase project — no verification " +
-            "email was sent and the user is already signed in. Toggle it ON at " +
-            "Supabase Dashboard → Authentication → Sign In / Up → Email → Confirm email.",
-        );
-      }
-    }
-    // Always show the post-signup success dialog so the verification notice
-    // and DEV bypass button remain visible regardless of whether Supabase
-    // email confirmation is on or off.
-    setBusy(false);
-    setPostSignupSuccess(true);
-    console.debug("[SignUpDialog] postSignupSuccess set to true");
   }
 
   async function oauthSignUp(provider: "google" | "facebook" | "apple") {
@@ -341,6 +387,45 @@ export function SignUpDialog({ open, onOpenChange, onRequestSignIn }: Props) {
             >
               Got it
             </Button>
+            <Collapsible open={emailHelpOpen} onOpenChange={setEmailHelpOpen} className="group">
+              <CollapsibleTrigger className="flex w-full items-center gap-1.5 py-1 text-left text-xs font-medium text-[#003049]/80 outline-none hover:text-[#003049] focus-visible:ring-2 focus-visible:ring-[#003049]/25 focus-visible:ring-offset-2">
+                <ChevronDown
+                  className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180"
+                  aria-hidden
+                />
+                Didn&apos;t receive email?
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2.5 pt-2 text-[11px] leading-relaxed text-[#003049]/75">
+                <p>
+                  Please confirm your email was entered correctly:{" "}
+                  <span className="break-all font-medium text-[#003049]">{email.trim()}</span>. If that address is
+                  wrong, close this dialog and sign up again with the correct email.
+                </p>
+                <p>Check your spam or junk folder — confirmation emails sometimes land there.</p>
+                <p>
+                  Add {CONVENE_EMAIL_SENDER} to your email contacts to prevent missing important information about
+                  your bookings.
+                </p>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-[#F77F00] underline underline-offset-2 hover:text-[#F77F00]/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={resendStatus === "sending" || resendStatus === "sent"}
+                    onClick={() => void resendConfirmationEmail()}
+                  >
+                    {resendStatus === "sending"
+                      ? "Sending confirmation email…"
+                      : resendStatus === "sent"
+                        ? "Confirmation email sent"
+                        : "Resend confirmation email"}
+                  </button>
+                  {resendStatus === "sent" ? (
+                    <p>Check your inbox for a new link from {CONVENE_EMAIL_SENDER}.</p>
+                  ) : null}
+                  {resendMessage ? <p className="text-destructive">{resendMessage}</p> : null}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         ) : signupError ? (
           <div className="space-y-5 px-6 pb-8 pt-2 text-left">

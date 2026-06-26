@@ -17,6 +17,8 @@ const patchSchema = z
     email_enabled: z.boolean().optional(),
     email_subject: z.string().max(500).optional(),
     email_body: z.string().max(20000).optional(),
+    email_cta_url: z.string().max(2000).optional(),
+    email_cta_label: z.string().max(200).optional(),
     sms_enabled: z.boolean().optional(),
     sms_body: z.string().max(1600).optional(),
     display_order: z.number().int().min(0).max(100000).optional(),
@@ -26,7 +28,7 @@ const patchSchema = z
 const SELECT_COLS =
   "template_id, automation_key, automation_label, automation_description, " +
   "in_app_enabled, in_app_subject, in_app_body, " +
-  "email_enabled, email_subject, email_body, " +
+  "email_enabled, email_subject, email_body, email_cta_url, email_cta_label, " +
   "sms_enabled, sms_body, " +
   "display_order, created_at, updated_at";
 

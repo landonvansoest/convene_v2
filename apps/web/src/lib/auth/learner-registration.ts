@@ -42,7 +42,10 @@ export async function resolvePostSignInPath(
   explicitRedirect?: string | null,
 ): Promise<string> {
   if (explicitRedirect?.trim()) return explicitRedirect.trim();
-  const res = await fetch("/api/me", { cache: "no-store" });
+  const res = await fetch("/api/me", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
   const body = (await res.json().catch(() => null)) as {
     profile?: Record<string, unknown> | null;
   } | null;

@@ -3,8 +3,8 @@ import { publicApiError } from "@/lib/api/public-error";
 import { getFeaturedExpertsSettings } from "@/lib/featuredExpertsSettings";
 import {
   EXPERT_VISIBILITY_STATE,
-  expertVisibilityFeaturedSortRank,
   expertVisibilityStatesForBrowseGrid,
+  orderFeaturedExperts,
 } from "@/lib/expertVisibilityState";
 import {
   computeAvailableNow,
@@ -296,11 +296,7 @@ export async function GET(request: Request) {
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
   if (compact) {
-    mapped.sort(
-      (a, b) =>
-        expertVisibilityFeaturedSortRank(a.expert_visibility_state) -
-        expertVisibilityFeaturedSortRank(b.expert_visibility_state),
-    );
+    mapped = orderFeaturedExperts(mapped);
     mapped = mapped.slice(offset, offset + limit);
   } else if (needsRatingFilter) {
     mapped = mapped.slice(offset, offset + limit);

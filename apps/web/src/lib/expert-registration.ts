@@ -71,6 +71,7 @@ export const expertRegistrationPatchSchema = z
     package_discount_type: z.enum(["percent", "fixed_amount"]).nullable().optional(),
     package_discount_value: z.number().nonnegative().nullable().optional(),
     package_require_purchase: z.boolean().optional(),
+    package_require_purchase_after_first_session: z.boolean().optional(),
     payout_details: payoutDetailsSchema,
   })
   .strict();

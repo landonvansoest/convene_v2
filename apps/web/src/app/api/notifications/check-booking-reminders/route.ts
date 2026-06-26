@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { publicApiError } from "@/lib/api/public-error";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildBookingScheduleVars } from "@/lib/notifications/booking-template-vars";
 import {
   dispatchBookingReminder,
   type BookingReminderDispatch,
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
   const { data: bookings, error } = await admin
     .from("bookings")
     .select(
-      "booking_id, session_date, start_time, status, expert_user_id, learner_user_id, reminder_15m_sent_at"
+      "booking_id, session_date, start_time, end_time, duration, booking_amount, total_amount, status, expert_user_id, learner_user_id, reminder_15m_sent_at",
     )
     .eq("status", "upcoming")
     .is("reminder_15m_sent_at", null)
@@ -80,18 +81,20 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const sessionDateStr = sessionStart.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-    const sessionTimeStr = sessionStart.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const scheduleVars = buildBookingScheduleVars(
+      {
+        booking_id: booking.booking_id,
+        session_date: sessionDate,
+        start_time: startTime,
+        end_time: booking.end_time,
+        duration: booking.duration,
+        booking_amount: booking.booking_amount,
+        total_amount: booking.total_amount,
+      },
+      baseUrl,
+    );
 
-    const sessionLink = `${baseUrl}/session/${booking.booking_id}`;
+    const sessionLink = scheduleVars.session_link ?? `${baseUrl}/session/${booking.booking_id}`;
 
     const { data: expert } = await admin
       .from("users")
@@ -118,32 +121,42 @@ export async function GET(request: Request) {
 
     let notified = false;
 
-    if (expert?.email_address) {
+    if (expert) {
       const p: BookingReminderDispatch = {
+        recipientUserId: booking.expert_user_id,
         recipientEmail: expert.email_address,
         recipientPhone: expert.phone_number,
         recipientName: expertName,
         otherPartyName: learnerName,
         expertName,
         learnerName,
-        sessionDate: sessionDateStr,
-        sessionTime: sessionTimeStr,
+        sessionDate: scheduleVars.session_date,
+        sessionTime: scheduleVars.session_time,
+        sessionStartTime: scheduleVars.session_start_time,
+        sessionEndTime: scheduleVars.session_end_time,
+        sessionDuration: scheduleVars.session_duration,
+        totalPaid: scheduleVars.total_paid,
         sessionLink,
       };
       await dispatchBookingReminder(p);
       notified = true;
     }
 
-    if (learner?.email_address) {
+    if (learner) {
       const p: BookingReminderDispatch = {
+        recipientUserId: booking.learner_user_id,
         recipientEmail: learner.email_address,
         recipientPhone: learner.phone_number,
         recipientName: learnerName,
         otherPartyName: expertName,
         expertName,
         learnerName,
-        sessionDate: sessionDateStr,
-        sessionTime: sessionTimeStr,
+        sessionDate: scheduleVars.session_date,
+        sessionTime: scheduleVars.session_time,
+        sessionStartTime: scheduleVars.session_start_time,
+        sessionEndTime: scheduleVars.session_end_time,
+        sessionDuration: scheduleVars.session_duration,
+        totalPaid: scheduleVars.total_paid,
         sessionLink,
       };
       await dispatchBookingReminder(p);

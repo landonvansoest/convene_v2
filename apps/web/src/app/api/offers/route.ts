@@ -45,8 +45,21 @@ function formatOfferMessage(args: {
     }
     case "custom_offer": {
       const p = payload;
-      const keys = Object.keys(p).filter((k) => k !== "related_booking_id");
-      if (
+      const keys = Object.keys(p).filter((k) => k !== "related_booking_id" && k !== "quote_breakdown");
+      const date = p.proposed_session_date ?? p.session_date;
+      const start = p.start_time;
+      const end = p.end_time;
+      if (date && start && end) {
+        lines.push("Type: session offer (suggested time)");
+        lines.push(`Requested date: ${String(date)}`);
+        lines.push(`Time: ${String(start)} – ${String(end)}`);
+        if (typeof p.duration_minutes === "number") {
+          lines.push(`Duration (minutes): ${String(p.duration_minutes)}`);
+        }
+        if (p.total_price != null) {
+          lines.push(`Session price (USD): $${String(p.total_price)}`);
+        }
+      } else if (
         typeof p.duration_minutes === "number" &&
         p.total_price != null &&
         keys.length <= 4
@@ -103,7 +116,6 @@ function formatOfferMessage(args: {
     lines.push(args.companionMessage.trim());
   }
 
-  lines.push("", "Reply here to discuss. Acceptance and checkout will evolve as we wire offers end-to-end.");
   return lines.join("\n");
 }
 
@@ -162,12 +174,16 @@ export async function POST(request: Request) {
     const isLearner = booking.learner_user_id === userId;
     const isBookingExpert = booking.expert_user_id === userId;
 
-    if (isExpert && isBookingExpert && toUserId === booking.learner_user_id) {
-      /* expert → learner reschedule proposal */
-    } else if (!isExpert && isLearner && toUserId === booking.expert_user_id) {
-      /* learner → expert reschedule request */
-    } else {
-      return Response.json({ error: "Forbidden for this booking partner" }, { status: 403 });
+    if (!isLearner && !isBookingExpert) {
+      return Response.json({ error: "Forbidden for this booking" }, { status: 403 });
+    }
+
+    const expectedRecipient = isLearner ? booking.expert_user_id : booking.learner_user_id;
+    if (toUserId !== expectedRecipient) {
+      return Response.json(
+        { error: "Offer recipient must be the other party on this booking" },
+        { status: 403 },
+      );
     }
   }
 
@@ -225,7 +241,13 @@ export async function POST(request: Request) {
     }
 
     const conversation = await findOrCreateConversationForPair(userId, toUserId);
-    const meta = { offer_id: offerRow.offer_id, offer_type: offerType };
+    const meta: Record<string, unknown> = {
+      offer_id: offerRow.offer_id,
+      offer_type: offerType,
+    };
+    if (companionMessage?.trim()) {
+      meta.companion_message = companionMessage.trim();
+    }
     const { data: msgRow, error: msgErr } = await admin
       .from("messages")
       .insert({

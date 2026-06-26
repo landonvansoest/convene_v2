@@ -33,6 +33,7 @@ const availabilitySchema = z
     packageDiscountType: z.enum(["percent", "fixed_amount"]).nullable().optional(),
     packageDiscountValue: z.number().nonnegative().nullable().optional(),
     packageRequirePurchase: z.boolean().optional(),
+    packageRequirePurchaseAfterFirst: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.ratePer15Min === undefined && data.hourlyRate === undefined) {
@@ -113,6 +114,7 @@ export async function PUT(request: Request) {
     packageDiscountType,
     packageDiscountValue,
     packageRequirePurchase,
+    packageRequirePurchaseAfterFirst,
   } = parsed.data;
   const admin = createAdminClient();
   const now = new Date().toISOString();
@@ -182,11 +184,32 @@ export async function PUT(request: Request) {
     payload.package_discount_value = packageDiscountValue;
   }
   if (packageRequirePurchase !== undefined) {
-    payload.package_require_purchase = packageRequirePurchase;
+    payload.package_require_purchase = Boolean(packageRequirePurchase);
+  }
+  if (packageRequirePurchaseAfterFirst !== undefined) {
+    payload.package_require_purchase_after_first_session = Boolean(packageRequirePurchaseAfterFirst);
+  }
+  if (packageRequirePurchase !== undefined || packageRequirePurchaseAfterFirst !== undefined) {
+    const immediate = Boolean(payload.package_require_purchase);
+    const afterFirst = Boolean(payload.package_require_purchase_after_first_session);
+    if (immediate && afterFirst) {
+      payload.package_require_purchase = false;
+    }
   }
 
   const { error } = await admin.from("expert_availability").upsert(payload, { onConflict: "user_id" });
   if (error) return Response.json({ error: publicApiError(error) }, { status: 500 });
+
+  if (packageDealEnabled) {
+    const { ensurePublishedExpertPackageFromAvailability } = await import(
+      "@/lib/packages/sync-expert-package-from-availability"
+    );
+    try {
+      await ensurePublishedExpertPackageFromAvailability(admin, userId);
+    } catch (e) {
+      console.error("[experts/availability] package sync failed", e);
+    }
+  }
 
   return Response.json({ message: "Availability updated successfully" });
 }

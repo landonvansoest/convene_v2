@@ -10,11 +10,11 @@ const OUTER_BG = "#ECECEC";
 const CARD_BG = "#FFFFFF";
 const MUTED = "#6B7280";
 const SUPPORT_EMAIL = "support@convene.io";
-/** Display size for `public/email/convene_logo.png` (280×47 @2x → 140×24). */
-export const EMAIL_LOGO_DISPLAY_WIDTH_PX = 140;
-export const EMAIL_LOGO_DISPLAY_HEIGHT_PX = 24;
+/** Display size for `public/email/convene_logo.png` (280×47 @2x → 100×17). */
+export const EMAIL_LOGO_DISPLAY_WIDTH_PX = 100;
+export const EMAIL_LOGO_DISPLAY_HEIGHT_PX = 17;
 export const EMAIL_LOGO_FILENAME = "convene_logo.png";
-const EMAIL_LOGO_CACHE_VERSION = "4";
+const EMAIL_LOGO_CACHE_VERSION = "5";
 
 export function escapeHtml(s: string): string {
   return s
@@ -47,12 +47,12 @@ export function renderEmailLogoImgHtml(logoUrl: string): string {
   const src = logoUrl.includes("?") ? logoUrl : `${logoUrl}?v=${EMAIL_LOGO_CACHE_VERSION}`;
   const w = EMAIL_LOGO_DISPLAY_WIDTH_PX;
   const h = EMAIL_LOGO_DISPLAY_HEIGHT_PX;
-  return `<img src="${escapeHtml(src)}" alt="Convene" width="${w}" height="${h}" style="display:block;border:0;outline:none;text-decoration:none;width:${w}px;height:${h}px;max-width:${w}px;"/>`;
+  return `<img src="${escapeHtml(src)}" alt="Convene" width="${w}" height="${h}" style="display:block;border:0;outline:none;text-decoration:none;width:${w}px!important;height:${h}px!important;max-width:${w}px!important;max-height:${h}px!important;"/>`;
 }
 
 /** Orange wordmark — reliable in auth email templates where hosted images are often blocked. */
 export function renderEmailLogoTextHtml(): string {
-  return `<span style="font-family:'Acumin Pro','Acumin Pro ExtraCondensed',Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;color:${HERO_ORANGE};letter-spacing:-0.5px;line-height:1;">convene</span>`;
+  return `<span style="font-family:'Acumin Pro','Acumin Pro ExtraCondensed',Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:${HERO_ORANGE};letter-spacing:-0.5px;line-height:1;">convene</span>`;
 }
 
 /** Optional @font-face block when Acumin Pro is self-hosted (see public/fonts/). */

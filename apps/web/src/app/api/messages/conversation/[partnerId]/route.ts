@@ -52,16 +52,28 @@ export async function GET(_request: Request, { params }: Params) {
     ),
   ];
 
-  let offerStatusById = new Map<string, string>();
+  let offerById = new Map<
+    string,
+    { status: string; offer_type: string; payload: Record<string, unknown> }
+  >();
   if (offerIds.length > 0) {
     const { data: osRows, error: osErr } = await admin
       .from("offers")
-      .select("offer_id, status")
+      .select("offer_id, status, offer_type, payload")
       .in("offer_id", offerIds);
     if (osErr) {
       return Response.json({ error: publicApiError(osErr) }, { status: 500 });
     }
-    offerStatusById = new Map((osRows ?? []).map((r) => [String(r.offer_id), String(r.status)]));
+    offerById = new Map(
+      (osRows ?? []).map((r) => [
+        String(r.offer_id),
+        {
+          status: String(r.status),
+          offer_type: String(r.offer_type),
+          payload: (r.payload ?? {}) as Record<string, unknown>,
+        },
+      ]),
+    );
   }
 
   const users = await getUsersByIds([userId, partnerId]);
@@ -72,6 +84,9 @@ export async function GET(_request: Request, { params }: Params) {
     const meta = (m.metadata ?? {}) as Record<string, unknown>;
     const oid = typeof meta.offer_id === "string" ? meta.offer_id : null;
     const otype = typeof meta.offer_type === "string" ? meta.offer_type : null;
+    const offerRow = oid ? offerById.get(oid) : undefined;
+    const companionMessage =
+      typeof meta.companion_message === "string" ? meta.companion_message : null;
     return {
       id: m.message_id,
       conversation_id: m.conversation_id,
@@ -88,8 +103,10 @@ export async function GET(_request: Request, { params }: Params) {
           : null,
       metadata: meta,
       offer_id: oid,
-      offer_type: otype,
-      offer_status: oid ? offerStatusById.get(oid) ?? null : null,
+      offer_type: offerRow?.offer_type ?? otype,
+      offer_status: offerRow?.status ?? null,
+      offer_payload: offerRow?.payload ?? null,
+      companion_message: companionMessage,
       is_read: m.is_read,
       created_at: m.created_at,
       sender_name: sender ? displayName(sender) : null,

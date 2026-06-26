@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { finalizeFreelanceFromPaymentIntent } from "@/lib/stripe/finalize-freelance-payment";
-import { finalizePackagePurchaseFromCheckoutSession } from "@/lib/stripe/finalize-package-purchase";
+import { finalizePackagePurchaseFromCheckoutSession, finalizePackagePurchaseFromPaymentIntent } from "@/lib/stripe/finalize-package-purchase";
 import { finalizeSessionBookingFromPaymentIntent } from "@/lib/stripe/finalize-session-payment";
 import { finalizeSessionExtensionFromPaymentIntent } from "@/lib/stripe/finalize-session-extension-payment";
 import { getStripe } from "@/lib/stripe/server";
@@ -63,7 +63,9 @@ export async function POST(request: Request) {
       const pi = event.data.object;
       console.info("[stripe] payment_intent.succeeded", pi.id);
       try {
-        if ((pi.metadata?.conveneSessionExtension ?? "").trim() === "1") {
+        if ((pi.metadata?.convene_type ?? "").trim() === "package_purchase") {
+          await finalizePackagePurchaseFromPaymentIntent(admin, pi);
+        } else if ((pi.metadata?.conveneSessionExtension ?? "").trim() === "1") {
           await finalizeSessionExtensionFromPaymentIntent(admin, pi);
         } else {
           await finalizeSessionBookingFromPaymentIntent(admin, pi, { stripe });

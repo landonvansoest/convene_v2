@@ -6,6 +6,7 @@ import { displayName, getAuthedUserId, getUsersByIds } from "@/lib/messages/serv
 import { publicApiError } from "@/lib/api/public-error";
 import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
 import { isUserOnlineFresh } from "@/lib/presence/online";
+import { dispatchBookingConfirmed } from "@/lib/notifications/booking-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -236,6 +237,14 @@ export async function POST(request: Request) {
         .eq("remaining_credits", prev - 1);
       await admin.from("bookings").delete().eq("booking_id", booking.booking_id);
       return Response.json({ error: publicApiError(redErr) }, { status: 500 });
+    }
+  }
+
+  if (paymentStatus === "paid") {
+    try {
+      await dispatchBookingConfirmed(String(booking.booking_id));
+    } catch (e) {
+      console.error("[sessions] booking confirmed notification failed", e);
     }
   }
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { assertAdmin } from "@/lib/admin/assert-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
-import { dispatchHelpTicketReply } from "@/lib/notifications/dispatch";
+import { dispatchHelpTicketReply, resolveHelpTicketInAppMessage } from "@/lib/notifications/dispatch";
 import { resolveConveneSupportUserId } from "@/lib/messages/welcome-inbox";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +54,7 @@ export async function POST(request: Request, { params }: Params) {
   if (!ticket) return Response.json({ error: "Ticket not found" }, { status: 404 });
 
   const adminLabel = parsed.data.admin_label?.trim() || null;
+  const fromLabel = adminLabel || "Convene Support";
 
   // Build absolute URL for the in-app reply CTA. Falls back to convene.io
   // when NEXT_PUBLIC_APP_URL is unset (matches welcome-inbox convention).
@@ -61,6 +62,13 @@ export async function POST(request: Request, { params }: Params) {
     (process.env.NEXT_PUBLIC_APP_URL && process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")) ||
     "https://convene.io";
   const threadUrl = `${base}/dashboard?view=inbox`;
+  const inAppMessage = await resolveHelpTicketInAppMessage({
+    recipientName: ticket.submitter_name ?? "",
+    subject: ticket.subject,
+    replyBody: parsed.data.body,
+    fromLabel,
+    threadUrl,
+  });
 
   // Conversation-backed tickets: store the admin's reply in public.messages so
   // the submitter sees it in their dashboard inbox. Legacy guest tickets fall
@@ -86,7 +94,7 @@ export async function POST(request: Request, { params }: Params) {
       .insert({
         conversation_id: ticket.conversation_id,
         sender_id: supportUserId,
-        message: parsed.data.body,
+        message: inAppMessage,
         is_read: false,
         metadata: {
           help_ticket_id: ticket.ticket_id,
@@ -139,7 +147,7 @@ export async function POST(request: Request, { params }: Params) {
       subject: ticket.subject,
       body: parsed.data.body,
       threadUrl,
-      fromLabel: adminLabel || "Convene Support",
+      fromLabel,
     });
   } catch {
     emailed = false;

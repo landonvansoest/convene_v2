@@ -1,7 +1,5 @@
 "use client";
 
-import "react-day-picker/style.css";
-
 import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
@@ -18,6 +16,9 @@ import { dashboardInputClass } from "@/app/dashboard/DashboardViewShell";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { computeSessionCheckoutPricing, roundUsd2 } from "@/lib/sessionCheckoutPricing";
+import { sessionBookingFeeFromRatePer15, sessionFeeFromWallTimes, ceilToBookingBlockMinutes } from "@/lib/offers/pricing";
+import { durationMinutesBetweenWallTimes } from "@/lib/offers/session-time";
+import { formatTimeSlotLabel12hFourDigit } from "@/components/expert/weeklyAvailabilityUtils";
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 
 type Props = {
@@ -28,7 +29,7 @@ type Props = {
   recipientFirstName?: string | null;
   /** When set (e.g. opened from Manage on a booking), time-only submissions use `time_suggestion`. */
   relatedBookingId?: string | null;
-  /** If set and custom total price is left blank, price = hourly × (duration min / 60). */
+  /** @deprecated Prefer loading rate from `/api/experts/availability` when dialog opens. */
   expertHourlyUsd?: number | null;
   onSubmitted?: () => void;
 };
@@ -43,8 +44,29 @@ function toLocalYmd(d: Date): string {
 }
 
 function parseUsd(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, "").trim());
+  const trimmed = String(raw).replace(/,/g, "").trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
   return Number.isFinite(n) && n >= 0 ? roundUsd2(n) : null;
+}
+
+function formatOfferLineUsd(amount: number | null): string {
+  return amount != null ? `$${amount.toFixed(2)}` : "—";
+}
+
+function formatSuggestedOfferDate(ymd: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const d = new Date(`${ymd}T12:00:00`);
+  if (!Number.isFinite(d.getTime())) return ymd;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(d);
+}
+
+function formatSuggestedTimeRange(startHm: string, endHm: string): string {
+  return `${formatTimeSlotLabel12hFourDigit(startHm)} - ${formatTimeSlotLabel12hFourDigit(endHm)}`;
 }
 
 function compilePayloadAndType(args: {
@@ -65,6 +87,8 @@ function compilePayloadAndType(args: {
   revealCustom: boolean;
   revealPackage: boolean;
   revealFreelance: boolean;
+  timeSessionFeeUsd: number | null;
+  timeDurationMinutes: number | null;
 }): { offerType: OfferKind; payload: Record<string, unknown> } | { error: string } {
   const timePayload = {
     proposed_session_date: args.date,
@@ -84,13 +108,25 @@ function compilePayloadAndType(args: {
     args.customPriceResolvedUsd != null ? args.customPriceResolvedUsd : parseUsd(args.customPrice);
 
   if (count === 1 && args.revealTime) {
-    if (!args.relatedBookingId) {
-      return { offerType: "custom_offer", payload: timePayload };
-    }
     if (!args.date || args.startHm.length < 4 || args.endHm.length < 4) {
       return { error: "Pick a day on the calendar, then enter start and end times." };
     }
-    return { offerType: "time_suggestion", payload: timePayload };
+    if (args.relatedBookingId) {
+      return { offerType: "time_suggestion", payload: timePayload };
+    }
+    if (args.timeSessionFeeUsd == null || args.timeDurationMinutes == null) {
+      return {
+        error: "Set your published rate under Booking Preferences so we can price this session.",
+      };
+    }
+    return {
+      offerType: "custom_offer",
+      payload: {
+        ...timePayload,
+        duration_minutes: args.timeDurationMinutes,
+        total_price: args.timeSessionFeeUsd,
+      },
+    };
   }
 
   if (count === 1 && args.revealPackage) {
@@ -130,7 +166,21 @@ function compilePayloadAndType(args: {
   }
 
   const payload: Record<string, unknown> = {};
-  if (args.revealTime && args.date && args.startHm && args.endHm) Object.assign(payload, timePayload);
+  if (args.revealTime && args.date && args.startHm && args.endHm) {
+    if (
+      !args.relatedBookingId &&
+      (args.timeSessionFeeUsd == null || args.timeDurationMinutes == null)
+    ) {
+      return {
+        error: "Set your published rate under Booking Preferences so we can price this session.",
+      };
+    }
+    Object.assign(payload, timePayload);
+    if (!args.relatedBookingId && args.timeDurationMinutes != null && args.timeSessionFeeUsd != null) {
+      payload.duration_minutes = args.timeDurationMinutes;
+      payload.total_price = args.timeSessionFeeUsd;
+    }
+  }
   if (args.revealCustom) {
     const dm = Number(args.customDurationMinutes.replace(/,/g, "."));
     if (!Number.isFinite(dm) || dm <= 0) return { error: "Enter custom duration minutes." };
@@ -197,6 +247,7 @@ export function SendOfferDialog({
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [ratePer15Min, setRatePer15Min] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -205,24 +256,52 @@ export function SendOfferDialog({
     setRevealPackage(false);
     setRevealFreelance(false);
     setErr(null);
+
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/experts/availability", { cache: "no-store" });
+      if (!res.ok || cancelled) return;
+      const data = (await res.json()) as { availability?: { rate?: unknown } | null };
+      const rate = Number(data.availability?.rate);
+      if (!cancelled) {
+        setRatePer15Min(Number.isFinite(rate) && rate > 0 ? rate : null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [open, relatedBookingId]);
 
+  const effectiveRatePer15Min = useMemo(() => {
+    if (ratePer15Min != null && ratePer15Min > 0) return ratePer15Min;
+    if (typeof expertHourlyUsd === "number" && Number.isFinite(expertHourlyUsd) && expertHourlyUsd > 0) {
+      return roundUsd2(expertHourlyUsd / 4);
+    }
+    return null;
+  }, [ratePer15Min, expertHourlyUsd]);
+
+  const timeSessionPricing = useMemo(() => {
+    if (!revealTime || relatedBookingId) return null;
+    if (effectiveRatePer15Min == null) return null;
+    return sessionFeeFromWallTimes(effectiveRatePer15Min, startHm, endHm);
+  }, [revealTime, relatedBookingId, effectiveRatePer15Min, startHm, endHm]);
+
+  const customPriceOverrideUsd = useMemo(() => parseUsd(customPrice), [customPrice]);
+
   const customPriceResolvedUsd = useMemo(() => {
-    const explicit = parseUsd(customPrice);
-    if (explicit != null && explicit >= 0) return explicit;
-    if (
-      !revealCustom ||
-      !(typeof expertHourlyUsd === "number" && Number.isFinite(expertHourlyUsd) && expertHourlyUsd >= 0)
-    )
-      return null;
-    const dm = Number(customDurationMinutes.replace(/,/g, "."));
-    if (!Number.isFinite(dm) || dm <= 0) return null;
-    return roundUsd2(expertHourlyUsd * (dm / 60));
-  }, [customPrice, revealCustom, expertHourlyUsd, customDurationMinutes]);
+    if (customPriceOverrideUsd != null) return customPriceOverrideUsd;
+    if (!revealCustom || effectiveRatePer15Min == null) return null;
+    const dmRaw = Number(customDurationMinutes.replace(/,/g, "."));
+    if (!Number.isFinite(dmRaw) || dmRaw <= 0) return null;
+    const dm = ceilToBookingBlockMinutes(dmRaw);
+    return sessionBookingFeeFromRatePer15(effectiveRatePer15Min, dm);
+  }, [customPriceOverrideUsd, revealCustom, effectiveRatePer15Min, customDurationMinutes]);
 
   const bookingFeeSubtotal = useMemo(() => {
     let sub = 0;
-    /** Time suggestion alone carries no standalone charge in summary until booked */
+    if (revealTime && !relatedBookingId && timeSessionPricing != null) {
+      sub += timeSessionPricing.bookingFeeUsd;
+    }
     if (revealCustom && customPriceResolvedUsd != null) sub += customPriceResolvedUsd;
     const pkg = parseUsd(packagePrice);
     if (revealPackage && pkg != null) sub += pkg;
@@ -230,6 +309,9 @@ export function SendOfferDialog({
     if (revealFreelance && free != null) sub += free;
     return roundUsd2(Math.max(0, sub));
   }, [
+    revealTime,
+    relatedBookingId,
+    timeSessionPricing,
     revealCustom,
     customPriceResolvedUsd,
     revealPackage,
@@ -239,6 +321,11 @@ export function SendOfferDialog({
   ]);
 
   const checkoutStyle = useMemo(() => computeSessionCheckoutPricing(bookingFeeSubtotal), [bookingFeeSubtotal]);
+
+  const suggestedTimeLabel = useMemo(() => {
+    const timeRange = formatSuggestedTimeRange(startHm, endHm);
+    return date ? `${formatSuggestedOfferDate(date)} | ${timeRange}` : timeRange;
+  }, [date, startHm, endHm]);
 
   const freelanceTooltip =
     "Include tangible goals within your description, it will be sent to the user to approve completion before payment is released for freelance work.";
@@ -264,6 +351,8 @@ export function SendOfferDialog({
       revealCustom,
       revealPackage,
       revealFreelance,
+      timeSessionFeeUsd: timeSessionPricing?.bookingFeeUsd ?? null,
+      timeDurationMinutes: timeSessionPricing?.durationMinutes ?? null,
     });
     if ("error" in res) {
       setErr(res.error);
@@ -348,6 +437,21 @@ export function SendOfferDialog({
                     <p className="text-xs font-medium text-[#003049]/80">
                       Tap a day, then enter the session window you’re proposing.
                     </p>
+                    {!relatedBookingId && effectiveRatePer15Min != null ? (
+                      <p className="text-xs text-muted-foreground">
+                        Session price uses your published rate (${effectiveRatePer15Min.toFixed(2)} per 15 min)
+                        {timeSessionPricing
+                          ? ` — ${timeSessionPricing.durationMinutes} min → $${timeSessionPricing.bookingFeeUsd.toFixed(2)}`
+                          : startHm && endHm && durationMinutesBetweenWallTimes(startHm, endHm) == null
+                            ? " — end time must be after start time"
+                            : ""}
+                        .
+                      </p>
+                    ) : !relatedBookingId ? (
+                      <p className="text-xs text-amber-800">
+                        Add your rate under Booking Preferences to auto-price this session.
+                      </p>
+                    ) : null}
                     <Calendar
                       mode="single"
                       selected={selectedDay}
@@ -355,7 +459,7 @@ export function SendOfferDialog({
                         setSelectedDay(d);
                         if (d) setDate(toLocalYmd(d));
                       }}
-                      className="mx-auto w-fit rounded-lg border border-[#003049]/10 bg-background p-2"
+                      className="mx-auto w-full max-w-[19rem] rounded-lg border border-[#003049]/10 bg-background p-2"
                       showOutsideDays
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -415,22 +519,23 @@ export function SendOfferDialog({
                           value={customPrice}
                           onChange={(e) => setCustomPrice(e.target.value)}
                           placeholder={
-                            typeof expertHourlyUsd === "number" && Number.isFinite(expertHourlyUsd)
-                              ? "Blank → hourly × duration"
+                            effectiveRatePer15Min != null
+                              ? "Blank → rate × duration"
                               : "0.00"
                           }
                         />
                       </label>
                     </div>
-                    {typeof expertHourlyUsd === "number" && Number.isFinite(expertHourlyUsd) ? (
+                    {effectiveRatePer15Min != null ? (
                       <p className="text-xs text-muted-foreground">
-                        Published hourly (${expertHourlyUsd.toFixed(2)}): if Total price is blank, we use hourly × duration
-                        for the quote ({customPriceResolvedUsd != null ? `$${customPriceResolvedUsd.toFixed(2)}` : "—"}).
+                        Published rate (${effectiveRatePer15Min.toFixed(2)} / 15 min): if Total price is blank, we use
+                        rate × duration for the quote (
+                        {customPriceResolvedUsd != null ? `$${customPriceResolvedUsd.toFixed(2)}` : "—"}).
                       </p>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        If Total price is blank, configure your hourly rate on your profile—we’ll derive price from that
-                        on send when available.
+                        If Total price is blank, configure your rate under Booking Preferences — we’ll derive price
+                        from that on send when available.
                       </p>
                     )}
                   </div>
@@ -540,11 +645,21 @@ export function SendOfferDialog({
                   <p className="text-xs text-muted-foreground">Use the buttons above to add line items.</p>
                 ) : (
                   <>
-                    {revealTime && date ? (
+                    {revealTime ? (
                       <div className="flex justify-between gap-4 border-b border-dashed border-[#003049]/15 py-2 last:border-b-0">
                         <span className="text-[#003049]/85">Suggested time</span>
-                        <span className="tabular-nums text-[#003049]">
-                          {date} · {startHm}–{endHm}
+                        <span className="text-right text-[#003049]">
+                          {suggestedTimeLabel}
+                          {!relatedBookingId ? (
+                            <span className="ml-1 font-medium tabular-nums">
+                              · {formatOfferLineUsd(timeSessionPricing?.bookingFeeUsd ?? null)}
+                              {timeSessionPricing && effectiveRatePer15Min != null ? (
+                                <span className="ml-1 text-[11px] font-normal text-muted-foreground">(from rate)</span>
+                              ) : effectiveRatePer15Min == null ? (
+                                <span className="ml-1 text-[11px] font-normal text-muted-foreground">(set rate)</span>
+                              ) : null}
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                     ) : null}
@@ -552,8 +667,8 @@ export function SendOfferDialog({
                       <div className="flex justify-between gap-4 border-b border-dashed border-[#003049]/15 py-2 last:border-b-0">
                         <span className="text-[#003049]/85">Custom session ({customDurationMinutes} min)</span>
                         <span className="tabular-nums font-medium text-[#003049]">
-                          ${(customPriceResolvedUsd ?? 0).toFixed(2)}
-                          {parseUsd(customPrice) == null && customPriceResolvedUsd != null ? (
+                          {formatOfferLineUsd(customPriceResolvedUsd)}
+                          {customPriceOverrideUsd == null && customPriceResolvedUsd != null ? (
                             <span className="ml-1 text-[11px] font-normal text-muted-foreground">(from rate)</span>
                           ) : null}
                         </span>
@@ -592,7 +707,7 @@ export function SendOfferDialog({
                   </div>
                   <p className="mt-2 text-[11px] text-muted-foreground">
                     Priced lines use Convene checkout math (same as session booking): 10% platform fee; 6% taxes/fees on
-                    subtotal. Time-only reschedule rows don’t move the needle until paired with priced items.
+                    subtotal. Reschedule-only time offers keep the existing booking price.
                   </p>
                 </div>
               </div>
@@ -610,11 +725,6 @@ export function SendOfferDialog({
                 className={`${dashboardInputClass} rounded-md resize-y`}
               />
             </label>
-
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              After send, learners get a threaded message with the offer details. Guided <strong className="font-semibold text-[#003049]">Accept</strong> /{" "}
-              <strong className="font-semibold text-[#003049]">Deny</strong> actions in-app and Stripe checkout hooks are staged for a follow-on release — not live in this patch.
-            </p>
 
             {err ? <p className="text-sm text-red-600">{err}</p> : null}
           </div>

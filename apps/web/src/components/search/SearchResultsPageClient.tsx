@@ -29,11 +29,12 @@ import {
 } from "lucide-react";
 import { DashboardViewHeader } from "@/app/dashboard/DashboardViewShell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { OnlineNowPill, OnlineDot, AvailableNowPill } from "@/components/presence/OnlineDot";
+import { OnlineNowPill, AvailableNowPill } from "@/components/presence/OnlineDot";
 import { VerifiedExpertBadge } from "@/components/expert/VerifiedExpertBadge";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import type { HydratedExpert } from "@/lib/experts/hydrate";
 import { resolveCategoryIdForSearch, isUuid } from "@/lib/searchCategory";
+import { dispatchSearchLoading } from "@/lib/search/search-loading-events";
 import { AdvancedSearchDialog } from "@/components/search/AdvancedSearchDialog";
 import { BrowseCategoriesDialog } from "@/components/search/BrowseCategoriesDialog";
 import { PostRequestDialog } from "@/components/requests/PostRequestDialog";
@@ -145,8 +146,9 @@ function SearchInner() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    dispatchSearchLoading(true);
     (async () => {
-      setLoading(true);
       setError(null);
       const catRes = await fetch("/api/categories");
       const catJson = await catRes.json();
@@ -185,6 +187,7 @@ function SearchInner() {
         setError(typeof exJson.error === "string" ? exJson.error : "Failed to load");
         setExperts([]);
         setLoading(false);
+        dispatchSearchLoading(false);
         return;
       }
       const raw = (exJson.experts as ApiExpert[]) ?? [];
@@ -196,6 +199,7 @@ function SearchInner() {
         }))
       );
       setLoading(false);
+      dispatchSearchLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -516,7 +520,6 @@ function SearchInner() {
                               {initials || "EX"}
                             </AvatarFallback>
                           </Avatar>
-                          <OnlineDot online={e.online} availableNow={e.available_now} />
                         </div>
                         <OnlineNowPill online={e.online && !e.available_now} />
                         <AvailableNowPill availableNow={e.available_now} />

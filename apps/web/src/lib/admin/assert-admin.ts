@@ -1,5 +1,4 @@
 import { timingSafeEqual } from "node:crypto";
-import { createServerSupabase } from "@/lib/supabase/server";
 
 /**
  * Admin access: `Authorization: Bearer ADMIN_DASHBOARD_SECRET` or signed-in user email matches `ADMIN_EMAIL`.
@@ -32,6 +31,7 @@ export async function assertAdmin(request: Request): Promise<Response | null> {
   }
 
   if (adminEmail) {
+    const { createServerSupabase } = await import("@/lib/supabase/server");
     const supabase = await createServerSupabase();
     const {
       data: { user },

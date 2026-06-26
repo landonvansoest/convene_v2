@@ -341,6 +341,9 @@ export async function POST(request: Request) {
   if (ps === "paid" || ps === "succeeded") {
     return Response.json({ error: "Booking already paid" }, { status: 400 });
   }
+  if (ps === "awaiting_expert") {
+    return Response.json({ error: "Waiting for expert approval." }, { status: 400 });
+  }
   const amount = bookingTotalToCents(booking.total_amount);
   if (amount < 1) {
     return Response.json({ error: "Invalid booking total amount" }, { status: 400 });

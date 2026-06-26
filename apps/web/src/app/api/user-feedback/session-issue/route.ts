@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { dispatchBookingComplaintAlert } from "@/lib/notifications/admin-alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -69,19 +70,31 @@ export async function POST(request: Request) {
     admin_review_status: "pending",
   };
 
-  let { error: insErr } = await admin.from("user_feedback").insert(insertBody);
-
-  if (insErr) {
-    const msg = insErr.message?.toLowerCase() ?? "";
-    // Fall back silently if migration 028 hasn't been applied yet.
+  let first = await admin.from("user_feedback").insert(insertBody).select("feedback_id").single();
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
     if (msg.includes("admin_review_status") || msg.includes("schema cache")) {
       delete insertBody.admin_review_status;
-      ({ error: insErr } = await admin.from("user_feedback").insert(insertBody));
+      first = await admin.from("user_feedback").insert(insertBody).select("feedback_id").single();
     }
   }
 
-  if (insErr) {
-    return Response.json({ error: publicApiError(insErr) }, { status: 500 });
+  if (first.error) {
+    return Response.json({ error: publicApiError(first.error) }, { status: 500 });
+  }
+
+  const feedbackId = first.data?.feedback_id ? String(first.data.feedback_id) : null;
+  if (feedbackId) {
+    try {
+      await dispatchBookingComplaintAlert({
+        feedbackId,
+        bookingId,
+        feedbackType: feedback_type,
+        feedbackText: feedback_text.trim(),
+      });
+    } catch {
+      /* best-effort */
+    }
   }
 
   return Response.json({ ok: true });

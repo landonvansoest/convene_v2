@@ -7,9 +7,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   fetchMessageTemplate,
   resolveEmailFromTemplate,
+  resolveInAppFromTemplate,
   resolveSmsFromTemplate,
+  TEMPLATE_FALLBACKS,
 } from "@/lib/notifications/message-templates";
-import { isE164Phone, sendEmailSendGrid, sendSmsTwilio } from "@/lib/notifications/send-channels";
+import { dispatchInAppTemplateMessage } from "@/lib/notifications/dispatch-in-app-template";
+import { isE164Phone, sendResolvedTemplateEmail, sendSmsTwilio } from "@/lib/notifications/send-channels";
 
 function appBaseUrl(): string {
   return (
@@ -40,9 +43,11 @@ export async function dispatchNewMessageNotification(input: NewMessageDispatch) 
   const email = resolveEmailFromTemplate(template, vars, {
     subject: `New message from ${input.senderName}`,
     body: `Hi ${input.recipientName},\n\n${input.senderName} sent you a message on Convene:\n\n${input.messagePreview}\n`,
+    ctaUrl: vars.inbox_url,
+    ctaLabel: "Open inbox",
   });
   if (email.enabled) {
-    const emailed = await sendEmailSendGrid(input.recipientEmail, email.subject, email.body);
+    const emailed = await sendResolvedTemplateEmail(input.recipientEmail, email);
     if (!emailed && process.env.NODE_ENV === "development") {
       console.info("[notifications] new message (email not sent)", input.recipientEmail);
     }
@@ -59,7 +64,8 @@ export async function dispatchNewMessageNotification(input: NewMessageDispatch) 
 }
 
 export type BookingReminderDispatch = {
-  recipientEmail: string;
+  recipientUserId: string;
+  recipientEmail: string | null;
   recipientPhone: string | null;
   recipientName: string;
   otherPartyName: string;
@@ -68,6 +74,11 @@ export type BookingReminderDispatch = {
   sessionDate: string;
   sessionTime: string;
   sessionLink: string;
+  sessionStartTime?: string;
+  sessionEndTime?: string;
+  sessionDuration?: string;
+  totalPaid?: string;
+  extraTemplateVars?: Record<string, string>;
 };
 
 export async function dispatchBookingReminder(input: BookingReminderDispatch) {
@@ -81,15 +92,22 @@ export async function dispatchBookingReminder(input: BookingReminderDispatch) {
     learner_name: input.learnerName,
     session_date: input.sessionDate,
     session_time: input.sessionTime,
+    session_start_time: input.sessionStartTime ?? input.sessionTime,
+    session_end_time: input.sessionEndTime ?? "",
+    session_duration: input.sessionDuration ?? "",
+    total_paid: input.totalPaid ?? "",
     session_link: input.sessionLink,
+    ...input.extraTemplateVars,
   };
 
   const email = resolveEmailFromTemplate(template, vars, {
     subject: `Reminder: session on ${input.sessionDate}`,
     body: `Hi ${input.recipientName},\n\nYour Convene session is coming up.\n\n${input.expertName} · ${input.learnerName}\n${input.sessionDate} at ${input.sessionTime}\n\nJoin: ${input.sessionLink}\n`,
+    ctaUrl: input.sessionLink,
+    ctaLabel: "Join session",
   });
-  if (email.enabled) {
-    const emailed = await sendEmailSendGrid(input.recipientEmail, email.subject, email.body);
+  if (email.enabled && input.recipientEmail) {
+    const emailed = await sendResolvedTemplateEmail(input.recipientEmail, email);
     if (!emailed && process.env.NODE_ENV === "development") {
       console.info("[notifications] booking reminder (email not sent)", input.recipientEmail);
     }
@@ -103,6 +121,10 @@ export async function dispatchBookingReminder(input: BookingReminderDispatch) {
   if (sms.enabled && isE164Phone(input.recipientPhone)) {
     await sendSmsTwilio(input.recipientPhone, sms.body);
   }
+
+  await dispatchInAppTemplateMessage(admin, "booking_reminder", input.recipientUserId, vars, {
+    session_link: input.sessionLink,
+  });
 }
 
 export type HelpTicketReplyDispatch = {
@@ -113,6 +135,73 @@ export type HelpTicketReplyDispatch = {
   threadUrl: string;
   fromLabel?: string;
 };
+
+export type ExpertRegistrationWelcomeDispatch = {
+  recipientUserId: string;
+  recipientEmail: string;
+  recipientName: string;
+};
+
+export async function dispatchExpertRegistrationWelcome(
+  input: ExpertRegistrationWelcomeDispatch,
+): Promise<void> {
+  const admin = createAdminClient();
+  const template = await fetchMessageTemplate(admin, "expert_registration_welcome");
+  const fb = TEMPLATE_FALLBACKS.expert_registration_welcome;
+  const profileUrl = `${appBaseUrl()}/experts/${input.recipientUserId}`;
+  const vars = {
+    recipient_name: input.recipientName || "there",
+    profile_url: profileUrl,
+  };
+
+  const email = resolveEmailFromTemplate(template, vars, {
+    subject: fb.email_subject,
+    body: fb.email_body,
+    ctaUrl: fb.email_cta_url,
+    ctaLabel: fb.email_cta_label,
+  });
+  if (email.enabled && input.recipientEmail) {
+    const emailed = await sendResolvedTemplateEmail(input.recipientEmail, email);
+    if (!emailed && process.env.NODE_ENV === "development") {
+      console.info(
+        "[notifications] expert registration welcome (email not sent)",
+        input.recipientEmail,
+      );
+    }
+  }
+}
+
+export type HelpTicketInAppBodyInput = {
+  recipientName: string;
+  subject: string;
+  replyBody: string;
+  fromLabel?: string;
+  threadUrl: string;
+};
+
+/** In-app help ticket reply text (admin template when enabled, else raw reply). */
+export async function resolveHelpTicketInAppMessage(input: HelpTicketInAppBodyInput): Promise<string> {
+  const admin = createAdminClient();
+  const template = await fetchMessageTemplate(admin, "help_ticket_reply");
+  const fb = TEMPLATE_FALLBACKS.help_ticket_reply;
+  const fromLabel = input.fromLabel?.trim() || "Convene Support";
+  const vars = {
+    recipient_name: input.recipientName || "there",
+    ticket_subject: input.subject,
+    reply_body: input.replyBody.trim(),
+    from_label: fromLabel,
+    thread_url: input.threadUrl,
+  };
+
+  const inApp = resolveInAppFromTemplate(template, vars, {
+    subject: fb.in_app_subject || `Re: ${input.subject}`,
+    body: fb.in_app_body || input.replyBody.trim(),
+  });
+  if (inApp.enabled && inApp.body.trim()) {
+    return inApp.body;
+  }
+  return input.replyBody.trim();
+}
 
 export async function dispatchHelpTicketReply(input: HelpTicketReplyDispatch): Promise<boolean> {
   const admin = createAdminClient();
@@ -144,7 +233,9 @@ export async function dispatchHelpTicketReply(input: HelpTicketReplyDispatch): P
   const email = resolveEmailFromTemplate(template, vars, {
     subject: fallbackSubject,
     body: fallbackBody,
+    ctaUrl: input.threadUrl,
+    ctaLabel: "Reply in Convene",
   });
   if (!email.enabled) return false;
-  return sendEmailSendGrid(input.recipientEmail, email.subject, email.body);
+  return sendResolvedTemplateEmail(input.recipientEmail, email);
 }

@@ -38,6 +38,7 @@ export type AvailabilityPutPatch = {
   packageDiscountType?: "percent" | "fixed_amount" | null;
   packageDiscountValue?: number | null;
   packageRequirePurchase?: boolean;
+  packageRequirePurchaseAfterFirst?: boolean;
 };
 
 /** Build `PUT /api/experts/availability` JSON from current DB row + field overrides (merge-safe). */
@@ -173,6 +174,16 @@ export function availabilityRecordToPutBody(
     patch.packageRequirePurchase !== undefined
       ? patch.packageRequirePurchase
       : Boolean((r as { package_require_purchase?: boolean }).package_require_purchase ?? false);
+  const packageRequirePurchaseAfterFirst =
+    patch.packageRequirePurchaseAfterFirst !== undefined
+      ? patch.packageRequirePurchaseAfterFirst
+      : Boolean(
+          (r as { package_require_purchase_after_first_session?: boolean })
+            .package_require_purchase_after_first_session ?? false,
+        );
+
+  const requireImmediate = packageDealEnabled && packageRequirePurchase && !packageRequirePurchaseAfterFirst;
+  const requireAfterFirst = packageDealEnabled && packageRequirePurchaseAfterFirst && !packageRequirePurchase;
 
   return {
     ratePer15Min: rate,
@@ -198,6 +209,7 @@ export function availabilityRecordToPutBody(
     packageSessionDurationMinutes: packageDealEnabled ? packageSessionDurationMinutes : null,
     packageDiscountType: packageDealEnabled ? packageDiscountType : null,
     packageDiscountValue: packageDealEnabled ? packageDiscountValue : null,
-    packageRequirePurchase: packageDealEnabled ? packageRequirePurchase : false,
+    packageRequirePurchase: requireImmediate,
+    packageRequirePurchaseAfterFirst: requireAfterFirst,
   };
 }

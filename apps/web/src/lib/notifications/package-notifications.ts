@@ -1,13 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendTeamInAppMessage } from "@/lib/notifications/in-app-team-message";
+import { dispatchInAppTemplateMessage } from "@/lib/notifications/dispatch-in-app-template";
 import {
   fetchMessageTemplate,
   resolveEmailFromTemplate,
-  resolveInAppFromTemplate,
   resolveSmsFromTemplate,
   TEMPLATE_FALLBACKS,
 } from "@/lib/notifications/message-templates";
-import { sendEmailSendGrid, sendSmsTwilio, isE164Phone } from "@/lib/notifications/send-channels";
+import { sendResolvedTemplateEmail, sendSmsTwilio, isE164Phone } from "@/lib/notifications/send-channels";
 
 function appBaseUrl(): string {
   return (
@@ -75,9 +74,11 @@ async function notifyLearner(
   const email = resolveEmailFromTemplate(template, vars, {
     subject: fb.email_subject,
     body: fb.email_body,
+    ctaUrl: fb.email_cta_url,
+    ctaLabel: fb.email_cta_label,
   });
   if (email.enabled && learner.email_address) {
-    await sendEmailSendGrid(learner.email_address, email.subject, email.body);
+    await sendResolvedTemplateEmail(learner.email_address, email);
   }
 
   const sms = resolveSmsFromTemplate(template, vars, fb.sms_body);
@@ -85,17 +86,7 @@ async function notifyLearner(
     await sendSmsTwilio(learner.phone_number, sms.body);
   }
 
-  const inApp = resolveInAppFromTemplate(template, vars, {
-    subject: fb.in_app_subject,
-    body: fb.in_app_body,
-  });
-  if (inApp.enabled) {
-    await sendTeamInAppMessage({
-      recipientUserId: learner.user_id,
-      body: inApp.body,
-      metadata: { automation_key: automationKey },
-    });
-  }
+  await dispatchInAppTemplateMessage(admin, automationKey, learner.user_id, vars);
 }
 
 export async function dispatchPackagePurchased(args: {

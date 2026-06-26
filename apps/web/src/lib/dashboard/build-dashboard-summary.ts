@@ -1,9 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  bookingPaymentIsSettled,
-  hasSessionEndedByWallClock,
-  sessionWallClockInstant,
-} from "@/lib/sessionWallClock";
+import { bookingPaymentIsSettled, hasSessionEndedByWallClock, sessionWallClockInstant } from "@/lib/sessionWallClock";
+import { isUpcomingBookedSessionRow } from "@/lib/booking-dashboard-visibility";
+import { isBookingRequestSubmittedToExpert } from "@/lib/booking-request";
 import {
   BOOKING_SELECT_FOR_METRICS,
   fetchRescheduleMessagesForBookings,
@@ -13,6 +11,7 @@ import {
 import { publicApiError } from "@/lib/api/public-error";
 import { displayName, getUsersByIds } from "@/lib/messages/service";
 import { fetchExpertVisibilityByUserIds, partnerExpertVisibilityState } from "@/lib/experts/fetchExpertVisibilityByUserIds";
+import { computeAvailableNow } from "@/lib/expertBookingPreview";
 import { isUserOnlineFresh } from "@/lib/presence/online";
 import { refreshStaleDependabilityForBookings } from "@/lib/dependability-persist";
 import type { DashboardSummaryJson } from "@/app/dashboard/DashboardOverview";
@@ -46,6 +45,32 @@ function formatSessionTimeLabel(sessionDate: string, time: unknown): string {
   const inst = sessionWallClockInstant(sessionDate, time as string | null | undefined);
   if (!inst) return "—";
   return inst.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatUpcomingSessionStartLabel(sessionDate: string, time: unknown, today: string): string {
+  const inst = sessionWallClockInstant(sessionDate, time as string | null | undefined);
+  if (!inst) return "—";
+  const timePart = inst.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (sessionDate === today) return timePart;
+  const datePart = inst.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  return `${datePart} · ${timePart}`;
+}
+
+function messagePreviewText(body: string, maxLen = 72): string {
+  const trimmed = body.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen).trim()}…`;
+}
+
+function messageSubjectFromMetadata(metadata: unknown): string | null {
+  if (typeof metadata !== "object" || metadata === null || !("subject" in metadata)) return null;
+  const subject = (metadata as { subject: unknown }).subject;
+  return typeof subject === "string" && subject.trim() ? subject.trim() : null;
 }
 
 export type DashboardSummaryResult =
@@ -149,22 +174,30 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
     unreadMessages = count ?? 0;
   }
 
-  const upcomingSessions = bookings.filter((b) => {
-    if (b.status !== "upcoming" || !bookingPaymentIsSettled(b.payment_status)) return false;
-    if (String(b.session_date) < today) return false;
+  const upcomingSessionCount = bookings.filter((b) => isUpcomingBookedSessionRow(b, userId)).length;
+
+  /** Expert: learner requested a time; expert must approve before payment. */
+  const expertBookingRequests = bookings.filter((b) => {
+    if (b.expert_user_id !== userId || b.status !== "upcoming") return false;
+    if (
+      !isBookingRequestSubmittedToExpert(
+        b.payment_status,
+        (b as { stripe_payment_method_id?: string | null }).stripe_payment_method_id,
+      )
+    ) {
+      return false;
+    }
     if (hasSessionEndedByWallClock(String(b.session_date ?? ""), b.end_time as string | null | undefined)) {
       return false;
     }
     return true;
-  });
+  }).length;
 
-  const upcomingSessionCount = upcomingSessions.length;
-
-  /** Expert attention: unpaid / incomplete payment (including default `pending` until learner pays). */
+  /** Expert attention: unpaid instant bookings (`pending`) after approval or auto-book. */
   const expertNewBookings = bookings.filter((b) => {
     if (b.expert_user_id !== userId || b.status !== "upcoming") return false;
     const ps = String(b.payment_status ?? "").toLowerCase();
-    if (ps === "refunded") return false;
+    if (ps === "refunded" || ps === "awaiting_expert") return false;
     if (bookingPaymentIsSettled(b.payment_status)) return false;
     if (hasSessionEndedByWallClock(String(b.session_date ?? ""), b.end_time as string | null | undefined)) {
       return false;
@@ -188,10 +221,6 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
     }
     return true;
   }).length;
-
-  const sessionsToday = bookings.filter(
-    (b) => String(b.session_date) === today && b.status === "upcoming",
-  ).length;
 
   const todayPaidSessions = bookings
     .filter((b) => {
@@ -289,6 +318,117 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
       }
     : null;
 
+  const upcomingSessionCandidates = bookings
+    .filter((b) => isUpcomingBookedSessionRow(b, userId))
+    .map((b) => {
+      const sessionDate = String(b.session_date ?? "");
+      const start = sessionWallClockInstant(sessionDate, b.start_time as string | null | undefined);
+      return {
+        bookingId: String(b.booking_id),
+        sessionDate,
+        start,
+        startTime: b.start_time,
+        expertUserId: String(b.expert_user_id ?? ""),
+        learnerUserId: String(b.learner_user_id ?? ""),
+      };
+    })
+    .filter((row): row is typeof row & { start: Date } => row.start !== null)
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+    .slice(0, 6);
+
+  const upcomingPartnerIds = [
+    ...new Set(
+      upcomingSessionCandidates
+        .map((r) => (r.learnerUserId === userId ? r.expertUserId : r.learnerUserId))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const upcomingPartnerUsers =
+    upcomingPartnerIds.length > 0 ? await getUsersByIds(upcomingPartnerIds) : [];
+  const upcomingPartnerById = new Map(upcomingPartnerUsers.map((u) => [u.user_id, u]));
+  const upcomingExpertPartnerIds = upcomingPartnerUsers
+    .filter((u) => u.has_expert_profile)
+    .map((u) => u.user_id);
+  const upcomingExpertVisibilityById = await fetchExpertVisibilityByUserIds(
+    admin,
+    upcomingExpertPartnerIds,
+  );
+
+  const bookingById = new Map(bookings.map((b) => [String(b.booking_id), b]));
+
+  const upcomingSessionPreview: NonNullable<DashboardSummaryJson["upcomingSessionPreview"]> =
+    upcomingSessionCandidates.map((row) => {
+      const partnerId = row.learnerUserId === userId ? row.expertUserId : row.learnerUserId;
+      const p = partnerId ? upcomingPartnerById.get(partnerId) : undefined;
+      const bookingRow = bookingById.get(row.bookingId);
+      const ps = String(bookingRow?.payment_status ?? "").toLowerCase();
+      const viewerIsExpert = bookingRow?.expert_user_id === userId;
+      let listType: "booking" | "request" | "payment" = "booking";
+      if (
+        viewerIsExpert &&
+        isBookingRequestSubmittedToExpert(ps, bookingRow?.stripe_payment_method_id)
+      ) {
+        listType = "request";
+      } else if (ps === "pending") {
+        listType = "payment";
+      }
+      return {
+        bookingId: row.bookingId,
+        partnerName: p ? displayName(p) : "Session partner",
+        partnerPhoto: p?.profile_photo ?? null,
+        partnerExpertVisibilityState: partnerExpertVisibilityState(
+          partnerId,
+          p?.has_expert_profile,
+          upcomingExpertVisibilityById,
+        ),
+        startTimeLabel: formatUpcomingSessionStartLabel(row.sessionDate, row.startTime, today),
+        listType,
+      };
+    });
+
+  let unreadInboxPreview: NonNullable<DashboardSummaryJson["unreadInboxPreview"]> = [];
+  if (conversationIds.length > 0 && unreadMessages > 0) {
+    const { data: unreadMsgRows, error: unreadPreviewErr } = await admin
+      .from("messages")
+      .select("message_id, conversation_id, sender_id, message, metadata, created_at")
+      .in("conversation_id", conversationIds)
+      .eq("is_read", false)
+      .neq("sender_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(Math.min(unreadMessages, 24));
+
+    if (unreadPreviewErr) {
+      return { ok: false, error: publicApiError(unreadPreviewErr), status: 500 };
+    }
+
+    const previewMessages = unreadMsgRows ?? [];
+
+    const senderIds = [...new Set(previewMessages.map((m) => m.sender_id).filter(Boolean))];
+    const senders = senderIds.length > 0 ? await getUsersByIds(senderIds) : [];
+    const senderById = new Map(senders.map((u) => [u.user_id, u]));
+    const expertSenderIds = senders.filter((u) => u.has_expert_profile).map((u) => u.user_id);
+    const senderExpertVisibilityById = await fetchExpertVisibilityByUserIds(admin, expertSenderIds);
+
+    unreadInboxPreview = previewMessages.map((m) => {
+      const sender = senderById.get(m.sender_id);
+      const senderName = sender ? displayName(sender) : "New message";
+      const subject = messageSubjectFromMetadata(m.metadata) ?? "New message";
+      return {
+        messageId: m.message_id,
+        partnerId: m.sender_id,
+        senderName,
+        senderPhoto: sender?.profile_photo ?? null,
+        partnerExpertVisibilityState: partnerExpertVisibilityState(
+          m.sender_id,
+          sender?.has_expert_profile,
+          senderExpertVisibilityById,
+        ),
+        subject,
+        preview: messagePreviewText(String(m.message ?? "")),
+      };
+    });
+  }
+
   let learnerUnseenRequestResponses = 0;
   const activeRequestIds = (activeReqsRes.data ?? []).map((r) => r.request_id);
   if (activeRequestIds.length) {
@@ -305,14 +445,18 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
 
   let expertCommunityRequests = 0;
   if (expertProfile?.category_id) {
-    const { data: archived, error: archErr } = await admin
-      .from("archived_requests")
-      .select("request_id")
-      .eq("expert_id", userId);
+    const [{ data: archived, error: archErr }, { data: seen, error: seenErr }] = await Promise.all([
+      admin.from("archived_requests").select("request_id").eq("expert_id", userId),
+      admin.from("seen_requests").select("request_id").eq("expert_id", userId),
+    ]);
     if (archErr) {
       return { ok: false, error: publicApiError(archErr), status: 500 };
     }
+    if (seenErr) {
+      return { ok: false, error: publicApiError(seenErr), status: 500 };
+    }
     const archivedSet = new Set((archived ?? []).map((a) => a.request_id));
+    const seenSet = new Set((seen ?? []).map((s) => s.request_id));
 
     const { data: catReqs, error: crErr } = await admin
       .from("requests")
@@ -323,21 +467,43 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
     if (crErr) {
       return { ok: false, error: publicApiError(crErr), status: 500 };
     }
-    expertCommunityRequests = (catReqs ?? []).filter((r) => !archivedSet.has(r.request_id)).length;
+    expertCommunityRequests = (catReqs ?? []).filter(
+      (r) => !archivedSet.has(r.request_id) && !seenSet.has(r.request_id),
+    ).length;
   }
 
   const earningsThisMonth = (txMonthRes.data ?? [])
     .filter((t) => t.status === "succeeded")
     .reduce((s, t) => s + Number(t.expert_earnings ?? 0), 0);
 
+  const learnerUnpaidSessionsToday = bookings.filter((b) => {
+    if (b.learner_user_id !== userId || b.status !== "upcoming") return false;
+    if (String(b.session_date) !== today) return false;
+    if (String(b.payment_status ?? "").toLowerCase() !== "pending") return false;
+    if (hasSessionEndedByWallClock(String(b.session_date ?? ""), b.end_time as string | null | undefined)) {
+      return false;
+    }
+    return true;
+  }).length;
+
   const actionItems: ActionItem[] = [];
-  if (sessionsToday > 0 && todayPaidSessions.length === 0) {
+  if (expertBookingRequests > 0) {
+    actionItems.push({
+      id: "expert-booking-requests",
+      label:
+        expertBookingRequests === 1
+          ? "You have a new booking request."
+          : `You have ${expertBookingRequests} new booking requests.`,
+      href: "/dashboard?view=sessions",
+    });
+  }
+  if (learnerUnpaidSessionsToday > 0) {
     actionItems.push({
       id: "today",
       label:
-        sessionsToday === 1
-          ? "You have a session scheduled today."
-          : `You have ${sessionsToday} sessions scheduled today.`,
+        learnerUnpaidSessionsToday === 1
+          ? "Finish payment for today's session."
+          : `Finish payment for ${learnerUnpaidSessionsToday} sessions today.`,
       href: "/dashboard?view=sessions",
     });
   }
@@ -346,8 +512,8 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
       id: "expert-bookings",
       label:
         expertNewBookings === 1
-          ? "1 booking needs your approval or payment confirmation."
-          : `${expertNewBookings} bookings need your approval or payment confirmation.`,
+          ? "1 booking needs payment confirmation."
+          : `${expertNewBookings} bookings need payment confirmation.`,
       href: "/dashboard?view=sessions",
     });
   }
@@ -395,6 +561,17 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
   const firstName = (profile.first_name ?? "").trim();
   const lastName = (profile.last_name ?? "").trim();
 
+  let availableNow = false;
+  if (profile.has_expert_profile) {
+    const { data: availRow } = await admin
+      .from("expert_availability")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const tz = (profile as { time_zone?: string | null }).time_zone ?? null;
+    availableNow = computeAvailableNow(availRow, tz).availableNow;
+  }
+
   const data: DashboardSummaryJson = {
     profile: {
       firstName,
@@ -405,6 +582,7 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
         profile.online,
         (profile as { last_seen_at?: string | null }).last_seen_at,
       ),
+      availableNow,
       sessionsBooked: profile.sessions_booked ?? 0,
       sessionsCompleted: learnerBookingMetrics.completedSessionCount,
       // Computed from booking history (with inferred no-shows when cron lags); DB column is fallback.
@@ -435,6 +613,7 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
     counts: {
       upcomingSessions: upcomingSessionCount,
       unreadMessages,
+      expertBookingRequests,
       expertNewBookings,
       learnerUnpaidCardBookings,
       learnerUnseenRequestResponses,
@@ -443,6 +622,8 @@ export async function buildDashboardSummaryForUser(userId: string): Promise<Dash
     earningsThisMonth,
     actionItems,
     sessionsTodayPreview,
+    upcomingSessionPreview,
+    unreadInboxPreview,
   };
 
   return { ok: true, data };

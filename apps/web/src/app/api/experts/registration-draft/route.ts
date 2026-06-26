@@ -11,12 +11,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** After `supabase/v2/018_expert_availability_package_deal.sql`, set `EXPERT_AVAILABILITY_PACKAGE_COLUMNS=true` so PATCH can persist package fields. */
-function expertAvailabilityPackageColumnsEnabled(): boolean {
-  const v = process.env.EXPERT_AVAILABILITY_PACKAGE_COLUMNS?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
-}
-
 function isValidIanaTimeZone(tz: string): boolean {
   try {
     Intl.DateTimeFormat("en-US", { timeZone: tz });
@@ -148,6 +142,9 @@ export async function GET() {
     package_discount_value: (availability as { package_discount_value?: number | null } | null)?.package_discount_value ?? null,
     package_require_purchase:
       (availability as { package_require_purchase?: boolean } | null)?.package_require_purchase ?? false,
+    package_require_purchase_after_first_session:
+      (availability as { package_require_purchase_after_first_session?: boolean } | null)
+        ?.package_require_purchase_after_first_session ?? false,
     missing_required_fields: requiredFieldErrors({
       ...user,
       ...expert,
@@ -300,30 +297,49 @@ export async function PATCH(request: Request) {
     availabilityUpdate.first_session_discount_max_session_minutes =
       data.first_session_discount_max_session_minutes;
   }
-  if (expertAvailabilityPackageColumnsEnabled()) {
-    if (data.package_deal_enabled !== undefined) {
-      availabilityUpdate.package_deal_enabled = data.package_deal_enabled;
-    }
-    if (data.package_session_count !== undefined) {
-      availabilityUpdate.package_session_count = data.package_session_count;
-    }
-    if (data.package_session_duration_minutes !== undefined) {
-      availabilityUpdate.package_session_duration_minutes = data.package_session_duration_minutes;
-    }
-    if (data.package_discount_type !== undefined) {
-      availabilityUpdate.package_discount_type = data.package_discount_type;
-    }
-    if (data.package_discount_value !== undefined) {
-      availabilityUpdate.package_discount_value = data.package_discount_value;
-    }
-    if (data.package_require_purchase !== undefined) {
-      availabilityUpdate.package_require_purchase = data.package_require_purchase;
-    }
+  if (data.package_deal_enabled !== undefined) {
+    availabilityUpdate.package_deal_enabled = data.package_deal_enabled;
+  }
+  if (data.package_session_count !== undefined) {
+    availabilityUpdate.package_session_count = data.package_session_count;
+  }
+  if (data.package_session_duration_minutes !== undefined) {
+    availabilityUpdate.package_session_duration_minutes = data.package_session_duration_minutes;
+  }
+  if (data.package_discount_type !== undefined) {
+    availabilityUpdate.package_discount_type = data.package_discount_type;
+  }
+  if (data.package_discount_value !== undefined) {
+    availabilityUpdate.package_discount_value = data.package_discount_value;
+  }
+  if (data.package_require_purchase !== undefined) {
+    availabilityUpdate.package_require_purchase = data.package_require_purchase;
+  }
+  if (data.package_require_purchase_after_first_session !== undefined) {
+    availabilityUpdate.package_require_purchase_after_first_session =
+      data.package_require_purchase_after_first_session;
+  }
+  if (
+    data.package_require_purchase === true &&
+    data.package_require_purchase_after_first_session === true
+  ) {
+    availabilityUpdate.package_require_purchase_after_first_session = false;
   }
   const { error: availErr } = await admin
     .from("expert_availability")
     .upsert(availabilityUpdate, { onConflict: "user_id" });
   if (availErr) return Response.json({ error: publicApiError(availErr) }, { status: 500 });
+
+  if (data.package_deal_enabled) {
+    const { ensurePublishedExpertPackageFromAvailability } = await import(
+      "@/lib/packages/sync-expert-package-from-availability"
+    );
+    try {
+      await ensurePublishedExpertPackageFromAvailability(admin, userId);
+    } catch (e) {
+      console.error("[registration-draft] package sync failed", e);
+    }
+  }
 
   return Response.json({ success: true });
 }

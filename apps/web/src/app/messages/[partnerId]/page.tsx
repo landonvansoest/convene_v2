@@ -10,7 +10,10 @@ import { formatChatMessageDate } from "@/lib/messages/formatMessageDate";
 import { Input } from "@/components/ui/input";
 import { dispatchInboxUnreadMayHaveChanged } from "@/lib/messages/inbox-unread-events";
 import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
+import { OfferMessageBody } from "@/components/messages/OfferMessageBody";
+import { MessageBodyText } from "@/components/messages/MessageBodyText";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
+import { SessionPaymentDialog } from "@/components/dashboard/SessionPaymentDialog";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Msg = {
@@ -23,6 +26,9 @@ type Msg = {
   offer_id?: string | null;
   offer_type?: string | null;
   offer_status?: string | null;
+  offer_payload?: Record<string, unknown> | null;
+  companion_message?: string | null;
+  sender_name?: string | null;
 };
 
 type Conv = {
@@ -49,6 +55,7 @@ export default function MessageThreadPage() {
   } | null>(null);
   const [hasExpertProfile, setHasExpertProfile] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [payBookingId, setPayBookingId] = useState<string | null>(null);
   const pageComposerRef = useRef<HTMLInputElement>(null);
 
   const loadThread = useCallback(async () => {
@@ -62,23 +69,52 @@ export default function MessageThreadPage() {
       return;
     }
     setMessages((data.messages as Msg[]) ?? []);
+    const partner = data.partner as
+      | { name?: string | null; profile_photo?: string | null }
+      | null
+      | undefined;
+    if (partner?.name?.trim()) {
+      setPartnerMeta((prev) => ({
+        name: partner.name?.trim() ?? null,
+        photo: partner.profile_photo ?? prev?.photo ?? null,
+        expertVisibilityState: prev?.expertVisibilityState ?? null,
+      }));
+    }
     dispatchInboxUnreadMayHaveChanged();
   }, [partnerId]);
 
   const resolvePartner = useCallback(async () => {
     if (!partnerId) return;
     const res = await fetch("/api/messages/conversations");
-    if (!res.ok) return;
-    const data = await res.json();
-    const list = (data.conversations as Conv[]) ?? [];
-    const hit = list.find((c) => c.partner_id === partnerId);
-    if (hit) {
-      setPartnerMeta({
-        name: hit.partner_name ?? null,
-        photo: hit.partner_photo ?? null,
-        expertVisibilityState: hit.partner_expert_visibility_state ?? null,
-      });
+    if (res.ok) {
+      const data = await res.json();
+      const list = (data.conversations as Conv[]) ?? [];
+      const hit = list.find((c) => c.partner_id === partnerId);
+      if (hit) {
+        setPartnerMeta({
+          name: hit.partner_name ?? null,
+          photo: hit.partner_photo ?? null,
+          expertVisibilityState: hit.partner_expert_visibility_state ?? null,
+        });
+        return;
+      }
     }
+    const expertRes = await fetch(`/api/experts/${encodeURIComponent(partnerId)}`);
+    if (!expertRes.ok) return;
+    const expertData = await expertRes.json();
+    const expert = expertData.expert as
+      | {
+          name?: string | null;
+          profile_photo?: string | null;
+          expert_visibility_state?: string | null;
+        }
+      | undefined;
+    if (!expert?.name?.trim()) return;
+    setPartnerMeta({
+      name: expert.name.trim(),
+      photo: expert.profile_photo ?? null,
+      expertVisibilityState: expert.expert_visibility_state ?? null,
+    });
   }, [partnerId]);
 
   useEffect(() => {
@@ -184,7 +220,6 @@ export default function MessageThreadPage() {
             </div>
             <div className="min-w-0">
               <h1 className="truncate font-semibold text-[#003049]">{displayName}</h1>
-              <p className="truncate font-mono text-[10px] text-muted-foreground">{partnerId}</p>
             </div>
           </div>
 
@@ -210,13 +245,28 @@ export default function MessageThreadPage() {
                           {formatChatMessageDate(m.created_at)}
                         </p>
                       ) : null}
-                      <p className="whitespace-pre-wrap">{m.message_body}</p>
+                      {m.offer_id ? (
+                        <OfferMessageBody
+                          offerType={m.offer_type}
+                          offerPayload={m.offer_payload}
+                          offerStatus={m.offer_status}
+                          companionMessage={m.companion_message}
+                          senderName={m.sender_name}
+                          messageBody={m.message_body}
+                          variant={mine ? "solidMine" : "theirs"}
+                        />
+                      ) : (
+                        <MessageBodyText
+                          text={m.message_body}
+                          variant={mine ? "solidMine" : "theirs"}
+                        />
+                      )}
                       <RescheduleOfferMessageActions
                         message={m}
                         viewerUserId={meId}
                         variant={mine ? "mineSolid" : "theirs"}
                         onThreadChanged={() => void loadThread()}
-                        composerInputRef={pageComposerRef}
+                        onAcceptPayment={(bookingId) => setPayBookingId(bookingId)}
                       />
                     </div>
                   </div>
@@ -269,6 +319,17 @@ export default function MessageThreadPage() {
           onSubmitted={() => void loadThread()}
         />
       ) : null}
+      <SessionPaymentDialog
+        open={Boolean(payBookingId)}
+        onOpenChange={(open) => {
+          if (!open) setPayBookingId(null);
+        }}
+        bookingId={payBookingId ?? ""}
+        onPaid={() => {
+          setPayBookingId(null);
+          void loadThread();
+        }}
+      />
     </>
   );
 }

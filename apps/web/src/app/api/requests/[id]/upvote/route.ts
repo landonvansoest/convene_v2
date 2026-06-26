@@ -35,7 +35,7 @@ export async function POST(_request: Request, { params }: Params) {
     .eq("request_id", requestId)
     .maybeSingle();
   if (reqErr) return Response.json({ error: publicApiError(reqErr) }, { status: 500 });
-  if (!reqRow || !reqRow.is_active || !reqRow.is_public) {
+  if (!reqRow || !reqRow.is_public) {
     return Response.json({ error: "Request not found" }, { status: 404 });
   }
 

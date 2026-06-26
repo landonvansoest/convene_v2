@@ -3,6 +3,7 @@ import { ensureDailyRoom } from "@/lib/daily/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { isSessionJoinWindowOpen } from "@/lib/sessionWallClock";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,6 +43,17 @@ export async function POST(_request: Request, { params }: Params) {
   }
   if (b.learner_user_id !== userId && b.expert_user_id !== userId) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const status = String(b.status ?? "").toLowerCase();
+  if (
+    status === "upcoming" &&
+    !isSessionJoinWindowOpen(String(b.session_date ?? ""), String(b.start_time ?? ""))
+  ) {
+    return Response.json(
+      { error: "Your session is not active until 10 minutes before the scheduled start time." },
+      { status: 403 },
+    );
   }
 
   const roomName = dailyRoomNameForBooking(bookingId);

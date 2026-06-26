@@ -1,8 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  findOrCreateConversationForPair,
-  getAuthedUserId,
-} from "@/lib/messages/service";
+import { findOrCreateConversationForPair } from "@/lib/messages/conversation-pair";
+import { getAuthedUserId } from "@/lib/auth/get-authed-user-id";
 import { resolveConveneTeamUserId } from "@/lib/messages/welcome-inbox";
 
 type DmResult =

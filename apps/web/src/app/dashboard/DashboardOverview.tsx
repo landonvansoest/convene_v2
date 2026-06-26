@@ -18,6 +18,8 @@ export type DashboardSummaryJson = {
     email: string;
     profilePhoto: string | null;
     online: boolean;
+    /** Expert calendar: bookable within the next hour (self only — shown on dashboard sidebar). */
+    availableNow?: boolean;
     sessionsBooked: number;
     sessionsCompleted: number;
     learnerDependabilityRating: number | null;
@@ -38,6 +40,8 @@ export type DashboardSummaryJson = {
   counts: {
     upcomingSessions: number;
     unreadMessages: number;
+    /** Expert: `awaiting_expert` booking requests needing approve/decline. */
+    expertBookingRequests: number;
     expertNewBookings: number;
     /** Learner: instant-book rows awaiting card payment (`pending`), not ended. Used by header badge. */
     learnerUnpaidCardBookings: number;
@@ -69,11 +73,32 @@ export type DashboardSummaryJson = {
       rangeLabel: string;
     }>;
   } | null;
+  /** Upcoming booked sessions (chronological) for Action Items list. */
+  upcomingSessionPreview?: Array<{
+    bookingId: string;
+    partnerName: string;
+    partnerPhoto: string | null;
+    partnerExpertVisibilityState?: string | null;
+    startTimeLabel: string;
+    /** Drives the Action Items row type label in the overview list. */
+    listType?: "booking" | "request" | "payment";
+  }>;
+  /** Unread messages (one row each) for Action Items list. */
+  unreadInboxPreview?: Array<{
+    messageId: string;
+    partnerId: string;
+    senderName: string;
+    senderPhoto: string | null;
+    partnerExpertVisibilityState?: string | null;
+    subject: string;
+    preview: string;
+  }>;
 };
 
 type OverviewListRow =
   | {
       kind: "session";
+      typeLabel: string;
       id: string;
       href: string;
       partnerName: string;
@@ -82,11 +107,35 @@ type OverviewListRow =
       startTimeLabel: string;
     }
   | {
-      kind: "text";
+      kind: "inbox";
+      typeLabel: string;
       id: string;
       href: string;
-      label: string;
+      senderName: string;
+      senderPhoto: string | null;
+      partnerExpertVisibilityState?: string | null;
+      subject: string;
+      preview: string;
     };
+
+function sessionPreviewTypeLabel(listType?: "booking" | "request" | "payment"): string {
+  switch (listType) {
+    case "request":
+      return "Request";
+    case "payment":
+      return "Payment";
+    default:
+      return "Booking";
+  }
+}
+
+function overviewRowTypeCell(label: string) {
+  return (
+    <span className="w-[4.75rem] shrink-0 text-xs font-semibold text-[#003049]/55">
+      {label}
+    </span>
+  );
+}
 
 function StatCard({
   title,
@@ -179,8 +228,15 @@ function initialsFromDisplayName(name: string): string {
 
 export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }) {
   const router = useRouter();
-  const { profile, counts, earningsThisMonth, actionItems, sessionsTodayPreview: sessionsTodayPreviewRaw } =
-    summary;
+  const {
+    profile,
+    counts,
+    earningsThisMonth,
+    actionItems,
+    sessionsTodayPreview: sessionsTodayPreviewRaw,
+    upcomingSessionPreview = [],
+    unreadInboxPreview = [],
+  } = summary;
   const sessionsTodayPreview = sessionsTodayPreviewRaw ?? null;
   const isExpert = profile.hasExpertProfile;
   const greet = greetingFirstName(profile);
@@ -198,7 +254,9 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
         nextSessionPhase === "now"),
   );
 
+  const showExpertBookingRequestsBadge = isExpert && counts.expertBookingRequests > 0;
   const showExpertBookingsBadge = isExpert && counts.expertNewBookings > 0;
+  const expertBookingRequestsItem = actionItems.find((i) => i.id === "expert-booking-requests");
   const learnerPayItem = actionItems.find((i) => i.id === "learner-pay");
   const unpaidTodayItem = actionItems.find((i) => i.id === "today");
   const showLearnerPayBadge = Boolean(learnerPayItem);
@@ -210,25 +268,33 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
 
   const overviewListRows = useMemo((): OverviewListRow[] => {
     const rows: OverviewListRow[] = [];
-    const preview = sessionsTodayPreview;
-    if (preview?.todayPaidSessionRows?.length) {
-      for (const s of preview.todayPaidSessionRows) {
-        rows.push({
-          kind: "session",
-          id: `sess-${s.bookingId}`,
-          href: `/sessions/${encodeURIComponent(s.bookingId)}/join`,
-          partnerName: s.partnerName,
-          partnerPhoto: s.partnerPhoto,
-          partnerExpertVisibilityState: s.partnerExpertVisibilityState,
-          startTimeLabel: s.startTimeLabel,
-        });
-      }
+    for (const s of upcomingSessionPreview) {
+      rows.push({
+        kind: "session",
+        typeLabel: sessionPreviewTypeLabel(s.listType),
+        id: `sess-${s.bookingId}`,
+        href: "/dashboard?view=sessions",
+        partnerName: s.partnerName,
+        partnerPhoto: s.partnerPhoto,
+        partnerExpertVisibilityState: s.partnerExpertVisibilityState,
+        startTimeLabel: s.startTimeLabel,
+      });
     }
-    for (const item of actionItems) {
-      rows.push({ kind: "text", id: item.id, href: item.href, label: item.label });
+    for (const m of unreadInboxPreview) {
+      rows.push({
+        kind: "inbox",
+        typeLabel: "Message",
+        id: `msg-${m.messageId}`,
+        href: `/messages/${encodeURIComponent(m.partnerId)}`,
+        senderName: m.senderName,
+        senderPhoto: m.senderPhoto,
+        partnerExpertVisibilityState: m.partnerExpertVisibilityState,
+        subject: m.subject,
+        preview: m.preview,
+      });
     }
     return rows;
-  }, [sessionsTodayPreview, actionItems]);
+  }, [upcomingSessionPreview, unreadInboxPreview]);
 
   const showNextSessionBadge =
     hasSessionsPreviewHighlight &&
@@ -251,16 +317,19 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
     : null;
 
   const leftAlertClasses =
-    "w-full rounded-lg border px-3 py-2.5 text-left text-sm font-semibold leading-snug transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#F77F00]";
+    "w-full rounded-lg border border-[#003049] bg-[#003049] px-3 py-2.5 text-left text-sm font-semibold leading-snug text-white transition hover:bg-[#003049]/90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#F77F00]";
 
   const hasPressingBadges =
     Boolean(leftNextSessionAlertText) ||
+    showExpertBookingRequestsBadge ||
     showExpertBookingsBadge ||
     showLearnerPayBadge ||
     showUnpaidTodayBadge ||
     showUnreadBadge ||
     showRequestResponsesBadge;
-  const hasOverviewContent = hasPressingBadges || overviewListRows.length > 0;
+  const hasRightColumnContent = overviewListRows.length > 0;
+  const hasOverviewContent = hasPressingBadges || hasRightColumnContent;
+  const rightColumnScrollable = overviewListRows.length >= 5;
 
   return (
     <div className="space-y-6">
@@ -344,12 +413,13 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
           </div>
         ) : (
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+            {hasPressingBadges ? (
             <div className="flex min-h-0 flex-col gap-3">
               {leftNextSessionAlertText ? (
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard?view=sessions")}
-                  className={`${leftAlertClasses} border-[#F77F00]/35 bg-[#F77F00]/08 text-[#B45309] hover:border-[#F77F00]/48 hover:bg-[#F77F00]/11`}
+                  className={leftAlertClasses}
                 >
                   {leftNextSessionAlertText}
                 </button>
@@ -359,9 +429,22 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard?view=sessions")}
-                  className={`${leftAlertClasses} border-amber-500/35 bg-amber-500/10 text-[#92400E] hover:border-amber-500/50`}
+                  className={leftAlertClasses}
                 >
                   {unpaidTodayItem?.label ?? "Sessions today need payment before they're confirmed."}
+                </button>
+              ) : null}
+
+              {showExpertBookingRequestsBadge ? (
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard?view=sessions")}
+                  className={leftAlertClasses}
+                >
+                  {expertBookingRequestsItem?.label ??
+                    (counts.expertBookingRequests === 1
+                      ? "You have a new booking request."
+                      : `You have ${counts.expertBookingRequests} new booking requests.`)}
                 </button>
               ) : null}
 
@@ -369,11 +452,11 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard?view=sessions")}
-                  className={`${leftAlertClasses} border-[#003049]/12 bg-[#F8FAFC] text-[#003049] hover:border-[#003049]/22 hover:bg-white`}
+                  className={leftAlertClasses}
                 >
                   {counts.expertNewBookings === 1
-                    ? "1 booking needs approval or payment"
-                    : `${counts.expertNewBookings} bookings need approval or payment`}
+                    ? "1 booking needs payment confirmation"
+                    : `${counts.expertNewBookings} bookings need payment confirmation`}
                 </button>
               ) : null}
 
@@ -381,7 +464,7 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard?view=sessions")}
-                  className={`${leftAlertClasses} border-rose-500/35 bg-rose-500/[0.07] text-[#9F1239] hover:border-rose-500/48`}
+                  className={leftAlertClasses}
                 >
                   {learnerPayItem.label}
                 </button>
@@ -391,7 +474,7 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard?view=inbox")}
-                  className={`${leftAlertClasses} border-sky-500/35 bg-sky-500/[0.08] text-[#0C4A6E] hover:border-sky-500/48`}
+                  className={leftAlertClasses}
                 >
                   {counts.unreadMessages === 1
                     ? "1 unread message"
@@ -403,7 +486,7 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard?view=requests")}
-                  className={`${leftAlertClasses} border-violet-500/35 bg-violet-500/[0.08] text-[#5B21B6] hover:border-violet-500/48`}
+                  className={leftAlertClasses}
                 >
                   {counts.learnerUnseenRequestResponses === 1
                     ? "1 new expert response to your request."
@@ -411,14 +494,21 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                 </button>
               ) : null}
             </div>
+            ) : null}
 
-            <div className="min-w-0 lg:col-span-2">
-              {overviewListRows.length > 0 ? (
-                <>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[#003049]/55">
-                    Upcoming &amp; inbox
-                  </h3>
-                  <ul className="mt-2 space-y-2">
+            {hasRightColumnContent ? (
+            <div
+              className={
+                hasPressingBadges ? "min-w-0 lg:col-span-2" : "min-w-0 lg:col-span-3"
+              }
+            >
+                  <ul
+                    className={
+                      rightColumnScrollable
+                        ? "max-h-[17.5rem] space-y-2 overflow-y-auto overscroll-contain pr-0.5"
+                        : "space-y-2"
+                    }
+                  >
                     {overviewListRows.map((row) => (
                       <li key={row.id}>
                         {row.kind === "session" ?
@@ -426,6 +516,7 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                             href={row.href}
                             className="flex w-full items-center gap-3 rounded-lg border border-[#003049]/10 bg-[#F8FAFC] px-4 py-3 text-left transition hover:border-[#003049]/20 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#F77F00]"
                           >
+                            {overviewRowTypeCell(row.typeLabel)}
                             <div className="relative h-10 w-10 shrink-0">
                               <Avatar className="h-full w-full border border-[#003049]/10 shadow-sm">
                                 <AvatarImage
@@ -448,16 +539,38 @@ export function DashboardOverview({ summary }: { summary: DashboardSummaryJson }
                           </Link>
                         : <Link
                             href={row.href}
-                            className="flex w-full items-center rounded-lg border border-[#003049]/10 bg-[#F8FAFC] px-4 py-3 text-left text-sm font-medium text-[#003049] transition hover:border-[#003049]/20 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#F77F00]"
+                            className="flex w-full items-center gap-3 rounded-lg border border-[#003049]/10 bg-[#F8FAFC] px-4 py-3 text-left transition hover:border-[#003049]/20 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#F77F00]"
                           >
-                            <span>{row.label}</span>
+                            {overviewRowTypeCell(row.typeLabel)}
+                            <div className="relative h-10 w-10 shrink-0">
+                              <Avatar className="h-full w-full border border-[#003049]/10 shadow-sm">
+                                <AvatarImage
+                                  src={row.senderPhoto ?? undefined}
+                                  alt=""
+                                  className="object-cover"
+                                />
+                                <AvatarFallback className="bg-[#003049]/10 text-xs font-semibold text-[#003049]">
+                                  {initialsFromDisplayName(row.senderName)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <VisibleTempDot expertVisibilityState={row.partnerExpertVisibilityState} />
+                            </div>
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <span className="shrink-0 text-sm font-semibold text-[#003049]">
+                                {row.senderName}
+                              </span>
+                              {row.preview ?
+                                <span className="min-w-0 flex-1 truncate text-sm text-[#003049]/60">
+                                  {row.preview}
+                                </span>
+                              : null}
+                            </div>
                           </Link>}
                       </li>
                     ))}
                   </ul>
-                </>
-              ) : null}
             </div>
+            ) : null}
           </div>
         )}
       </div>

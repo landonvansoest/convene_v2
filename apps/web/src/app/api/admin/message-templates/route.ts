@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const SELECT_COLS =
   "template_id, automation_key, automation_label, automation_description, " +
   "in_app_enabled, in_app_subject, in_app_body, " +
-  "email_enabled, email_subject, email_body, " +
+  "email_enabled, email_subject, email_body, email_cta_url, email_cta_label, " +
   "sms_enabled, sms_body, " +
   "display_order, created_at, updated_at";
 

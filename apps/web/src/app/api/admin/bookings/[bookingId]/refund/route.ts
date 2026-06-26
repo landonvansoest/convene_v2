@@ -7,7 +7,10 @@ import {
   resolveUserFeedback,
   sendAdminBookingDm,
 } from "@/lib/admin/booking-problem-actions";
-import { dispatchRefundIssuedEmail } from "@/lib/notifications/booking-notifications";
+import {
+  dispatchExpertNoShowRefund,
+  dispatchRefundIssuedEmail,
+} from "@/lib/notifications/booking-notifications";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,6 +26,8 @@ const bodySchema = z.object({
   message: z.string().trim().min(1).max(4000).optional().nullable(),
   /** If this refund resolves a user_feedback complaint, pass its feedback_id. */
   feedbackId: z.string().uuid().optional().nullable(),
+  /** Queue source — expert no-show uses the dedicated expert_no_show_refund template. */
+  source: z.enum(["no_show", "complaint"]).optional(),
 });
 
 export async function POST(request: Request, { params }: Params) {
@@ -41,7 +46,7 @@ export async function POST(request: Request, { params }: Params) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, { status: 400 });
   }
 
-  const { amountCents, markResolved = true, message, feedbackId } = parsed.data;
+  const { amountCents, markResolved = true, message, feedbackId, source = "complaint" } = parsed.data;
 
   const stripe = getStripe();
   if (!stripe) {
@@ -52,7 +57,7 @@ export async function POST(request: Request, { params }: Params) {
   const { data: booking, error: fetchErr } = await admin
     .from("bookings")
     .select(
-      "booking_id, status, session_date, stripe_payment_intent_id, refunded_amount_cents, refund_review_status, learner_user_id",
+      "booking_id, status, session_date, start_time, end_time, duration, booking_amount, total_amount, stripe_payment_intent_id, refunded_amount_cents, refund_review_status, learner_user_id, expert_user_id",
     )
     .eq("booking_id", bookingId)
     .maybeSingle();
@@ -100,39 +105,72 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
+    let dmResult: Awaited<ReturnType<typeof sendAdminBookingDm>> | null = null;
+
     if (booking.learner_user_id) {
-      const { data: learner } = await admin
+      const userIds = [booking.learner_user_id as string];
+      if (booking.expert_user_id) userIds.push(booking.expert_user_id as string);
+
+      const { data: users } = await admin
         .from("users")
-        .select("first_name, last_name, email_address")
-        .eq("user_id", booking.learner_user_id)
-        .maybeSingle();
+        .select("user_id, first_name, last_name, email_address")
+        .in("user_id", userIds);
+
+      const learner = users?.find((u) => u.user_id === booking.learner_user_id);
+      const expert = users?.find((u) => u.user_id === booking.expert_user_id);
+
       if (learner?.email_address) {
         const learnerName =
           `${learner.first_name ?? ""} ${learner.last_name ?? ""}`.trim() ||
           learner.email_address;
+        const expertName =
+          `${expert?.first_name ?? ""} ${expert?.last_name ?? ""}`.trim() || "your expert";
         const refundAmount = `$${(delta / 100).toFixed(2)}`;
+        const bookingSchedule = {
+          booking_id: bookingId,
+          session_date: String(booking.session_date ?? ""),
+          start_time: String(booking.start_time ?? ""),
+          end_time: booking.end_time,
+          duration: booking.duration,
+          booking_amount: booking.booking_amount,
+          total_amount: booking.total_amount,
+        };
+
+        let templateInAppBody: string | null = null;
         try {
-          await dispatchRefundIssuedEmail({
-            recipientEmail: learner.email_address,
-            recipientName: learnerName,
-            sessionDate: String(booking.session_date ?? ""),
-            refundAmount,
-          });
+          if (source === "no_show") {
+            const result = await dispatchExpertNoShowRefund({
+              recipientEmail: learner.email_address,
+              recipientName: learnerName,
+              booking: bookingSchedule,
+              expertName,
+              refundAmount,
+            });
+            templateInAppBody = result.inAppBody;
+          } else {
+            await dispatchRefundIssuedEmail({
+              recipientUserId: booking.learner_user_id as string,
+              recipientEmail: learner.email_address,
+              recipientName: learnerName,
+              booking: bookingSchedule,
+              refundAmount,
+            });
+          }
         } catch (e) {
-          console.error("[admin-refund] refund email failed", e);
+          console.error("[admin-refund] refund notification failed", e);
+        }
+
+        const dmText = message?.trim() || templateInAppBody;
+        if (dmText) {
+          dmResult = await sendAdminBookingDm({
+            recipientUserId: booking.learner_user_id as string,
+            message: dmText,
+            bookingId,
+            feedbackId: feedbackId ?? undefined,
+            kind: "refund",
+          });
         }
       }
-    }
-
-    let dmResult: Awaited<ReturnType<typeof sendAdminBookingDm>> | null = null;
-    if (message && booking.learner_user_id) {
-      dmResult = await sendAdminBookingDm({
-        recipientUserId: booking.learner_user_id as string,
-        message,
-        bookingId,
-        feedbackId: feedbackId ?? undefined,
-        kind: "refund",
-      });
     }
 
     let feedbackResolved = false;

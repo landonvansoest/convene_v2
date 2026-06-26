@@ -106,7 +106,7 @@ export function PostRequestDialog({ open, onOpenChange, onPosted }: Props) {
 
   async function handleSubmit() {
     if (!title.trim() || !details.trim() || !categoryId) {
-      setErr("Please fill in title, details, and category.");
+      setErr("Please fill in subject, details, and category.");
       return;
     }
     setBusy(true);
@@ -158,7 +158,7 @@ export function PostRequestDialog({ open, onOpenChange, onPosted }: Props) {
 
           <div className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label htmlFor="pr-title">One sentence description</Label>
+              <Label htmlFor="pr-title">Subject</Label>
               <Input
                 id="pr-title"
                 placeholder="e.g., Need help fixing a leaky faucet"
@@ -303,8 +303,8 @@ export function PostRequestDialog({ open, onOpenChange, onPosted }: Props) {
       <Dialog open={success} onOpenChange={(o) => !o && handleSuccessClose()}>
         <DialogContent className="max-w-md">
           <div className="flex flex-col items-center space-y-4 py-6 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-              <CheckCircle className="h-10 w-10 text-emerald-600" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-convene-hero/15">
+              <CheckCircle className="h-10 w-10 text-convene-hero" />
             </div>
             <DialogHeader>
               <DialogTitle className="text-2xl">Posted</DialogTitle>

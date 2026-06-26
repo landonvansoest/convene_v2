@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicApiError } from "@/lib/api/public-error";
 import { rectificationDeadlineAt } from "@/lib/freelance/transitions";
+import { dispatchFreelanceReviewAlert } from "@/lib/notifications/admin-alerts";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
 
   const { data: missedDeadlineCandidates, error: mdErr } = await admin
     .from("freelance_work")
-    .select("freelance_id, work_deadline, expert_grace_end_at")
+    .select("freelance_id, work_deadline, expert_grace_end_at, total_price")
     .eq("status", "paid_in_progress")
     .not("expert_grace_end_at", "is", null)
     .lte("expert_grace_end_at", nowIso);
@@ -130,6 +131,15 @@ export async function GET(request: Request) {
       escalateFailures.push({ id: String(row.freelance_id), error: error.message });
     } else {
       escalated += 1;
+      try {
+        await dispatchFreelanceReviewAlert({
+          freelanceId: String(row.freelance_id),
+          reason: "Expert missed work deadline + 3-day grace",
+          totalPrice: row.total_price ?? null,
+        });
+      } catch {
+        /* best-effort */
+      }
     }
   }
 

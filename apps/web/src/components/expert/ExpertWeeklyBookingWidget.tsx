@@ -10,7 +10,11 @@ type Props = {
   onPickSlot?: (utcMs: number, label: string) => void;
 };
 
-export function ExpertWeeklyBookingWidget({ expertId: expertId, preview, onPickSlot }: Props) {
+export function ExpertWeeklyBookingWidget({
+  expertId: expertId,
+  preview,
+  onPickSlot,
+}: Props) {
   const week = preview?.days ?? [];
   const monthYearLabel = preview?.monthYearLabel ?? "";
   const anySlot = week.some((d) => d.slots.length > 0);

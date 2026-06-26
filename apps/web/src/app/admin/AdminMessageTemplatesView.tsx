@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TEMPLATE_FALLBACKS } from "@/lib/notifications/message-templates";
+import {
+  TEMPLATE_VARIABLE_REFERENCE,
+  variablesForAutomation,
+} from "@/lib/notifications/template-variable-reference";
 
 export type MessageTemplate = {
   template_id: string;
@@ -16,6 +21,8 @@ export type MessageTemplate = {
   email_enabled: boolean;
   email_subject: string;
   email_body: string;
+  email_cta_url: string;
+  email_cta_label: string;
   sms_enabled: boolean;
   sms_body: string;
   display_order: number;
@@ -40,6 +47,8 @@ type TemplateDraft = Pick<
   | "email_enabled"
   | "email_subject"
   | "email_body"
+  | "email_cta_url"
+  | "email_cta_label"
   | "sms_enabled"
   | "sms_body"
 >;
@@ -52,7 +61,20 @@ const CHANNEL_LABELS: Record<string, string> = {
   sms: "SMS",
 };
 
+function effectiveEmailCta(
+  automationKey: string,
+  ctaUrl: string,
+  ctaLabel: string,
+): { url: string; label: string } {
+  const fb = TEMPLATE_FALLBACKS[automationKey];
+  return {
+    url: ctaUrl.trim() || fb?.email_cta_url?.trim() || "",
+    label: ctaLabel.trim() || fb?.email_cta_label?.trim() || "",
+  };
+}
+
 function templateToDraft(t: MessageTemplate): TemplateDraft {
+  const cta = effectiveEmailCta(t.automation_key, t.email_cta_url ?? "", t.email_cta_label ?? "");
   return {
     automation_description: t.automation_description,
     in_app_enabled: t.in_app_enabled,
@@ -61,6 +83,8 @@ function templateToDraft(t: MessageTemplate): TemplateDraft {
     email_enabled: t.email_enabled,
     email_subject: t.email_subject,
     email_body: t.email_body,
+    email_cta_url: cta.url,
+    email_cta_label: cta.label,
     sms_enabled: t.sms_enabled,
     sms_body: t.sms_body,
   };
@@ -75,6 +99,8 @@ function draftEqualsSaved(draft: TemplateDraft, saved: MessageTemplate): boolean
     draft.email_enabled === saved.email_enabled &&
     draft.email_subject === saved.email_subject &&
     draft.email_body === saved.email_body &&
+    draft.email_cta_url === (saved.email_cta_url ?? "") &&
+    draft.email_cta_label === (saved.email_cta_label ?? "") &&
     draft.sms_enabled === saved.sms_enabled &&
     draft.sms_body === saved.sms_body
   );
@@ -93,6 +119,12 @@ function TemplateChannelBlock({
   subjectPlaceholder,
   readOnly,
   wired,
+  onPreviewEmail,
+  previewBusy,
+  ctaUrl,
+  ctaLabel,
+  onCtaUrlChange,
+  onCtaLabelChange,
 }: {
   title: string;
   enabled: boolean;
@@ -106,6 +138,12 @@ function TemplateChannelBlock({
   subjectPlaceholder?: string;
   readOnly: boolean;
   wired: boolean;
+  onPreviewEmail?: () => void | Promise<void>;
+  previewBusy?: boolean;
+  ctaUrl?: string;
+  ctaLabel?: string;
+  onCtaUrlChange?: (v: string) => void;
+  onCtaLabelChange?: (v: string) => void;
 }) {
   const hasSubject = onSubjectChange != null;
   return (
@@ -150,6 +188,45 @@ function TemplateChannelBlock({
         className="w-full resize-y rounded-md border border-[#003049]/15 bg-white px-2 py-1.5 text-xs leading-relaxed text-[#003049]/90 focus:border-[#003049]/40 focus:outline-none disabled:bg-muted/40"
         onChange={(e) => onBodyChange(e.target.value)}
       />
+      {onCtaUrlChange && onCtaLabelChange ? (
+        <div className="mt-2 space-y-2 rounded-md border border-dashed border-[#003049]/15 bg-[#003049]/[0.02] p-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#003049]/65">
+            Email button (optional)
+          </p>
+          <input
+            type="text"
+            placeholder="Button label, e.g. Join session"
+            value={ctaLabel ?? ""}
+            disabled={!enabled || readOnly}
+            className="w-full rounded-md border border-[#003049]/15 bg-white px-2 py-1.5 text-xs text-[#003049] focus:border-[#003049]/40 focus:outline-none disabled:bg-muted/40"
+            onChange={(e) => onCtaLabelChange(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Button URL, e.g. {{session_link}}"
+            value={ctaUrl ?? ""}
+            disabled={!enabled || readOnly}
+            className="w-full rounded-md border border-[#003049]/15 bg-white px-2 py-1.5 text-xs text-[#003049] focus:border-[#003049]/40 focus:outline-none disabled:bg-muted/40"
+            onChange={(e) => onCtaUrlChange(e.target.value)}
+          />
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Both fields required to show the button. Supports {"{{variables}}"} like the body.
+          </p>
+        </div>
+      ) : null}
+      {onPreviewEmail ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2 h-8 border-[#003049]/20 text-xs"
+          disabled={!enabled || previewBusy}
+          onClick={() => void onPreviewEmail()}
+        >
+          {previewBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+          Preview email layout
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -165,6 +242,10 @@ export function AdminMessageTemplatesView() {
   const [err, setErr] = useState<string | null>(null);
   const [migrationRequired, setMigrationRequired] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewSubject, setPreviewSubject] = useState<string>("");
+  const [previewBusyId, setPreviewBusyId] = useState<string | null>(null);
+  const [showVarReference, setShowVarReference] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -248,6 +329,40 @@ export function AdminMessageTemplatesView() {
     });
   }
 
+  async function previewEmail(templateId: string) {
+    const draft = drafts[templateId];
+    const template = templates.find((t) => t.template_id === templateId);
+    if (!draft?.email_body.trim() || !template) return;
+    const cta = effectiveEmailCta(
+      template.automation_key,
+      draft.email_cta_url,
+      draft.email_cta_label,
+    );
+    setPreviewBusyId(templateId);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/message-templates/preview-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_subject: draft.email_subject,
+          email_body: draft.email_body,
+          email_cta_url: cta.url,
+          email_cta_label: cta.label,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(typeof data.error === "string" ? data.error : "Email preview failed");
+        return;
+      }
+      setPreviewSubject(typeof data.subject === "string" ? data.subject : "Convene email preview");
+      setPreviewHtml(typeof data.html === "string" ? data.html : null);
+    } finally {
+      setPreviewBusyId(null);
+    }
+  }
+
   function catalogEntry(key: string) {
     return catalog.find((c) => c.automation_key === key);
   }
@@ -272,7 +387,15 @@ export function AdminMessageTemplatesView() {
             <CardDescription className="mt-1 max-w-3xl">
               Expand a template to edit copy and channels. Click <strong>Save</strong> on each template
               to persist changes. Placeholders like{" "}
-              <code className="text-xs">{`{{recipient_name}}`}</code> are filled at send time.
+              <code className="text-xs">{`{{recipient_name}}`}</code> are filled at send time — see the{" "}
+              <button
+                type="button"
+                className="text-[#F77F00] underline underline-offset-2 hover:text-[#F77F00]/80"
+                onClick={() => setShowVarReference((v) => !v)}
+              >
+                variable reference
+              </button>{" "}
+              for the full list.
             </CardDescription>
           </div>
           <Button
@@ -294,6 +417,59 @@ export function AdminMessageTemplatesView() {
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
+        {showVarReference ? (
+          <div className="mb-4 overflow-hidden rounded-xl border border-[#003049]/15 bg-white">
+            <div className="flex items-center justify-between border-b border-[#003049]/10 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-[#003049]">Template variable reference</p>
+                <p className="text-xs text-muted-foreground">
+                  Use double braces in copy, e.g.{" "}
+                  <code className="text-[11px]">{`{{session_fee}}`}</code>. Email buttons need both URL
+                  and label; dashboard Booked Sessions ={" "}
+                  <code className="text-[11px]">{`{{bookings_url}}`}</code> (
+                  <code className="text-[11px]">/dashboard?view=sessions</code>).
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowVarReference(false)}
+              >
+                Hide
+              </Button>
+            </div>
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead className="sticky top-0 bg-[#003049]/[0.04] text-[10px] uppercase tracking-wide text-[#003049]/70">
+                  <tr>
+                    <th className="px-4 py-2 font-semibold">Variable</th>
+                    <th className="px-4 py-2 font-semibold">Description</th>
+                    <th className="px-4 py-2 font-semibold">Example</th>
+                    <th className="px-4 py-2 font-semibold">Automations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TEMPLATE_VARIABLE_REFERENCE.map((v) => (
+                    <tr key={v.key} className="border-t border-[#003049]/8 align-top">
+                      <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px] text-[#003049]">
+                        {`{{${v.key}}}`}
+                      </td>
+                      <td className="px-4 py-2 text-[#003049]/85">{v.description}</td>
+                      <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px] text-muted-foreground">
+                        {v.example}
+                      </td>
+                      <td className="px-4 py-2 text-muted-foreground">
+                        {v.automations.includes("*") ? "All" : v.automations.join(", ")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
         {migrationRequired ? (
           <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Database migrations not applied — showing default copy below (read-only). Run{" "}
@@ -381,6 +557,16 @@ export function AdminMessageTemplatesView() {
                         {meta.wired_channels.map((c) => CHANNEL_LABELS[c] ?? c).join(", ")}
                       </p>
                     ) : null}
+                    <div className="rounded-md border border-[#003049]/10 bg-white/80 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#003049]/60">
+                        Variables for this template
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-[#003049]/80">
+                        {variablesForAutomation(t.automation_key)
+                          .map((v) => `{{${v.key}}}`)
+                          .join(", ")}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid gap-3 lg:grid-cols-3">
@@ -407,10 +593,16 @@ export function AdminMessageTemplatesView() {
                       body={draft.email_body}
                       onBodyChange={(v) => updateDraft(t.template_id, { email_body: v })}
                       bodyRows={8}
-                      bodyPlaceholder="Email body"
+                      bodyPlaceholder="Plain text only — layout, logo, and footer are added automatically."
                       subjectPlaceholder="Email subject"
                       readOnly={readOnly}
                       wired={wired.has("email")}
+                      ctaUrl={draft.email_cta_url}
+                      ctaLabel={draft.email_cta_label}
+                      onCtaUrlChange={(v) => updateDraft(t.template_id, { email_cta_url: v })}
+                      onCtaLabelChange={(v) => updateDraft(t.template_id, { email_cta_label: v })}
+                      onPreviewEmail={() => previewEmail(t.template_id)}
+                      previewBusy={previewBusyId === t.template_id}
                     />
                     <TemplateChannelBlock
                       title="SMS"
@@ -445,6 +637,26 @@ export function AdminMessageTemplatesView() {
           );
         })}
       </CardContent>
+      {previewHtml ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#003049]/10 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-[#003049]">Email preview</p>
+                <p className="text-xs text-muted-foreground">{previewSubject}</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPreviewHtml(null)}>
+                Close
+              </Button>
+            </div>
+            <iframe
+              title="Email preview"
+              srcDoc={previewHtml}
+              className="min-h-[480px] w-full flex-1 border-0 bg-[#ECECEC]"
+            />
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }

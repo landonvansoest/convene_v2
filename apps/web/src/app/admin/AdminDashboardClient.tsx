@@ -35,6 +35,11 @@ import {
 } from "./AdminSidebar";
 import { AdminHelpTicketsView } from "./AdminHelpTicketsView";
 import { AdminFreelanceReviewView } from "./AdminFreelanceReviewView";
+import { buildBookingScheduleVars } from "@/lib/notifications/booking-template-vars";
+import {
+  renderMessageTemplate,
+  TEMPLATE_FALLBACKS,
+} from "@/lib/notifications/message-templates";
 
 type AdminCat = {
   category_id: string;
@@ -346,6 +351,7 @@ export function AdminDashboardClient({ adminEmail }: Props) {
   const [refundMsg, setRefundMsg] = useState<string | null>(null);
   /** Keyed by booking_id (no-show) or feedback_id (complaint). */
   const [refundRowInputs, setRefundRowInputs] = useState<Record<string, RefundRowInput>>({});
+  const [noShowRefundTemplateBody, setNoShowRefundTemplateBody] = useState<string | null>(null);
 
   const refreshSidebarCounts = useCallback(async () => {
     try {
@@ -401,6 +407,47 @@ export function AdminDashboardClient({ adminEmail }: Props) {
     // view-change reload is the intended trigger here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+
+  useEffect(() => {
+    if (view !== "refunds") return;
+    let cancelled = false;
+    void fetch("/api/admin/message-templates", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const templates = (data.templates ?? []) as Array<{ automation_key: string; in_app_body: string }>;
+        const row = templates.find((t) => t.automation_key === "expert_no_show_refund");
+        setNoShowRefundTemplateBody(
+          row?.in_app_body ?? TEMPLATE_FALLBACKS.expert_no_show_refund.in_app_body,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNoShowRefundTemplateBody(TEMPLATE_FALLBACKS.expert_no_show_refund.in_app_body);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
+  useEffect(() => {
+    if (refundSource !== "no_show" || !noShowRefundTemplateBody || refundQueue.length === 0) return;
+    setRefundRowInputs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const item of refundQueue) {
+        const key = item.feedback_id ?? item.booking_id;
+        if (next[key]?.message?.trim()) continue;
+        next[key] = {
+          amount: next[key]?.amount ?? "",
+          message: defaultNoShowLearnerMessage(item),
+        };
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [refundQueue, refundSource, noShowRefundTemplateBody]);
 
   async function signOut() {
     setSigningOut(true);
@@ -929,6 +976,30 @@ export function AdminDashboardClient({ adminEmail }: Props) {
     return item.feedback_id ?? item.booking_id;
   }
 
+  function defaultNoShowLearnerMessage(item: RefundQueueItem): string {
+    const body =
+      noShowRefundTemplateBody ?? TEMPLATE_FALLBACKS.expert_no_show_refund.in_app_body;
+    const refundDollars = item.total_amount
+      ? `$${Number(item.total_amount).toFixed(2)}`
+      : "";
+    const scheduleVars = buildBookingScheduleVars({
+      booking_id: item.booking_id,
+      session_date: item.session_date,
+      start_time: item.start_time,
+      end_time: item.end_time,
+      duration: item.duration,
+      booking_amount: item.booking_amount,
+      total_amount: item.total_amount,
+    });
+    return renderMessageTemplate(body, {
+      recipient_name: item.learner_name ?? "there",
+      expert_name: item.expert_name ?? "your expert",
+      refund_amount: refundDollars,
+      dashboard_url: "/dashboard?view=inbox",
+      ...scheduleVars,
+    });
+  }
+
   /** Parse a dollars input ("", "12", "12.5") to integer cents, or null for full refund. */
   function parseAmountCents(raw: string): { cents: number | null; error: string | null } {
     const trimmed = raw.trim();
@@ -955,9 +1026,11 @@ export function AdminDashboardClient({ adminEmail }: Props) {
 
     const body: Record<string, unknown> = {
       markResolved: true,
+      source: refundSource,
     };
     if (cents != null) body.amountCents = cents;
-    if (input.message.trim()) body.message = input.message.trim();
+    const rowMessage = input.message.trim();
+    if (rowMessage) body.message = rowMessage;
     if (item.feedback_id) body.feedbackId = item.feedback_id;
 
     const res = await fetch(`/api/admin/bookings/${encodeURIComponent(item.booking_id)}/refund`, {

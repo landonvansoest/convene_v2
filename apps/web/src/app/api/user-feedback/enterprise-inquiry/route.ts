@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthedUserId } from "@/lib/messages/service";
 import { publicApiError } from "@/lib/api/public-error";
+import { dispatchUserFeedbackAlert } from "@/lib/notifications/admin-alerts";
 
 const schema = z.object({
   message: z.string().min(10).max(4000),
@@ -39,19 +40,35 @@ export async function POST(request: Request) {
   ].join("\n");
 
   const admin = createAdminClient();
-  const { error } = await admin.from("user_feedback").insert({
-    user_id: userId,
-    feedback_type: "enterprise_inquiry",
-    feedback_text: feedbackText,
-    context: {
-      source: "expert_registration_wizard",
-      coach_count: d.coach_count ?? null,
-      best_time_to_contact: d.best_time_to_contact ?? null,
-      email: d.email,
-      phone: d.phone ?? null,
-    },
-  });
+  const { data: inserted, error } = await admin
+    .from("user_feedback")
+    .insert({
+      user_id: userId,
+      feedback_type: "enterprise_inquiry",
+      feedback_text: feedbackText,
+      context: {
+        source: "expert_registration_wizard",
+        coach_count: d.coach_count ?? null,
+        best_time_to_contact: d.best_time_to_contact ?? null,
+        email: d.email,
+        phone: d.phone ?? null,
+      },
+      admin_review_status: "pending",
+    })
+    .select("feedback_id")
+    .single();
   if (error) return Response.json({ error: publicApiError(error) }, { status: 500 });
+
+  try {
+    await dispatchUserFeedbackAlert({
+      feedbackId: inserted?.feedback_id ? String(inserted.feedback_id) : undefined,
+      feedbackType: "enterprise_inquiry",
+      feedbackText,
+      userEmail: d.email.trim(),
+    });
+  } catch {
+    /* best-effort */
+  }
 
   return Response.json({ success: true });
 }

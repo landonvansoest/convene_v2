@@ -7,7 +7,6 @@ import {
   Briefcase,
   Calendar,
   ChevronDown,
-  GraduationCap,
   LayoutGrid,
   LogIn,
   LogOut,
@@ -17,6 +16,7 @@ import {
   Search,
   Settings,
   User,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,7 +26,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { OnlineDot } from "@/components/presence/OnlineDot";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +42,11 @@ import {
 import { verifyFailedDescription, stripVerifyFailedSearchParams } from "@/lib/auth/verify-failed-message";
 import { LEARNER_REGISTRATION_WIZARD_PATH } from "@/lib/auth/learner-registration";
 import { bookingPaymentIsSettled, hasSessionEndedByWallClock } from "@/lib/sessionWallClock";
+import { isUpcomingBookedSessionRow } from "@/lib/booking-dashboard-visibility";
+import {
+  dispatchSearchLoading,
+  SEARCH_LOADING_CHANGED,
+} from "@/lib/search/search-loading-events";
 
 function avatarInitialsFromProfile(p: Record<string, unknown> | null): string {
   if (!p) return "U";
@@ -69,6 +73,7 @@ export function SiteHeader() {
   const router = useRouter();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchWorking, setSearchWorking] = useState(false);
   const [showSearchMenu, setShowSearchMenu] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [avatarInitials, setAvatarInitials] = useState("U");
@@ -76,7 +81,6 @@ export function SiteHeader() {
   const [expertVisibilityState, setExpertVisibilityState] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [emailAddress, setEmailAddress] = useState<string>("");
-  const [roleMode, setRoleMode] = useState<"learner" | "expert">("learner");
   const [nextSessionCountdown, setNextSessionCountdown] = useState<{
     hours: number;
     minutes: number;
@@ -93,15 +97,6 @@ export function SiteHeader() {
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [browseCategoriesOpen, setBrowseCategoriesOpen] = useState(false);
   const [postRequestOpen, setPostRequestOpen] = useState(false);
-
-  async function persistRoleMode(nextMode: "learner" | "expert"): Promise<boolean> {
-    const res = await fetch("/api/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ convene_role_mode: nextMode }),
-    });
-    return res.ok;
-  }
 
   useEffect(() => {
     try {
@@ -144,6 +139,21 @@ export function SiteHeader() {
   }, [pathname]);
 
   useEffect(() => {
+    if (pathname !== "/search") {
+      setSearchWorking(false);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    function onSearchLoading(event: Event) {
+      const loading = (event as CustomEvent<{ loading: boolean }>).detail?.loading;
+      if (typeof loading === "boolean") setSearchWorking(loading);
+    }
+    window.addEventListener(SEARCH_LOADING_CHANGED, onSearchLoading);
+    return () => window.removeEventListener(SEARCH_LOADING_CHANGED, onSearchLoading);
+  }, []);
+
+  useEffect(() => {
     if (signedIn === false) {
       setProfilePhoto(null);
       setAvatarInitials("U");
@@ -151,7 +161,6 @@ export function SiteHeader() {
       setExpertVisibilityState(null);
       setDisplayName("");
       setEmailAddress("");
-      setRoleMode("learner");
       setNextSessionCountdown(null);
       setBookedSessionsCount(0);
       setInboxUnreadCount(0);
@@ -186,12 +195,6 @@ export function SiteHeader() {
             ? p.email_address.trim()
             : "";
         setEmailAddress(email);
-        const dbMode = p?.convene_role_mode;
-        if (dbMode === "expert" || dbMode === "learner") {
-          setRoleMode(dbMode);
-        } else {
-          setRoleMode(Boolean(p?.has_expert_profile) ? "expert" : "learner");
-        }
       })
       .catch(() => {
         setProfilePhoto(null);
@@ -200,7 +203,6 @@ export function SiteHeader() {
         setExpertVisibilityState(null);
         setDisplayName("");
         setEmailAddress("");
-        setRoleMode("learner");
       })
       .finally(() => setMeLoaded(true));
   }, [signedIn]);
@@ -233,16 +235,12 @@ export function SiteHeader() {
       try {
         const data = (await summaryRes.value.json()) as {
           counts?: {
-            expertNewBookings?: number;
-            learnerUnpaidCardBookings?: number;
+            upcomingSessions?: number;
           };
         };
-        const ex = typeof data.counts?.expertNewBookings === "number" ? data.counts.expertNewBookings : 0;
-        const lr =
-          typeof data.counts?.learnerUnpaidCardBookings === "number"
-            ? data.counts.learnerUnpaidCardBookings
-            : 0;
-        setBookedSessionsCount(Math.max(0, ex + lr));
+        const upcoming =
+          typeof data.counts?.upcomingSessions === "number" ? data.counts.upcomingSessions : 0;
+        setBookedSessionsCount(Math.max(0, upcoming));
         bookedFromSummary = true;
       } catch {
         /* fall through */
@@ -257,20 +255,7 @@ export function SiteHeader() {
         if (!bookedFromSummary) {
           let fallbackBooked = 0;
           for (const s of sessions) {
-            const status = s.status as string | undefined;
-            const paymentStatus = s.payment_status as string | undefined;
-            const userRole = s.user_role as string | undefined;
-            const sessionDate = s.session_date as string | undefined;
-            const endTime = s.end_time as string | undefined;
-            if (
-              userRole === "expert" &&
-              status === "upcoming" &&
-              !bookingPaymentIsSettled(paymentStatus) &&
-              String(paymentStatus ?? "").toLowerCase() !== "refunded" &&
-              !hasSessionEndedByWallClock(sessionDate, endTime)
-            ) {
-              fallbackBooked += 1;
-            }
+            if (isUpcomingBookedSessionRow(s)) fallbackBooked += 1;
           }
           setBookedSessionsCount(fallbackBooked);
         }
@@ -415,11 +400,11 @@ export function SiteHeader() {
   function onHeaderSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const raw = searchQuery.trim();
+    dispatchSearchLoading(true);
+    setSearchWorking(true);
     if (raw) router.push(`/search?q=${encodeURIComponent(raw)}`);
     else router.push("/search");
   }
-
-  const isExpertMenu = signedIn && hasExpertProfile && roleMode === "expert";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur-md">
@@ -446,9 +431,19 @@ export function SiteHeader() {
               placeholder="Find an Expert or Ask a Question"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-full border-border pl-10 pr-12"
+              className="w-full rounded-full border-border pl-10 pr-12 [&::-ms-clear]:hidden [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               aria-label="Search experts"
+              aria-busy={searchWorking}
             />
+            {searchWorking ? (
+              <span
+                className="absolute right-10 top-1/2 -translate-y-1/2"
+                role="status"
+                aria-label="Searching"
+              >
+                <Loader2 className="h-4 w-4 animate-spin text-[#F77F00]" aria-hidden />
+              </span>
+            ) : null}
 
             <DropdownMenu open={showSearchMenu} onOpenChange={setShowSearchMenu}>
               <DropdownMenuTrigger asChild>
@@ -553,14 +548,14 @@ export function SiteHeader() {
             </>
           )}
 
-          {/* Booked Sessions Indicator - Shows count of actions required / new bookings */}
+          {/* Booked Sessions Indicator — upcoming session count */}
           {signedIn && bookedSessionsCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
               className="relative hover:bg-transparent"
               onClick={() => router.push("/dashboard?view=sessions")}
-              title="Booked Sessions - Actions Required"
+              title="Booked Sessions"
             >
               <Calendar className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-white text-xs flex items-center justify-center font-semibold">
@@ -618,7 +613,6 @@ export function SiteHeader() {
                         {signedIn ? avatarInitials : <User className="h-4 w-4" />}
                       </AvatarFallback>
                     </Avatar>
-                    <OnlineDot online={signedIn === true} />
                     <VisibleTempDot expertVisibilityState={expertVisibilityState} />
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -701,39 +695,17 @@ export function SiteHeader() {
                     <MessageSquare className="mr-2 h-4 w-4" />
                     Community
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {isExpertMenu ? (
+                  {showBecomeExpertBadge ? (
                     <DropdownMenuItem
-                      onSelect={async () => {
-                        const ok = await persistRoleMode("learner");
-                        if (ok) setRoleMode("learner");
-                        router.push("/dashboard?view=overview");
-                      }}
-                    >
-                      <GraduationCap className="mr-2 h-4 w-4" />
-                      Switch to Learning
-                    </DropdownMenuItem>
-                  ) : hasExpertProfile ? (
-                    <DropdownMenuItem
-                      onSelect={async () => {
-                        const ok = await persistRoleMode("expert");
-                        if (ok) setRoleMode("expert");
-                        router.push("/dashboard?view=community-requests");
+                      onSelect={() => {
+                        onBecomeExpertBadgeClick();
                       }}
                     >
                       <Briefcase className="mr-2 h-4 w-4" />
-                      Switch to Coaching
+                      Become an Expert
                     </DropdownMenuItem>
-                  ) : (
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      onBecomeExpertBadgeClick();
-                    }}
-                  >
-                    <Briefcase className="mr-2 h-4 w-4" />
-                    Become an Expert
-                  </DropdownMenuItem>
-                  )}
+                  ) : null}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => {
                       void signOut();
@@ -790,9 +762,19 @@ export function SiteHeader() {
             placeholder="Find an Expert or Ask a Question"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-full border-border pl-10 pr-12"
+            className="w-full rounded-full border-border pl-10 pr-12 [&::-ms-clear]:hidden [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             aria-label="Search experts"
+            aria-busy={searchWorking}
           />
+          {searchWorking ? (
+            <span
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              role="status"
+              aria-label="Searching"
+            >
+              <Loader2 className="h-4 w-4 animate-spin text-[#F77F00]" aria-hidden />
+            </span>
+          ) : null}
         </form>
       </div>
     </header>

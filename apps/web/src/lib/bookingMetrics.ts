@@ -142,7 +142,7 @@ export type BookingRowWithExpertId = BookingForMetrics & {
 
 /** Columns required to count completed sessions and compute dependability (same rules as Session Details). */
 export const BOOKING_SELECT_FOR_METRICS =
-  "booking_id, expert_user_id, learner_user_id, session_date, start_time, end_time, status, payment_status, cancelled_at, cancelled_by, learner_joined, expert_joined, learner_delay, expert_delay, expert_dependability, learner_dependability, extensions, extensions_amount, reschedule_request_id" as const;
+  "booking_id, expert_user_id, learner_user_id, session_date, start_time, end_time, status, payment_status, cancelled_at, cancelled_by, learner_joined, expert_joined, learner_delay, expert_delay, expert_dependability, learner_dependability, extensions, extensions_amount, reschedule_request_id, stripe_payment_method_id" as const;
 
 export function bucketBookingsByExpertUserId(rows: BookingRowWithExpertId[]): Map<string, BookingForMetrics[]> {
   const m = new Map<string, BookingForMetrics[]>();

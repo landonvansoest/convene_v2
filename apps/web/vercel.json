@@ -1,4 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/notifications/check-booking-confirmations",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

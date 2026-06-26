@@ -1,15 +1,22 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensurePublishedExpertPackageFromAvailability } from "@/lib/packages/sync-expert-package-from-availability";
 import { getAuthedUserId } from "@/lib/messages/service";
+import { computeSessionCheckoutPricing } from "@/lib/sessionCheckoutPricing";
 import { getStripe } from "@/lib/stripe/server";
 import { publicApiError } from "@/lib/api/public-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const bodySchema = z.object({
-  packageId: z.string().uuid(),
-});
+const bodySchema = z
+  .object({
+    packageId: z.string().uuid().optional(),
+    expertUserId: z.string().uuid().optional(),
+  })
+  .refine((d) => Boolean(d.packageId?.trim() || d.expertUserId?.trim()), {
+    message: "packageId or expertUserId is required",
+  });
 
 /**
  * One-time Checkout for an expert package (grants credits via webhook on `checkout.session.completed`).
@@ -37,8 +44,17 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, { status: 400 });
   }
 
-  const { packageId } = parsed.data;
+  const { packageId: bodyPackageId, expertUserId } = parsed.data;
   const admin = createAdminClient();
+
+  let packageId = bodyPackageId?.trim() ?? "";
+  if (!packageId && expertUserId) {
+    const offer = await ensurePublishedExpertPackageFromAvailability(admin, expertUserId);
+    if (!offer) {
+      return Response.json({ error: "Expert has no purchasable package configured" }, { status: 404 });
+    }
+    packageId = offer.package_id;
+  }
 
   const { data: pkg, error: pkgErr } = await admin
     .from("expert_packages")
@@ -58,16 +74,29 @@ export async function POST(request: Request) {
   const currency = (pkg.currency ?? "USD").toLowerCase();
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
+  const refreshedOffer = await ensurePublishedExpertPackageFromAvailability(admin, pkg.expert_user_id);
+  const packageBaseUsd =
+    refreshedOffer?.package_id === packageId
+      ? refreshedOffer.pricing.packageUsd
+      : Number(pkg.price_cents ?? 0) / 100;
+
+  if (!Number.isFinite(packageBaseUsd) || packageBaseUsd <= 0) {
+    return Response.json({ error: "Package has no price configured" }, { status: 400 });
+  }
+
+  const checkoutPricing = computeSessionCheckoutPricing(packageBaseUsd);
+  const totalCents = Math.round(checkoutPricing.total_amount * 100);
+
   let lineItems: import("stripe").Stripe.Checkout.SessionCreateParams.LineItem[];
 
   if (pkg.stripe_price_id?.trim()) {
     lineItems = [{ price: pkg.stripe_price_id.trim(), quantity: 1 }];
-  } else if (pkg.price_cents != null && Number(pkg.price_cents) > 0) {
+  } else {
     lineItems = [
       {
         price_data: {
           currency,
-          unit_amount: Number(pkg.price_cents),
+          unit_amount: totalCents,
           product_data: {
             name: pkg.title,
             metadata: { package_id: packageId },
@@ -76,8 +105,6 @@ export async function POST(request: Request) {
         quantity: 1,
       },
     ];
-  } else {
-    return Response.json({ error: "Package has no price configured" }, { status: 400 });
   }
 
   const session = await stripe.checkout.sessions.create({

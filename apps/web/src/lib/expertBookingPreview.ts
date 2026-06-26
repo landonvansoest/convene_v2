@@ -10,6 +10,11 @@ import {
   WEEKDAY_KEYS,
 } from "@/components/expert/weeklyAvailabilityUtils";
 import { intervalStringToMinutes } from "@/lib/expert-registration";
+import {
+  proposedSessionOverlapsBlockingIntervals,
+  timeStrToSec,
+  type ExpertBlockingInterval,
+} from "@/lib/expert-booking-blocks";
 
 const SLOT_STEP_MIN = 15;
 const DEFAULT_MIN_BOOKING = 30;
@@ -47,6 +52,48 @@ export type BookingWeekPreview = {
   /** e.g. "Apr 1, 2026" — first day of the preview strip in the expert's time zone. */
   asOfDateLabel: string;
 };
+
+export type { ExpertBlockingInterval } from "@/lib/expert-booking-blocks";
+
+export type BookingPreviewOptions = {
+  displayTimeZone?: string | null;
+  blockingIntervals?: ExpertBlockingInterval[];
+};
+
+function isSlotStartAvailable(
+  utcMs: number,
+  comp: PreviewComputation,
+  blockingIntervals?: ExpertBlockingInterval[],
+): boolean {
+  if (!blockingIntervals?.length) return true;
+  const endUtcMs = utcMs + comp.minBookingMin * 60000;
+  const times = bookingTimesForPg(utcMs, endUtcMs, comp.tz);
+  if (!times) return false;
+  return !proposedSessionOverlapsBlockingIntervals(
+    times.sessionDate,
+    timeStrToSec(times.startTime),
+    timeStrToSec(times.endTime),
+    blockingIntervals,
+  );
+}
+
+/** Calendar dates (expert TZ) covered by the seven-day booking strip. */
+export function bookingPreviewSessionDates(
+  row: ExpertAvailabilityForPreview | null | undefined,
+  expertTimeZone: string | null | undefined,
+  now: Date = new Date(),
+  dayCount = 7,
+): string[] {
+  const comp = buildPreviewComputation(row, expertTimeZone, now);
+  if (!comp) return [];
+  const { y: y0, m: m0, d: d0 } = zonedParts(now.getTime(), comp.tz);
+  const dates: string[] = [];
+  for (let i = 0; i < dayCount; i += 1) {
+    const { y, m, d } = addCalendarDaysGregorian(y0, m0, d0, i);
+    dates.push(ymdKey(y, m, d));
+  }
+  return dates;
+}
 
 export type ExpertAvailabilityForPreview = {
   weekly_schedule: unknown;
@@ -242,7 +289,11 @@ export function buildPreviewComputation(
 }
 
 /** All bookable slot starts in `[earliestUtc, latestUtc]`, chronological, up to LONG_RANGE_DAYS. */
-function* iterateBookableSlotStarts(comp: PreviewComputation, now: Date): Generator<number> {
+function* iterateBookableSlotStarts(
+  comp: PreviewComputation,
+  now: Date,
+  blockingIntervals?: ExpertBlockingInterval[],
+): Generator<number> {
   const { y: y0, m: m0, d: d0 } = zonedParts(now.getTime(), comp.tz);
   for (let dayOff = 0; dayOff < LONG_RANGE_DAYS; dayOff += 1) {
     const { y, m, d } = addCalendarDaysGregorian(y0, m0, d0, dayOff);
@@ -259,6 +310,7 @@ function* iterateBookableSlotStarts(comp: PreviewComputation, now: Date): Genera
     )) {
       if (utcMs < comp.earliestUtc) continue;
       if (utcMs > comp.latestUtc) return;
+      if (!isSlotStartAvailable(utcMs, comp, blockingIntervals)) continue;
       yield utcMs;
     }
   }
@@ -275,18 +327,18 @@ export type AvailableNowResult = {
 
 /**
  * True when the expert's schedule yields a bookable start within the next hour,
- * respecting minimum notice, calendar pause, and weekly/override windows.
- * Does not subtract existing bookings (same model as next_bookable_slots preview).
+ * respecting minimum notice, calendar pause, weekly/override windows, and existing bookings.
  */
 export function computeAvailableNow(
   row: ExpertAvailabilityForPreview | null | undefined,
   expertTimeZone: string | null | undefined,
   now: Date = new Date(),
+  blockingIntervals?: ExpertBlockingInterval[],
 ): AvailableNowResult {
   const comp = buildPreviewComputation(row, expertTimeZone, now);
   if (!comp) return { availableNow: false, availableUntil: null };
 
-  const next = findNextSlotStartUtc(comp, now);
+  const next = findNextSlotStartUtc(comp, now, blockingIntervals);
   if (!next) return { availableNow: false, availableUntil: null };
 
   const nowMs = now.getTime();
@@ -306,8 +358,9 @@ export function computeAvailableNow(
 export function findNextSlotStartUtc(
   comp: PreviewComputation,
   now: Date = new Date(),
+  blockingIntervals?: ExpertBlockingInterval[],
 ): { utcMs: number; y: number; m: number; d: number; startMinuteOfDay: number } | null {
-  for (const utcMs of iterateBookableSlotStarts(comp, now)) {
+  for (const utcMs of iterateBookableSlotStarts(comp, now, blockingIntervals)) {
     const p = zonedParts(utcMs, comp.tz);
     return { utcMs, y: p.y, m: p.m, d: p.d, startMinuteOfDay: p.h * 60 + p.mi };
   }
@@ -360,6 +413,7 @@ export function computeNextBookableSlots(
   expertTimeZone: string | null | undefined,
   count: number,
   now: Date = new Date(),
+  blockingIntervals?: ExpertBlockingInterval[],
 ): NextBookableSlot[] {
   const comp = buildPreviewComputation(row, expertTimeZone, now);
   if (!comp || count <= 0) return [];
@@ -367,7 +421,7 @@ export function computeNextBookableSlots(
   const bufferMs = comp.bufferMin * 60000;
   const out: NextBookableSlot[] = [];
   let minNextStart = comp.earliestUtc;
-  for (const utcMs of iterateBookableSlotStarts(comp, now)) {
+  for (const utcMs of iterateBookableSlotStarts(comp, now, blockingIntervals)) {
     if (utcMs < minNextStart) continue;
     const endUtc = utcMs + minBookMs;
     const { displayDate, displayTime } = formatSearchSlotParts(utcMs, endUtc, comp.tz);
@@ -387,10 +441,11 @@ export function computeNextAvailableSummary(
   row: ExpertAvailabilityForPreview | null | undefined,
   expertTimeZone: string | null | undefined,
   now: Date = new Date(),
+  blockingIntervals?: ExpertBlockingInterval[],
 ): string | null {
   const comp = buildPreviewComputation(row, expertTimeZone, now);
   if (!comp) return null;
-  const next = findNextSlotStartUtc(comp, now);
+  const next = findNextSlotStartUtc(comp, now, blockingIntervals);
   if (!next) return null;
   const when = new Date(next.utcMs);
   const datePart = new Intl.DateTimeFormat("en-US", {
@@ -436,7 +491,11 @@ function previewMetaForTz(
   return { monthYearLabel, timeZoneNote, timezoneNameLabel, asOfDateLabel };
 }
 
-function buildBookingWeekPreviewExpertTz(comp: PreviewComputation, now: Date): BookingWeekPreview {
+function buildBookingWeekPreviewExpertTz(
+  comp: PreviewComputation,
+  now: Date,
+  blockingIntervals?: ExpertBlockingInterval[],
+): BookingWeekPreview {
   const { y: y0, m: m0, d: d0 } = zonedParts(now.getTime(), comp.tz);
   const days: BookingWeekPreviewDay[] = [];
   for (let i = 0; i < 7; i += 1) {
@@ -458,6 +517,7 @@ function buildBookingWeekPreviewExpertTz(comp: PreviewComputation, now: Date): B
         comp.tz,
       )) {
         if (utcMs < comp.earliestUtc || utcMs > comp.latestUtc) continue;
+        if (!isSlotStartAvailable(utcMs, comp, blockingIntervals)) continue;
         if (labels.length >= MAX_PREVIEW_SLOTS_PER_DAY) break;
         const p = zonedParts(utcMs, comp.tz);
         const startStr = minutesToTimeString(p.h * 60 + p.mi);
@@ -473,7 +533,12 @@ function buildBookingWeekPreviewExpertTz(comp: PreviewComputation, now: Date): B
 }
 
 /** Seven-day strip in `displayTz` (viewer) with slot labels in that zone; slot UTC instants unchanged. */
-function buildBookingWeekPreviewDisplayTz(comp: PreviewComputation, displayTz: string, now: Date): BookingWeekPreview {
+function buildBookingWeekPreviewDisplayTz(
+  comp: PreviewComputation,
+  displayTz: string,
+  now: Date,
+  blockingIntervals?: ExpertBlockingInterval[],
+): BookingWeekPreview {
   const z = normalizeToSafeIanaTimeZone(displayTz);
   const { y: y0, m: m0, d: d0 } = zonedParts(now.getTime(), z);
   const dayMeta: { y: number; m: number; d: number; key: string }[] = [];
@@ -484,7 +549,7 @@ function buildBookingWeekPreviewDisplayTz(comp: PreviewComputation, displayTz: s
   const byKey = new Map<string, number[]>();
   for (const { key } of dayMeta) byKey.set(key, []);
 
-  for (const utcMs of iterateBookableSlotStarts(comp, now)) {
+  for (const utcMs of iterateBookableSlotStarts(comp, now, blockingIntervals)) {
     const p = zonedParts(utcMs, z);
     const key = ymdKey(p.y, p.m, p.d);
     const arr = byKey.get(key);
@@ -518,20 +583,21 @@ export function computeBookingWeekPreview(
   row: ExpertAvailabilityForPreview | null | undefined,
   expertTimeZone: string | null | undefined,
   now: Date = new Date(),
-  options?: { displayTimeZone?: string | null },
+  options?: BookingPreviewOptions,
 ): BookingWeekPreview | null {
   const comp = buildPreviewComputation(row, expertTimeZone, now);
   if (!comp) return null;
+  const blockingIntervals = options?.blockingIntervals;
 
   const raw = options?.displayTimeZone?.trim();
   if (raw) {
     const displayTz = normalizeToSafeIanaTimeZone(raw);
     if (displayTz !== comp.tz) {
-      return buildBookingWeekPreviewDisplayTz(comp, displayTz, now);
+      return buildBookingWeekPreviewDisplayTz(comp, displayTz, now, blockingIntervals);
     }
   }
 
-  return buildBookingWeekPreviewExpertTz(comp, now);
+  return buildBookingWeekPreviewExpertTz(comp, now, blockingIntervals);
 }
 
 export type BookingSlotChip = { utcMs: number; label: string };
@@ -544,7 +610,7 @@ export function buildBookingSlotRowFromAnchor(
   expertTimeZone: string | null | undefined,
   anchorUtcMs: number,
   now: Date = new Date(),
-  options?: { maxCount?: number; labelTimeZone?: string | null },
+  options?: { maxCount?: number; labelTimeZone?: string | null; blockingIntervals?: ExpertBlockingInterval[] },
 ): BookingSlotChip[] {
   const maxCount = options?.maxCount ?? 36;
   const comp = buildPreviewComputation(row, expertTimeZone, now);
@@ -555,10 +621,12 @@ export function buildBookingSlotRowFromAnchor(
     options?.labelTimeZone != null && String(options.labelTimeZone).trim() !== ""
       ? normalizeToSafeIanaTimeZone(options.labelTimeZone)
       : comp.tz;
+  const blockingIntervals = options?.blockingIntervals;
   const out: BookingSlotChip[] = [];
   for (const utcMs of slotStartUtcMsForDay(y, m, d, daySlots, comp.minBookingMin, comp.bufferMin, comp.tz)) {
     if (utcMs < comp.earliestUtc || utcMs > comp.latestUtc) continue;
     if (utcMs < anchorUtcMs) continue;
+    if (!isSlotStartAvailable(utcMs, comp, blockingIntervals)) continue;
     if (out.length >= maxCount) break;
     const p = zonedParts(utcMs, labelTz);
     const startStr = minutesToTimeString(p.h * 60 + p.mi);

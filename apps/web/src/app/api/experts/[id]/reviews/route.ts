@@ -26,6 +26,21 @@ export async function GET(request: Request, { params }: Params) {
   }
 
   const list = rows ?? [];
+  const reviewerIds = [...new Set(list.map((r) => r.learner_reviewer_id).filter(Boolean))] as string[];
+  const names = new Map<string, string>();
+  const photos = new Map<string, string | null>();
+  if (reviewerIds.length) {
+    const { data: reviewers } = await admin
+      .from("users")
+      .select("user_id, first_name, last_name, email_address, profile_photo")
+      .in("user_id", reviewerIds);
+    for (const u of reviewers ?? []) {
+      const n = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email_address || "Community Member";
+      names.set(u.user_id, n);
+      photos.set(u.user_id, u.profile_photo ?? null);
+    }
+  }
+
   const avg =
     list.length > 0
       ? list.reduce((s, r) => s + Number(r.overall_rating), 0) / list.length
@@ -41,6 +56,8 @@ export async function GET(request: Request, { params }: Params) {
       personable_rating: r.personable_rating,
       public_review: r.public_review,
       created_at: r.created_at,
+      reviewer_name: names.get(r.learner_reviewer_id) ?? "Community Member",
+      reviewer_photo: photos.get(r.learner_reviewer_id) ?? null,
     })),
     count: list.length,
     average_overall: avg != null ? Math.round(avg * 10) / 10 : null,

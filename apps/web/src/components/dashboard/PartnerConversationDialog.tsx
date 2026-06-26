@@ -12,7 +12,10 @@ import {
 import { dashboardInputClass } from "@/app/dashboard/DashboardViewShell";
 import { formatChatMessageDate } from "@/lib/messages/formatMessageDate";
 import { RescheduleOfferMessageActions } from "@/components/messages/RescheduleOfferMessageActions";
+import { OfferMessageBody } from "@/components/messages/OfferMessageBody";
+import { MessageBodyText } from "@/components/messages/MessageBodyText";
 import { SendOfferDialog } from "@/components/dashboard/SendOfferDialog";
+import { SessionPaymentDialog } from "@/components/dashboard/SessionPaymentDialog";
 import { VisibleTempDot } from "@/components/presence/VisibleTempDot";
 
 type Msg = {
@@ -23,6 +26,9 @@ type Msg = {
   offer_id?: string | null;
   offer_type?: string | null;
   offer_status?: string | null;
+  offer_payload?: Record<string, unknown> | null;
+  companion_message?: string | null;
+  sender_name?: string | null;
 };
 
 export type PartnerConversationDialogProps = {
@@ -53,6 +59,7 @@ export function PartnerConversationDialog({
   const [sending, setSending] = useState(false);
   const [hasExpertProfile, setHasExpertProfile] = useState(false);
   const [suggestOfferOpen, setSuggestOfferOpen] = useState(false);
+  const [payBookingId, setPayBookingId] = useState<string | null>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
 
   const demoMessages = useMemo((): Msg[] => {
@@ -192,13 +199,28 @@ export function PartnerConversationDialog({
                         {formatChatMessageDate(m.created_at)}
                       </p>
                     ) : null}
-                    <p className="whitespace-pre-wrap">{m.message_body}</p>
+                    {m.offer_id ? (
+                      <OfferMessageBody
+                        offerType={m.offer_type}
+                        offerPayload={m.offer_payload}
+                        offerStatus={m.offer_status}
+                        companionMessage={m.companion_message}
+                        senderName={m.sender_name}
+                        messageBody={m.message_body}
+                        variant={mine ? "solidMine" : "theirs"}
+                      />
+                    ) : (
+                      <MessageBodyText
+                        text={m.message_body}
+                        variant={mine ? "solidMine" : "theirs"}
+                      />
+                    )}
                     <RescheduleOfferMessageActions
                       message={m}
                       viewerUserId={meId}
                       variant={mine ? "mineSolid" : "theirs"}
                       onThreadChanged={() => void (partnerId && loadThread(partnerId))}
-                      composerInputRef={composerInputRef}
+                      onAcceptPayment={(bookingId) => setPayBookingId(bookingId)}
                     />
                   </div>
                 </div>
@@ -250,6 +272,17 @@ export function PartnerConversationDialog({
         onSubmitted={() => void (partnerId && loadThread(partnerId))}
       />
     ) : null}
+    <SessionPaymentDialog
+      open={Boolean(payBookingId)}
+      onOpenChange={(open) => {
+        if (!open) setPayBookingId(null);
+      }}
+      bookingId={payBookingId ?? ""}
+      onPaid={() => {
+        setPayBookingId(null);
+        if (partnerId) void loadThread(partnerId);
+      }}
+    />
     </>
   );
 }

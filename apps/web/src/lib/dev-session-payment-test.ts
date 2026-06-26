@@ -4,6 +4,7 @@ import {
   expertHasBlockingBookingOverlap,
   prepareExpertSessionBooking,
 } from "@/lib/session-booking-prepare";
+import { dispatchBookingConfirmed } from "@/lib/notifications/booking-notifications";
 
 /**
  * Whether session/freelance/extension payments may proceed without an expert
@@ -132,6 +133,11 @@ export async function completeLegacyBookingPaymentTest(
 
   const ps = String(booking.payment_status ?? "").toLowerCase();
   if (ps === "paid" || ps === "succeeded") {
+    try {
+      await dispatchBookingConfirmed(bookingId);
+    } catch (e) {
+      console.error("[dev-session-payment-test] booking confirmed notification failed", e);
+    }
     return { ok: true };
   }
   if (ps !== "pending" && ps !== "failed") {
@@ -147,6 +153,11 @@ export async function completeLegacyBookingPaymentTest(
     .maybeSingle();
 
   if (existingTx) {
+    try {
+      await dispatchBookingConfirmed(bookingId);
+    } catch (e) {
+      console.error("[dev-session-payment-test] booking confirmed notification failed", e);
+    }
     return { ok: true };
   }
 
@@ -163,6 +174,11 @@ export async function completeLegacyBookingPaymentTest(
   const ok = await insertSessionBookingLedgerForTest(admin, booking, booking.total_amount);
   if (!ok) {
     return { error: "Could not record payment", status: 500 };
+  }
+  try {
+    await dispatchBookingConfirmed(bookingId);
+  } catch (e) {
+    console.error("[dev-session-payment-test] booking confirmed notification failed", e);
   }
   return { ok: true };
 }
@@ -240,6 +256,12 @@ export async function completeDeferredSessionPaymentTest(
   if (!ok) {
     await admin.from("bookings").delete().eq("booking_id", inserted.booking_id);
     return { error: "Could not record payment", status: 500 };
+  }
+
+  try {
+    await dispatchBookingConfirmed(String(inserted.booking_id));
+  } catch (e) {
+    console.error("[dev-session-payment-test] booking confirmed notification failed", e);
   }
 
   return { ok: true, booking_id: inserted.booking_id };
